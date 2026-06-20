@@ -1,3 +1,7 @@
+# Load .env values (if the file exists) before any ?= defaults so that variables
+# defined there take precedence over the empty fallbacks below.
+-include .env
+
 # Auto-detected at install time; override with PYTHON=pythonX.Y to pin a specific interpreter.
 PYTHON ?= python3.12
 VENV ?= .venv
@@ -17,8 +21,9 @@ VENV_BIN = PATH="$(VENV)/bin:$$PATH"
 
 DB_ENV = NERDCTL_BIN="$(NERDCTL)" DB_CONTAINER="$(DB_CONTAINER)" DB_VOLUME="$(DB_VOLUME)" DB_NAME="$(DB_NAME)" DB_USER="$(DB_USER)" DB_PASSWORD="$(DB_PASSWORD)" DB_PORT="$(DB_PORT)"
 
-WALMART_PIP_INDEX ?= https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/pythonhosted-pypi-release-remote/simple
-WALMART_NPM_REGISTRY ?= https://npm.ci.artifacts.walmart.com/artifactory/api/npm/external-npm
+# Corporate registry URLs — set in .env; empty here so .env values take priority.
+CORPORATIVE_PIP_INDEX ?=
+CORPORATIVE_NPM_REGISTRY ?=
 
 # Docker/testcontainers: auto-detect Rancher Desktop socket and disable Ryuk (Ryuk fails on Rancher Desktop)
 _RANCHER_SOCK = $(HOME)/.docker/run/docker.sock
@@ -38,7 +43,7 @@ install:
 	  echo "  Option 1 — pyenv (recommended if already installed):"; \
 	  echo "    pyenv install 3.12 && pyenv local 3.12"; \
 	  echo ""; \
-	  echo "  Option 2 — install pyenv without brew (works on Walmart VPN):"; \
+	  echo "  Option 2 — install pyenv without brew (works on Corporative VPN):"; \
 	  echo "    curl -fsSL https://pyenv.run | bash"; \
 	  echo "    # then add to your shell profile and restart terminal"; \
 	  echo "    pyenv install 3.12 && pyenv local 3.12"; \
@@ -51,8 +56,8 @@ install:
 	}; \
 	echo "  → Using $$python_bin ($$($$python_bin --version))"; \
 	"$$python_bin" -m venv "$(VENV)"
-	@if curl -sfL --connect-timeout 3 -o /dev/null "$(WALMART_PIP_INDEX)/" 2>/dev/null; then \
-	  echo "  → Walmart VPN — routing pip through sysproxy"; \
+	@if curl -sfL --connect-timeout 3 -o /dev/null "$(CORPORATIVE_PIP_INDEX)/" 2>/dev/null; then \
+	  echo "  → Corporative VPN — routing pip through sysproxy"; \
 	  printf '[global]\nproxy = http://sysproxy.wal-mart.com:8080\n' > "$(VENV)/pip.conf"; \
 	else \
 	  echo "  → No VPN — disabling corporate proxy env vars for pip"; \
@@ -65,9 +70,12 @@ reinstall: clean
 	rm -rf $(VENV)
 	@$(MAKE) --no-print-directory install
 
-# Writes a local .env file with database connection defaults.
+# Writes a local .env file with database connection and tooling defaults.
 env-write:
 	@printf 'FINANCIAL_DATA_DATABASE_URL=postgresql+asyncpg://$(DB_USER):$(DB_PASSWORD)@localhost:$(DB_PORT)/$(DB_NAME)\n' > $(ENV_FILE)
+	@printf '\n# Tooling — corporate pip/npm registries (used by make install/check on VPN)\n' >> $(ENV_FILE)
+	@printf 'CORPORATIVE_PIP_INDEX=https://pypi.ci.artifacts.corporative.com/artifactory/api/pypi/pythonhosted-pypi-release-remote/simple\n' >> $(ENV_FILE)
+	@printf 'CORPORATIVE_NPM_REGISTRY=https://npm.ci.artifacts.corporative.com/artifactory/api/npm/external-npm\n' >> $(ENV_FILE)
 	@echo "  ✓ $(ENV_FILE) written"
 
 # Starts the PostgreSQL container and applies schema + seed.
@@ -127,9 +135,9 @@ duplicate-code-src:
 
 # Runs jscpd with configurable path and threshold.
 _duplicate-code:
-	@if curl -sfL --connect-timeout 2 -o /dev/null "$(WALMART_NPM_REGISTRY)/" 2>/dev/null; then \
-	  echo "  → Walmart VPN detected — using Artifactory npm registry"; \
-	  export npm_config_registry="$(WALMART_NPM_REGISTRY)"; \
+	@if curl -sfL --connect-timeout 2 -o /dev/null "$(CORPORATIVE_NPM_REGISTRY)/" 2>/dev/null; then \
+	  echo "  → Corporative VPN detected — using Artifactory npm registry"; \
+	  export npm_config_registry="$(CORPORATIVE_NPM_REGISTRY)"; \
 	fi; \
 	npx --yes jscpd --mode strict --min-lines 10 --min-tokens 70 --threshold $(DUPLICATE_THRESHOLD) --reporters console --ignore "**/.venv/**,**/build/**,**/dist/**" $(DUPLICATE_PATH)
 
@@ -147,7 +155,7 @@ dead-code:
 typecheck:
 	$(VENV_BIN) mypy --install-types --non-interactive src
 
-# Installs Python 3.12 via pyenv (installs pyenv first if not found). Works on Walmart VPN.
+# Installs Python 3.12 via pyenv (installs pyenv first if not found). Works on Corporative VPN.
 install-python:
 	@if command -v pyenv >/dev/null 2>&1; then \
 	  echo "  → pyenv found, installing Python 3.12..."; \
