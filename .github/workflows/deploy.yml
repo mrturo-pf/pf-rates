@@ -151,12 +151,15 @@ jobs:
       - name: Export image to tar for scanning
         run: docker save pf-rates:scan -o /tmp/pf-rates-scan.tar
 
-      # Install Trivy directly — avoids action tag resolution issues.
-      # Pinned to a specific version for reproducibility.
+      # Install Trivy by downloading the release tarball directly.
+      # The install.sh script can fail on write permissions; direct download is more reliable.
       - name: Install Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-            | sh -s -- -b /usr/local/bin v0.52.0
+          curl -sSL "https://github.com/aquasecurity/trivy/releases/download/v0.52.0/trivy_0.52.0_Linux-64bit.tar.gz" \
+            -o /tmp/trivy.tar.gz
+          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
+          sudo mv /tmp/trivy /usr/local/bin/trivy
+          trivy --version
 
       # Pass 1: SARIF for GitHub Security tab (exit-code 0 — always creates file)
       - name: Trivy scan — SARIF
