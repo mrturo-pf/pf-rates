@@ -1,0 +1,304 @@
+# ============================================================
+# pf-rates — Cloud Run deploy pipeline
+# ============================================================
+#
+# ONE-TIME GCP SETUP (run once per project, not part of CI):
+#
+#   # 1. Enable required APIs
+#   gcloud services enable \
+#     run.googleapis.com \
+#     artifactregistry.googleapis.com \
+#     sqladmin.googleapis.com \
+#     secretmanager.googleapis.com \
+#     cloudbuild.googleapis.com
+#
+#   # 2. Create Artifact Registry repository
+#   #    NOTE: do NOT enable containerscanning.googleapis.com — this keeps
+#   #    vulnerability scanning disabled and avoids ~$5/month in scan fees.
+#   gcloud artifacts repositories create pf-rates \
+#     --repository-format=docker \
+#     --location=us-central1 \
+#     --description="pf-rates container images"
+#
+#   # 3. Create Cloud SQL instance (db-f1-micro ≈ $7/month, cheapest GCP-native)
+#   #    Alternative: set FINANCIAL_DATA_DATABASE_URL to a free external DB
+#   #    (Neon, Supabase) and skip Cloud SQL entirely.
+#   gcloud sql instances create pf-rates-db \
+#     --database-version=POSTGRES_16 \
+#     --tier=db-f1-micro \
+#     --region=us-central1 \
+#     --no-assign-ip \
+#     --storage-type=SSD \
+#     --storage-size=10GB
+#
+#   gcloud sql databases create rates --instance=pf-rates-db
+#   gcloud sql users create rates --instance=pf-rates-db --password=<STRONG_PASSWORD>
+#
+#   # 4. Create the DATABASE_URL secret in Secret Manager
+#   #    Cloud SQL Unix socket format:
+#   #      postgresql+asyncpg://rates:<PASSWORD>@/rates?host=/cloudsql/PROJECT:REGION:INSTANCE
+#   echo -n "postgresql+asyncpg://rates:<PASSWORD>@/rates?host=/cloudsql/<PROJECT>:us-central1:pf-rates-db" | \
+#     gcloud secrets create FINANCIAL_DATA_DATABASE_URL --data-file=-
+#
+#   # 5. Create service account and grant IAM roles
+#   gcloud iam service-accounts create pf-rates-deployer \
+#     --display-name="pf-rates GitHub Actions deployer"
+#
+#   SA="pf-rates-deployer@<PROJECT>.iam.gserviceaccount.com"
+#
+#   for ROLE in \
+#     roles/run.admin \
+#     roles/artifactregistry.writer \
+#     roles/cloudsql.client \
+#     roles/secretmanager.secretAccessor \
+#     roles/iam.serviceAccountUser; do
+#     gcloud projects add-iam-policy-binding <PROJECT> \
+#       --member="serviceAccount:${SA}" --role="${ROLE}"
+#   done
+#
+#   # 6. Create and export the SA JSON key → add as GCP_SA_KEY GitHub secret
+#   gcloud iam service-accounts keys create sa-key.json --iam-account="${SA}"
+#   # Upload sa-key.json contents to GitHub secret GCP_SA_KEY, then delete the file.
+#   rm sa-key.json
+#
+#   # 7. Grant SA access to the DATABASE_URL secret
+#   gcloud secrets add-iam-policy-binding FINANCIAL_DATA_DATABASE_URL \
+#     --member="serviceAccount:${SA}" \
+#     --role="roles/secretmanager.secretAccessor"
+#
+#   # 8. Create the Dockerfile at repo root before running this pipeline.
+#   #    Minimal example:
+#   #      FROM python:3.12-slim
+#   #      WORKDIR /app
+#   #      COPY . .
+#   #      RUN pip install --no-cache-dir -e .
+#   #      ENV PORT=8080
+#   #      CMD ["uvicorn", "financial_data.interfaces.api.app:app", \
+#   #           "--host", "0.0.0.0", "--port", "8080"]
+#
+# Required GitHub Secrets:
+#   GCP_SA_KEY                      — service account JSON key (base64 or raw JSON)
+#   GCP_PROJECT_ID                  — GCP project ID
+#   FINANCIAL_DATA_DATABASE_URL     — stored in Secret Manager; referenced below
+#   FINANCIAL_DATA_BCCH_API_USER    — (optional) Banco Central API user
+#   FINANCIAL_DATA_BCCH_API_PASSWORD — (optional) Banco Central API password
+#
+# ============================================================
+
+name: CI / Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGION: us-central1
+  AR_REPO: pf-rates
+  SERVICE_NAME: pf-rates
+  MIGRATION_JOB: pf-rates-migrate
+
+permissions:
+  contents: read
+  security-events: write  # required for SARIF upload to GitHub Security
+
+jobs:
+  # ------------------------------------------------------------------
+  # test: lint, unit+integration tests, Docker build, Trivy scan
+  # ------------------------------------------------------------------
+  test:
+    name: Test & Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check src tests
+
+      - name: Run tests
+        run: pytest
+
+      # Build image locally so Trivy can scan it without pushing first.
+      # The image is NOT pushed in this step.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: pf-rates:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Run Trivy twice:
+      #   1st pass — emit SARIF (exit-code 0 so upload always runs)
+      #   2nd pass — gate the pipeline (exit-code 1 on CRITICAL/HIGH)
+      - name: Trivy scan — SARIF output
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: pf-rates:scan
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+
+      - name: Upload Trivy SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Trivy scan — pipeline gate
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: pf-rates:scan
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+  # ------------------------------------------------------------------
+  # deploy: build, push, migrate, deploy (only on push to main)
+  # ------------------------------------------------------------------
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: GCP
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      # Cost-control guard: block the pipeline if Artifact Registry vulnerability
+      # scanning is enabled on the repository — it adds ~$5/month per image.
+      - name: Verify Artifact Registry scanning is disabled
+        run: |
+          set -euo pipefail
+
+          if ! STATUS=$(gcloud artifacts repositories describe "${{ env.AR_REPO }}" \
+              --location="${{ env.REGION }}" \
+              --format="value(vulnerabilityScanningConfig.enablementConfig)" 2>&1); then
+            echo "❌ Cannot access Artifact Registry repo '${{ env.AR_REPO }}'"
+            echo "Create it first (see setup instructions at the top of this file)."
+            echo "$STATUS"
+            exit 1
+          fi
+
+          STATUS=$(echo "$STATUS" | grep -E '^(ENABLED|DISABLED)$' | tail -1 || true)
+          echo "Vulnerability scanning: ${STATUS:-unknown}"
+
+          if [ "${STATUS}" = "ENABLED" ]; then
+            echo "❌ Vulnerability scanning is ENABLED — blocking deploy to prevent ~\$5/month charges."
+            echo "Fix: gcloud artifacts repositories update ${{ env.AR_REPO }} --location=${{ env.REGION }} --disable-vulnerability-scanning"
+            exit 1
+          fi
+          echo "✅ Vulnerability scanning disabled."
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+            ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.SERVICE_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.SERVICE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.SERVICE_NAME }}:buildcache,mode=max
+
+      # Run Alembic migrations via a Cloud Run Job BEFORE the new service
+      # revision receives traffic. --wait makes the step fail if migrations fail.
+      # GCP_CLOUD_SQL_INSTANCE is optional: set it to "PROJECT:REGION:INSTANCE"
+      # for Cloud SQL (Option B). Leave it empty for external DB (Option A).
+      - name: Create or update Alembic migration Cloud Run Job
+        run: |
+          set -euo pipefail
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
+          CLOUDSQL_FLAG=""
+          if [ -n "${{ secrets.GCP_CLOUD_SQL_INSTANCE }}" ]; then
+            CLOUDSQL_FLAG="--set-cloudsql-instances=${{ secrets.GCP_CLOUD_SQL_INSTANCE }}"
+          fi
+
+          gcloud run jobs deploy "${{ env.MIGRATION_JOB }}" \
+            --image="${IMAGE}" \
+            --region="${{ env.REGION }}" \
+            --command="alembic" \
+            --args="upgrade,head" \
+            --set-secrets="FINANCIAL_DATA_DATABASE_URL=FINANCIAL_DATA_DATABASE_URL:latest" \
+            --memory=512Mi \
+            --cpu=1 \
+            --max-retries=0 \
+            --task-timeout=300 \
+            ${CLOUDSQL_FLAG}
+
+      - name: Execute Alembic migrations
+        run: |
+          gcloud run jobs execute "${{ env.MIGRATION_JOB }}" \
+            --region="${{ env.REGION }}" \
+            --wait
+
+      # Deploy the new service revision.
+      # --min-instances=0: scales to zero when idle → $0 compute at rest.
+      # DATABASE_URL comes from Secret Manager only — never in --set-env-vars.
+      - name: Deploy to Cloud Run
+        run: |
+          set -euo pipefail
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
+          CLOUDSQL_FLAG=""
+          if [ -n "${{ secrets.GCP_CLOUD_SQL_INSTANCE }}" ]; then
+            CLOUDSQL_FLAG="--add-cloudsql-instances=${{ secrets.GCP_CLOUD_SQL_INSTANCE }}"
+          fi
+
+          gcloud run deploy "${{ env.SERVICE_NAME }}" \
+            --image="${IMAGE}" \
+            --region="${{ env.REGION }}" \
+            --platform=managed \
+            --allow-unauthenticated \
+            --min-instances=0 \
+            --max-instances=2 \
+            --memory=512Mi \
+            --cpu=1 \
+            --port=8080 \
+            --set-secrets="FINANCIAL_DATA_DATABASE_URL=FINANCIAL_DATA_DATABASE_URL:latest" \
+            --set-env-vars="FINANCIAL_DATA_HTTP_PROXY=" \
+            --quiet \
+            ${CLOUDSQL_FLAG}
+
+      - name: Print deployed service URL
+        run: |
+          gcloud run services describe "${{ env.SERVICE_NAME }}" \
+            --region="${{ env.REGION }}" \
+            --format="value(status.url)"

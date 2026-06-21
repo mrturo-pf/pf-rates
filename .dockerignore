@@ -1,0 +1,52 @@
+# Version control
+.git/
+.gitignore
+
+# Virtual environment
+.venv/
+
+# Tests
+tests/
+
+# Scripts (not needed at runtime)
+scripts/
+
+# Development tools
+Makefile
+
+# Local secrets
+.env
+.env.*
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Linter / type checker caches
+.mypy_cache/
+.ruff_cache/
+
+# Test cache
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+
+# Documentation
+README.md
+AGENTS.md
+
+# Editor / OS
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
