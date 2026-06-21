@@ -5,6 +5,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+import structlog
+
 from financial_data.application.dto import (
     MarketDataSyncRequestDTO,
     RefreshRatesCommandDTO,
@@ -25,6 +27,8 @@ from financial_data.shared.constants import (
     MONTHLY_ECONOMIC_INDEX_CODES,
     MONTHLY_MARKET_RATE_CODES,
 )
+
+_logger = structlog.get_logger(__name__)
 
 _LOOKBACK_DAYS = 365
 _LOOKBACK_MONTHS = 12
@@ -211,6 +215,11 @@ class SyncRecentMarketData:
                 currency_code, requested_dates
             )
             if not exchange_rates:
+                _logger.warning(
+                    "fx_provider_returned_empty",
+                    currency_code=currency_code,
+                    requested_count=len(requested_dates),
+                )
                 continue
             refresh_result = await self.repository.refresh_rates(
                 RefreshRatesCommandDTO(exchange_rates=exchange_rates)
@@ -252,6 +261,11 @@ class SyncRecentMarketData:
                 code, requested_periods
             )
             if not economic_indices:
+                _logger.warning(
+                    "economic_index_provider_returned_empty",
+                    code=code,
+                    requested_count=len(requested_periods),
+                )
                 continue
             refresh_result = await self.repository.refresh_rates(
                 RefreshRatesCommandDTO(economic_indices=economic_indices)
@@ -290,6 +304,10 @@ class SyncRecentMarketData:
                 continue
             brackets = await self.bracket_provider.fetch_income_tax_brackets(year)
             if not brackets:
+                _logger.warning(
+                    "bracket_provider_returned_empty",
+                    year=year,
+                )
                 continue
             upserted += await self.reference_repository.upsert_income_tax_brackets(
                 brackets

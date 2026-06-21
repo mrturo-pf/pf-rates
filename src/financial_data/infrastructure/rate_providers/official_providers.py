@@ -5,14 +5,15 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import socket
 from calendar import monthrange
 from datetime import date, datetime
 from decimal import Decimal
 from html import unescape
 from collections.abc import Awaitable, Callable, Hashable
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.parse import urlparse, urlencode
+from urllib.request import ProxyHandler, build_opener, getproxies, urlopen
 from typing import TypeVar
 
 from financial_data.application.dto import (
@@ -47,6 +48,58 @@ def _fetch_url(url: str, timeout_seconds: int) -> str:
         return response.read().decode(
             response.headers.get_content_charset() or "utf-8", errors="replace"
         )
+
+
+def _proxy_is_reachable(proxy_url: str, timeout: float = 2.0) -> bool:
+    """Return True if a TCP connection to the proxy host:port succeeds."""
+    parsed = urlparse(proxy_url)
+    host = parsed.hostname or ""
+    port = parsed.port or 8080
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _resolve_proxy_handler(
+    proxy_url: str | None,
+    system_proxies: dict[str, str] | None = None,
+) -> ProxyHandler:
+    """Return the appropriate ProxyHandler for the given configuration.
+
+    Args:
+        proxy_url: Explicit proxy URL. Takes precedence over auto-detection.
+        system_proxies: OS/environment proxy map (defaults to ``getproxies()``).
+            Provide an explicit value to override auto-detection in tests.
+    """
+    if proxy_url is not None:
+        return ProxyHandler({"http": proxy_url, "https": proxy_url})
+    proxies = system_proxies if system_proxies is not None else getproxies()
+    detected = proxies.get("https") or proxies.get("http")
+    if detected and _proxy_is_reachable(detected):
+        return ProxyHandler(proxies)
+    return ProxyHandler({})
+
+
+def make_fetcher(proxy_url: str | None = None) -> Callable[[str, int], str]:
+    """Return a URL fetcher with explicit proxy configuration.
+
+    Args:
+        proxy_url: Explicit proxy URL (e.g. ``http://proxy.corp.example.com:8080``).
+            Pass ``None`` to auto-detect: the OS/environment proxy is used only
+            when it is actually reachable (TCP probe); otherwise requests go
+            directly to the target host, bypassing all proxy settings.
+    """
+
+    def _fetch(url: str, timeout_seconds: int) -> str:
+        opener = build_opener(_resolve_proxy_handler(proxy_url))
+        with opener.open(url, timeout=timeout_seconds) as response:  # noqa: S310
+            return response.read().decode(
+                response.headers.get_content_charset() or "utf-8", errors="replace"
+            )
+
+    return _fetch
 
 
 def _parse_json_document(raw: str) -> dict[str, object]:

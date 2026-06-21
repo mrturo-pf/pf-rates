@@ -1,5 +1,6 @@
 """Tests for rate providers."""
 
+import socket
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -24,6 +25,9 @@ from financial_data.infrastructure.rate_providers.official_providers import (
     _extract_income_tax_month_rows,
     _extract_sii_rows,
     _fetch_url,
+    _proxy_is_reachable,
+    _resolve_proxy_handler,
+    make_fetcher,
     _parse_chilean_amount,
     _parse_chilean_decimal,
     _parse_month_heading,
@@ -695,6 +699,40 @@ def test_rate_provider_helpers_cover_local_fetch_and_edge_parsing(
     sample.write_text('{"ok": true}', encoding="utf-8")
 
     assert '"ok": true' in _fetch_url(sample.as_uri(), 5)
+
+    # _proxy_is_reachable: reachable when a server listens, unreachable otherwise.
+    with socket.socket() as srv:
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(1)
+        free_port = srv.getsockname()[1]
+        assert _proxy_is_reachable(f"http://127.0.0.1:{free_port}", timeout=2.0)
+    assert not _proxy_is_reachable("http://127.0.0.1:1", timeout=0.5)
+
+    # _resolve_proxy_handler: explicit proxy URL is always used.
+    explicit = _resolve_proxy_handler("http://proxy.example.com:8080")
+    assert explicit.proxies == {
+        "http": "http://proxy.example.com:8080",
+        "https": "http://proxy.example.com:8080",
+    }
+    # Auto-detect with reachable proxy → uses the supplied system proxies.
+    with socket.socket() as srv2:
+        srv2.bind(("127.0.0.1", 0))
+        srv2.listen(1)
+        proxy_port = srv2.getsockname()[1]
+        reachable = _resolve_proxy_handler(
+            None, {"https": f"http://127.0.0.1:{proxy_port}"}
+        )
+    assert reachable.proxies == {"https": f"http://127.0.0.1:{proxy_port}"}
+    # Auto-detect with unreachable proxy → bypass (empty proxies dict).
+    bypass = _resolve_proxy_handler(None, {"https": "http://127.0.0.1:1"})
+    assert bypass.proxies == {}
+
+    # make_fetcher: both proxy paths return a callable that reads local file:// URIs
+    # (proxy handlers do not affect the file:// scheme).
+    assert '"ok": true' in make_fetcher()(sample.as_uri(), 5)
+    assert '"ok": true' in make_fetcher("http://proxy.example.com:8080")(
+        sample.as_uri(), 5
+    )
     assert _parse_chilean_decimal(" ") is None
     assert _parse_chilean_amount("$ 38.613,24") == Decimal("38613.24")
     assert _parse_chilean_amount("Y MÁS") is None

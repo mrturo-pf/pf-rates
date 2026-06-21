@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://rates:rates@localhost:5433/rates"
     rate_provider_timeout_seconds: int = 10
+    http_proxy: str | None = None
     mindicador_base_url: str = "https://mindicador.cl/api"
     sii_base_url: str = "https://www.sii.cl"
     bcch_api_base_url: str = "https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx"

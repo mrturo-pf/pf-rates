@@ -85,6 +85,9 @@ env-write:
 	@printf 'CORPORATIVE_PIP_INDEX=https://pypi.ci.artifacts.corporative.com/artifactory/api/pypi/pythonhosted-pypi-release-remote/simple\n' >> $(ENV_FILE)
 	@printf 'CORPORATIVE_NPM_REGISTRY=https://npm.ci.artifacts.corporative.com/artifactory/api/npm/external-npm\n' >> $(ENV_FILE)
 	@printf 'CORPORATIVE_PROXY=http://sysproxy.corporative.com:8080\n' >> $(ENV_FILE)
+	@printf '\n# Rate provider HTTP proxy (optional — leave unset for direct connections).\n' >> $(ENV_FILE)
+	@printf '# Set to the corporate proxy when the external APIs are only reachable via VPN proxy.\n' >> $(ENV_FILE)
+	@printf '#FINANCIAL_DATA_HTTP_PROXY=http://proxy.corpo-rative.com:8080\n' >> $(ENV_FILE)
 	@echo "  ✓ $(ENV_FILE) written"
 
 # Internal: run scripts/db.sh with a selected action and optional seed mode.

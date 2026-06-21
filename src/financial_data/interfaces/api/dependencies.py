@@ -33,7 +33,10 @@ from financial_data.infrastructure.rate_providers.official_providers import (
     MindicadorRateProvider,
     SiiIncomeTaxBracketProvider,
     SiiIndicatorsProvider,
+    make_fetcher,
 )
+
+_fetcher = make_fetcher(settings.http_proxy)
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
@@ -69,6 +72,7 @@ def get_fx_rate_provider() -> ChainedFxProvider:
         },
         base_url=settings.bcch_api_base_url,
         timeout_seconds=settings.rate_provider_timeout_seconds,
+        fetcher=_fetcher,
     )
     return ChainedFxProvider(
         [
@@ -76,10 +80,12 @@ def get_fx_rate_provider() -> ChainedFxProvider:
             SiiIndicatorsProvider(
                 base_url=settings.sii_base_url,
                 timeout_seconds=settings.rate_provider_timeout_seconds,
+                fetcher=_fetcher,
             ),
             MindicadorRateProvider(
                 base_url=settings.mindicador_base_url,
                 timeout_seconds=settings.rate_provider_timeout_seconds,
+                fetcher=_fetcher,
             ),
         ]
     )
@@ -95,10 +101,12 @@ def get_economic_index_provider() -> ChainedEconomicIndexProvider:
                 series_codes={"IPC_CL": settings.bcch_series_ipc_cl},
                 base_url=settings.bcch_api_base_url,
                 timeout_seconds=settings.rate_provider_timeout_seconds,
+                fetcher=_fetcher,
             ),
             SiiIndicatorsProvider(
                 base_url=settings.sii_base_url,
                 timeout_seconds=settings.rate_provider_timeout_seconds,
+                fetcher=_fetcher,
             ),
         ]
     )
@@ -109,6 +117,7 @@ def get_income_tax_bracket_provider() -> SiiIncomeTaxBracketProvider:
     return SiiIncomeTaxBracketProvider(
         base_url=settings.sii_base_url,
         timeout_seconds=settings.rate_provider_timeout_seconds,
+        fetcher=_fetcher,
     )
 
 
