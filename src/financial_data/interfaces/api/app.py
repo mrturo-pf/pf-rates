@@ -98,7 +98,41 @@ async def lifespan(application: FastAPI):  # type: ignore[type-arg]
                 await sync_task
 
 
-app = FastAPI(title="pf-rates", version="0.1.0", lifespan=lifespan)
+_DESCRIPTION = """
+Chilean financial reference data microservice.
+
+Provides exchange rates (USD, EUR), economic indices (UF, UTM, IPC),
+and income tax brackets sourced from Mindicador and Banco Central de Chile.
+"""
+
+_OPENAPI_TAGS = [
+    {"name": "health", "description": "Service liveness check."},
+    {"name": "currencies", "description": "Supported currency catalogue."},
+    {
+        "name": "exchange-rates",
+        "description": "CLP exchange rates — list, lookup, and refresh.",
+    },
+    {
+        "name": "economic-indices",
+        "description": "UF / UTM / IPC indices — list, lookup, and refresh.",
+    },
+    {
+        "name": "income-tax-brackets",
+        "description": "Chilean income tax brackets — lookup, list, and refresh.",
+    },
+    {
+        "name": "sync",
+        "description": "Trigger a rolling 365-day sync of all missing market data.",
+    },
+]
+
+app = FastAPI(
+    title="pf-rates",
+    version="0.1.0",
+    description=_DESCRIPTION,
+    openapi_tags=_OPENAPI_TAGS,
+    lifespan=lifespan,
+)
 app.include_router(_root_router)
 app.include_router(exchange_rates_router)
 app.include_router(economic_indices_router)

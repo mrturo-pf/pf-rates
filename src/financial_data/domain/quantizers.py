@@ -1,7 +1,4 @@
-"""Quantization helpers for Chilean financial amounts.
-
-These helpers are exported for use by the pf-payroll HTTP adapter (Part 2).
-"""
+"""Quantization helpers for Chilean financial amounts."""
 
 from decimal import Decimal
 
