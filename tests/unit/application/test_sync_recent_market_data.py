@@ -25,12 +25,12 @@ class StubMarketDataRepository:
         self,
         existing_dates: dict[str, list[date]] | None = None,
         existing_periods: dict[str, list[tuple[int, int]]] | None = None,
-        same_day_dates: dict[str, list[date]] | None = None,
+        unconfirmed_dates: dict[str, list[date]] | None = None,
     ) -> None:
         """Initialize the instance."""
         self._existing_dates = existing_dates or {}
         self._existing_periods = existing_periods or {}
-        self._same_day_dates = same_day_dates or {}
+        self._unconfirmed_dates = unconfirmed_dates or {}
         self.refreshed: list[RefreshRatesCommandDTO] = []
 
     async def list_exchange_rate_dates(
@@ -39,11 +39,11 @@ class StubMarketDataRepository:
         """List exchange rate dates."""
         return self._existing_dates.get(currency_code, [])
 
-    async def list_same_day_fetched_dates(
+    async def list_unconfirmed_rate_dates(
         self, currency_code: str, start: date, end: date
     ) -> list[date]:
-        """List same-day fetched dates."""
-        return self._same_day_dates.get(currency_code, [])
+        """List unconfirmed rate dates."""
+        return self._unconfirmed_dates.get(currency_code, [])
 
     async def list_economic_index_periods(
         self, code: str, ranges: list[tuple[int, int]]
@@ -252,8 +252,11 @@ async def test_execute_syncs_missing_entries() -> None:
 async def test_execute_skips_already_existing_entries() -> None:
     """execute() does not re-fetch dates/periods already in the DB."""
     today = date(2026, 1, 15)
-    # Pre-populate all daily dates and monthly periods
+    # Pre-populate all daily dates and monthly periods.
+    # UF also needs the 35-day forward window pre-populated since it requests future
+    # dates for currencies in FORWARD_DAILY_RATE_CODES.
     daily = [today - timedelta(days=i) for i in range(365)]
+    uf_forward = [today + timedelta(days=i) for i in range(1, 36)]
     monthly: dict[str, list[tuple[int, int]]] = {
         "IPC_CL": [
             (d.year, d.month)
@@ -264,7 +267,12 @@ async def test_execute_skips_already_existing_entries() -> None:
         ]
     }
     repository = StubMarketDataRepository(
-        existing_dates={"USD": daily, "EUR": daily, "UF": daily, "UTM": daily},
+        existing_dates={
+            "USD": daily,
+            "EUR": daily,
+            "UF": daily + uf_forward,
+            "UTM": daily,
+        },
         existing_periods=monthly,
     )
     # Pre-populate brackets for both years in the 12-month window (2025, 2026)
@@ -489,7 +497,7 @@ async def test_execute_refetches_same_day_dates() -> None:
     # USD has a stored rate for today, but it was fetched same-day → not stable
     repository = StubMarketDataRepository(
         existing_dates={"USD": [today], "EUR": [], "UF": []},
-        same_day_dates={"USD": [today]},
+        unconfirmed_dates={"USD": [today]},
     )
     use_case = SyncRecentMarketData(
         repository,
@@ -511,3 +519,35 @@ async def test_execute_refetches_same_day_dates() -> None:
     ]
     assert today in upserted_usd_dates
     assert result.upserted_exchange_rates > 0
+
+
+async def test_execute_requests_forward_dates_for_uf_only() -> None:
+    """execute() includes future dates in UF requests but not in USD or EUR."""
+    today = date(2026, 1, 15)
+    repository = StubMarketDataRepository()
+    use_case = SyncRecentMarketData(
+        repository,
+        StubFxProvider(),  # type: ignore[arg-type]
+        StubIndexProvider(),  # type: ignore[arg-type]
+        StubReferenceDataRepository(existing_years={2025, 2026}),
+        StubBracketProvider(),  # type: ignore[arg-type]
+        today_provider=lambda: today,
+    )
+
+    await use_case.execute()
+
+    all_requested: dict[str, set[date]] = {}
+    for cmd in repository.refreshed:
+        for entry in cmd.exchange_rates:
+            all_requested.setdefault(entry.currency_code, set()).add(entry.rate_date)
+
+    future_date = today + timedelta(days=1)
+    assert future_date in all_requested.get("UF", set()), (
+        "UF should request forward dates"
+    )
+    assert future_date not in all_requested.get("USD", set()), (
+        "USD should not request forward dates"
+    )
+    assert future_date not in all_requested.get("EUR", set()), (
+        "EUR should not request forward dates"
+    )

@@ -21,12 +21,15 @@ from financial_data.application.ports.reference_data_repository import (
 )
 from financial_data.shared.constants import (
     DAILY_MARKET_RATE_CODES,
+    FORWARD_DAILY_RATE_CODES,
     MONTHLY_ECONOMIC_INDEX_CODES,
     MONTHLY_MARKET_RATE_CODES,
 )
 
 _LOOKBACK_DAYS = 365
 _LOOKBACK_MONTHS = 12
+# Forward window for currencies that publish future values (e.g. UF).
+_FORWARD_DAYS = 35
 
 
 @dataclass(slots=True)
@@ -45,9 +48,10 @@ class SyncRecentMarketData:
         today = self.today_provider()
         daily_dates = self._build_daily_dates(today)
         monthly_dates = self._build_monthly_dates(today)
+        forward_dates = self._build_forward_dates(today)
 
         missing_exchange_rate_requests = await self._collect_missing_exchange_rates(
-            daily_dates, monthly_dates
+            daily_dates, monthly_dates, forward_dates
         )
         missing_economic_index_requests = await self._collect_missing_economic_indices(
             monthly_dates
@@ -116,6 +120,7 @@ class SyncRecentMarketData:
         self,
         daily_dates: list[date],
         monthly_dates: list[date],
+        forward_dates: list[date],
     ) -> dict[str, list[date]]:
         """Collect missing exchange-rate requests.
 
@@ -123,23 +128,31 @@ class SyncRecentMarketData:
         as missing so they are re-fetched — the published value may still be
         preliminary on that day.  Monthly rates are excluded from this logic as they
         are finalised on publication and do not change intraday.
+
+        Currencies in FORWARD_DAILY_RATE_CODES also request forward_dates so that
+        pre-published future values (e.g. UF) are stored as they become available.
         """
         missing_requests: dict[str, list[date]] = {}
 
         for currency_code in DAILY_MARKET_RATE_CODES:
+            requested = (
+                daily_dates + forward_dates
+                if currency_code in FORWARD_DAILY_RATE_CODES
+                else daily_dates
+            )
             existing_dates = set(
                 await self.repository.list_exchange_rate_dates(
-                    currency_code, daily_dates[0], daily_dates[-1]
+                    currency_code, requested[0], requested[-1]
                 )
             )
             same_day_dates = set(
-                await self.repository.list_same_day_fetched_dates(
-                    currency_code, daily_dates[0], daily_dates[-1]
+                await self.repository.list_unconfirmed_rate_dates(
+                    currency_code, requested[0], requested[-1]
                 )
             )
             stable_dates = existing_dates - same_day_dates
             missing_requests[currency_code] = [
-                rate_date for rate_date in daily_dates if rate_date not in stable_dates
+                rate_date for rate_date in requested if rate_date not in stable_dates
             ]
 
         for currency_code in MONTHLY_MARKET_RATE_CODES:
@@ -274,6 +287,10 @@ class SyncRecentMarketData:
         """Build daily dates for the rolling one-year window."""
         start_date = today - timedelta(days=_LOOKBACK_DAYS - 1)
         return [start_date + timedelta(days=offset) for offset in range(_LOOKBACK_DAYS)]
+
+    def _build_forward_dates(self, today: date) -> list[date]:
+        """Build future dates for currencies that publish values in advance."""
+        return [today + timedelta(days=i) for i in range(1, _FORWARD_DAYS + 1)]
 
     def _build_monthly_dates(self, today: date) -> list[date]:
         """Build monthly dates for the rolling twelve-month window."""

@@ -35,14 +35,16 @@ class MarketDataRepository(Protocol):
         """List stored exchange-rate dates for a currency within [start, end]."""
         ...
 
-    async def list_same_day_fetched_dates(
+    async def list_unconfirmed_rate_dates(
         self, code: str, start: date, end: date
     ) -> list[date]:
-        """Return dates within [start, end] where the rate was fetched on the rate date.
+        """Return dates where the rate was fetched on or before its rate_date.
 
-        A rate is considered same-day when its stored timestamp (created_at) falls
-        on the same calendar date as rate_date.  Such rates may be preliminary and
-        should be re-fetched on subsequent syncs.
+        A rate is unconfirmed when created_at (Chile time) <= rate_date — this
+        covers both same-day fetches (value may be preliminary) and pre-publication
+        fetches of future values (value may still be updated before the date arrives).
+        Such rates are re-fetched on subsequent syncs until the fetch date is strictly
+        after the rate date, at which point the value is considered final.
         """
         ...
 

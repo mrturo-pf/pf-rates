@@ -103,15 +103,14 @@ class SqlAlchemyMarketDataRepository:
         )
         return list(result.scalars().all())
 
-    async def list_same_day_fetched_dates(
+    async def list_unconfirmed_rate_dates(
         self, code: str, start: date, end: date
     ) -> list[date]:
-        """Return dates where the rate was fetched on the same day as rate_date.
+        """Return dates where the rate was fetched on or before its rate_date.
 
-        The comparison uses Chile's timezone (America/Santiago) so that a sync
-        running near midnight UTC is evaluated against the correct local date.
+        The comparison uses Chile's timezone (America/Santiago).
         created_at is updated on every upsert, so after a re-fetch on day D+1
-        the row is no longer same-day and stabilises naturally.
+        the row is no longer unconfirmed and stabilises naturally.
         """
         result = await self._session.execute(
             select(ExchangeRateModel.rate_date).where(
@@ -121,7 +120,7 @@ class SqlAlchemyMarketDataRepository:
                 func.timezone("America/Santiago", ExchangeRateModel.created_at).cast(
                     Date
                 )
-                == ExchangeRateModel.rate_date,
+                <= ExchangeRateModel.rate_date,
             )
         )
         return list(result.scalars().all())

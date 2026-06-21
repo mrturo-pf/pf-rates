@@ -366,10 +366,10 @@ async def test_list_exchange_rate_dates_returns_stored_dates(
     assert date(2026, 3, 10) in stored
 
 
-async def test_list_same_day_fetched_dates_detects_same_day_rate(
+async def test_list_unconfirmed_rate_dates_detects_same_day_rate(
     db_session: AsyncSession,
 ) -> None:
-    """list_same_day_fetched_dates returns dates where rate_date == fetch date."""
+    """list_unconfirmed_rate_dates returns dates where rate was fetched on rate_date."""
     from datetime import datetime
 
     from financial_data.application.dto import ExchangeRateWriteDTO
@@ -379,7 +379,7 @@ async def test_list_same_day_fetched_dates_detects_same_day_rate(
     repo = SqlAlchemyMarketDataRepository(db_session)
     target_date = date(2026, 5, 20)
 
-    # Insert a rate then backdate created_at to noon UTC on rate_date.
+    # Insert a rate then set created_at to noon UTC on rate_date.
     # In America/Santiago (UTC-4) that is 08:00 on 2026-05-20 — same calendar day.
     await repo.refresh_rates(
         RefreshRatesCommandDTO(
@@ -403,22 +403,66 @@ async def test_list_same_day_fetched_dates_detects_same_day_rate(
     )
     await db_session.commit()
 
-    same_day = await repo.list_same_day_fetched_dates(
+    unconfirmed = await repo.list_unconfirmed_rate_dates(
         "USD", date(2026, 5, 1), date(2026, 5, 31)
     )
-    assert target_date in same_day
+    assert target_date in unconfirmed
 
 
-async def test_list_same_day_fetched_dates_excludes_later_day_fetch(
+async def test_list_unconfirmed_rate_dates_detects_pre_publication_fetch(
     db_session: AsyncSession,
 ) -> None:
-    """list_same_day_fetched_dates excludes rates fetched on a later day."""
+    """list_unconfirmed_rate_dates returns pre-publication fetches of future rates."""
+    from datetime import datetime
+
+    from financial_data.application.dto import ExchangeRateWriteDTO
+    from sqlalchemy import update
+    from financial_data.infrastructure.db.models.financial_data import ExchangeRateModel
+
+    repo = SqlAlchemyMarketDataRepository(db_session)
+    future_rate_date = date(2026, 5, 25)
+
+    # Insert a future rate and backdate created_at to an earlier day (2026-05-20),
+    # simulating a pre-publication fetch.
+    await repo.refresh_rates(
+        RefreshRatesCommandDTO(
+            exchange_rates=[
+                ExchangeRateWriteDTO(
+                    currency_code="UF",
+                    rate_date=future_rate_date,
+                    value_clp=Decimal("38000.00"),
+                    source="test",
+                )
+            ]
+        )
+    )
+    await db_session.execute(
+        update(ExchangeRateModel)
+        .where(
+            ExchangeRateModel.currency_code == "UF",
+            ExchangeRateModel.rate_date == future_rate_date,
+        )
+        .values(created_at=datetime(2026, 5, 20, 12, 0, 0, tzinfo=UTC))
+    )
+    await db_session.commit()
+
+    unconfirmed = await repo.list_unconfirmed_rate_dates(
+        "UF", date(2026, 5, 1), date(2026, 5, 31)
+    )
+    # created_at Chile = 2026-05-20 <= rate_date = 2026-05-25 → unconfirmed
+    assert future_rate_date in unconfirmed
+
+
+async def test_list_unconfirmed_rate_dates_excludes_later_day_fetch(
+    db_session: AsyncSession,
+) -> None:
+    """list_unconfirmed_rate_dates excludes rates fetched strictly after rate_date."""
     from financial_data.application.dto import ExchangeRateWriteDTO
 
     repo = SqlAlchemyMarketDataRepository(db_session)
     target_date = date(2026, 5, 19)
 
-    # Insert a rate for a past date — created_at defaults to NOW (today != target_date)
+    # Insert a rate for a past date — created_at defaults to NOW (today > target_date)
     await repo.refresh_rates(
         RefreshRatesCommandDTO(
             exchange_rates=[
@@ -432,11 +476,11 @@ async def test_list_same_day_fetched_dates_excludes_later_day_fetch(
         )
     )
 
-    same_day = await repo.list_same_day_fetched_dates(
+    unconfirmed = await repo.list_unconfirmed_rate_dates(
         "USD", date(2026, 5, 1), date(2026, 5, 31)
     )
-    # created_at is today, rate_date is 2026-05-19 — different days → not same-day
-    assert target_date not in same_day
+    # created_at is today (2026-06-xx) > rate_date 2026-05-19 → confirmed, not returned
+    assert target_date not in unconfirmed
 
 
 async def test_list_economic_index_periods_returns_stored_periods(

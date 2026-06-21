@@ -57,10 +57,10 @@ class StubMarketDataRepository:
         """List exchange rate dates."""
         raise AssertionError("not used")
 
-    async def list_same_day_fetched_dates(
+    async def list_unconfirmed_rate_dates(
         self, currency_code: str, start_date: date, end_date: date
     ) -> list[date]:
-        """List same-day fetched dates."""
+        """List unconfirmed rate dates."""
         raise AssertionError("not used")
 
     async def refresh_rates(
