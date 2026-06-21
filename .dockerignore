@@ -41,8 +41,9 @@ dist/
 build/
 
 # Documentation
-README.md
 AGENTS.md
+# README.md is intentionally NOT excluded — pyproject.toml declares it as the
+# package readme and the build backend requires it during `pip install`.
 
 # Editor / OS
 .DS_Store
