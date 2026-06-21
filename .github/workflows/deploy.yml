@@ -151,14 +151,18 @@ jobs:
       - name: Export image to tar for scanning
         run: docker save pf-rates:scan -o /tmp/pf-rates-scan.tar
 
-      # Install Trivy by downloading the release tarball directly.
-      # The install.sh script can fail on write permissions; direct download is more reliable.
+      # Install Trivy via the official Aqua Security APT repository.
+      # This is the most reliable method on Ubuntu runners.
       - name: Install Trivy
         run: |
-          curl -sSL "https://github.com/aquasecurity/trivy/releases/download/v0.52.0/trivy_0.52.0_Linux-64bit.tar.gz" \
-            -o /tmp/trivy.tar.gz
-          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
-          sudo mv /tmp/trivy /usr/local/bin/trivy
+          sudo apt-get install -y wget gnupg
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
+            | gpg --dearmor \
+            | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
+            | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update -qq
+          sudo apt-get install -y trivy
           trivy --version
 
       # Pass 1: SARIF for GitHub Security tab (exit-code 0 — always creates file)
