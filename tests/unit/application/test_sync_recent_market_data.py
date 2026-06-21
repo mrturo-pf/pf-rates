@@ -25,10 +25,12 @@ class StubMarketDataRepository:
         self,
         existing_dates: dict[str, list[date]] | None = None,
         existing_periods: dict[str, list[tuple[int, int]]] | None = None,
+        same_day_dates: dict[str, list[date]] | None = None,
     ) -> None:
         """Initialize the instance."""
         self._existing_dates = existing_dates or {}
         self._existing_periods = existing_periods or {}
+        self._same_day_dates = same_day_dates or {}
         self.refreshed: list[RefreshRatesCommandDTO] = []
 
     async def list_exchange_rate_dates(
@@ -36,6 +38,12 @@ class StubMarketDataRepository:
     ) -> list[date]:
         """List exchange rate dates."""
         return self._existing_dates.get(currency_code, [])
+
+    async def list_same_day_fetched_dates(
+        self, currency_code: str, start: date, end: date
+    ) -> list[date]:
+        """List same-day fetched dates."""
+        return self._same_day_dates.get(currency_code, [])
 
     async def list_economic_index_periods(
         self, code: str, ranges: list[tuple[int, int]]
@@ -473,3 +481,33 @@ async def test_collect_remaining_request_skips_empty_date_and_period_lists() -> 
 
     # Empty request lists → nothing is missing → None returned
     assert remaining is None
+
+
+async def test_execute_refetches_same_day_dates() -> None:
+    """execute() re-fetches daily rates stored on the same calendar day as rate_date."""
+    today = date(2026, 1, 15)
+    # USD has a stored rate for today, but it was fetched same-day → not stable
+    repository = StubMarketDataRepository(
+        existing_dates={"USD": [today], "EUR": [], "UF": []},
+        same_day_dates={"USD": [today]},
+    )
+    use_case = SyncRecentMarketData(
+        repository,
+        StubFxProvider(),  # type: ignore[arg-type]
+        StubIndexProvider(),  # type: ignore[arg-type]
+        StubReferenceDataRepository(existing_years={2025, 2026}),
+        StubBracketProvider(),  # type: ignore[arg-type]
+        today_provider=lambda: today,
+    )
+
+    result = await use_case.execute()
+
+    # today's USD rate was same-day → re-fetched → upserted
+    upserted_usd_dates = [
+        entry.rate_date
+        for cmd in repository.refreshed
+        for entry in cmd.exchange_rates
+        if entry.currency_code == "USD"
+    ]
+    assert today in upserted_usd_dates
+    assert result.upserted_exchange_rates > 0

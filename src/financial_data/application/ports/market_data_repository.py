@@ -35,6 +35,17 @@ class MarketDataRepository(Protocol):
         """List stored exchange-rate dates for a currency within [start, end]."""
         ...
 
+    async def list_same_day_fetched_dates(
+        self, code: str, start: date, end: date
+    ) -> list[date]:
+        """Return dates within [start, end] where the rate was fetched on the rate date.
+
+        A rate is considered same-day when its stored timestamp (created_at) falls
+        on the same calendar date as rate_date.  Such rates may be preliminary and
+        should be re-fetched on subsequent syncs.
+        """
+        ...
+
     async def get_economic_index_value(
         self, code: str, year: int, month: int
     ) -> Decimal | None:

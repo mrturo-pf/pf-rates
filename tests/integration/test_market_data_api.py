@@ -5,7 +5,7 @@ The fixtures pg_url (session-scoped), db_session (function-scoped), and
 http_client (function-scoped) are defined in conftest.py.
 """
 
-from datetime import date
+from datetime import date, UTC
 from decimal import Decimal
 
 from httpx import ASGITransport, AsyncClient
@@ -364,6 +364,79 @@ async def test_list_exchange_rate_dates_returns_stored_dates(
         "USD", date(2026, 3, 1), date(2026, 3, 31)
     )
     assert date(2026, 3, 10) in stored
+
+
+async def test_list_same_day_fetched_dates_detects_same_day_rate(
+    db_session: AsyncSession,
+) -> None:
+    """list_same_day_fetched_dates returns dates where rate_date == fetch date."""
+    from datetime import datetime
+
+    from financial_data.application.dto import ExchangeRateWriteDTO
+    from sqlalchemy import update
+    from financial_data.infrastructure.db.models.financial_data import ExchangeRateModel
+
+    repo = SqlAlchemyMarketDataRepository(db_session)
+    target_date = date(2026, 5, 20)
+
+    # Insert a rate then backdate created_at to noon UTC on rate_date.
+    # In America/Santiago (UTC-4) that is 08:00 on 2026-05-20 — same calendar day.
+    await repo.refresh_rates(
+        RefreshRatesCommandDTO(
+            exchange_rates=[
+                ExchangeRateWriteDTO(
+                    currency_code="USD",
+                    rate_date=target_date,
+                    value_clp=Decimal("950.00"),
+                    source="test",
+                )
+            ]
+        )
+    )
+    await db_session.execute(
+        update(ExchangeRateModel)
+        .where(
+            ExchangeRateModel.currency_code == "USD",
+            ExchangeRateModel.rate_date == target_date,
+        )
+        .values(created_at=datetime(2026, 5, 20, 12, 0, 0, tzinfo=UTC))
+    )
+    await db_session.commit()
+
+    same_day = await repo.list_same_day_fetched_dates(
+        "USD", date(2026, 5, 1), date(2026, 5, 31)
+    )
+    assert target_date in same_day
+
+
+async def test_list_same_day_fetched_dates_excludes_later_day_fetch(
+    db_session: AsyncSession,
+) -> None:
+    """list_same_day_fetched_dates excludes rates fetched on a later day."""
+    from financial_data.application.dto import ExchangeRateWriteDTO
+
+    repo = SqlAlchemyMarketDataRepository(db_session)
+    target_date = date(2026, 5, 19)
+
+    # Insert a rate for a past date — created_at defaults to NOW (today != target_date)
+    await repo.refresh_rates(
+        RefreshRatesCommandDTO(
+            exchange_rates=[
+                ExchangeRateWriteDTO(
+                    currency_code="USD",
+                    rate_date=target_date,
+                    value_clp=Decimal("940.00"),
+                    source="test",
+                )
+            ]
+        )
+    )
+
+    same_day = await repo.list_same_day_fetched_dates(
+        "USD", date(2026, 5, 1), date(2026, 5, 31)
+    )
+    # created_at is today, rate_date is 2026-05-19 — different days → not same-day
+    assert target_date not in same_day
 
 
 async def test_list_economic_index_periods_returns_stored_periods(

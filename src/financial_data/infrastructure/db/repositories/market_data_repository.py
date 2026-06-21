@@ -3,7 +3,7 @@
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select, tuple_
+from sqlalchemy import Date, func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -103,6 +103,29 @@ class SqlAlchemyMarketDataRepository:
         )
         return list(result.scalars().all())
 
+    async def list_same_day_fetched_dates(
+        self, code: str, start: date, end: date
+    ) -> list[date]:
+        """Return dates where the rate was fetched on the same day as rate_date.
+
+        The comparison uses Chile's timezone (America/Santiago) so that a sync
+        running near midnight UTC is evaluated against the correct local date.
+        created_at is updated on every upsert, so after a re-fetch on day D+1
+        the row is no longer same-day and stabilises naturally.
+        """
+        result = await self._session.execute(
+            select(ExchangeRateModel.rate_date).where(
+                ExchangeRateModel.currency_code == code,
+                ExchangeRateModel.rate_date >= start,
+                ExchangeRateModel.rate_date <= end,
+                func.timezone("America/Santiago", ExchangeRateModel.created_at).cast(
+                    Date
+                )
+                == ExchangeRateModel.rate_date,
+            )
+        )
+        return list(result.scalars().all())
+
     async def get_economic_index_value(
         self, code: str, year: int, month: int
     ) -> Decimal | None:
@@ -181,6 +204,10 @@ class SqlAlchemyMarketDataRepository:
                     set_={
                         "value_clp": exchange_rate_insert.excluded.value_clp,
                         "source": exchange_rate_insert.excluded.source,
+                        # Refresh the timestamp so that after a re-fetch on day D+1
+                        # the row is no longer flagged as same-day by
+                        # list_same_day_fetched_dates and stabilises naturally.
+                        "created_at": func.now(),
                     },
                 )
             )

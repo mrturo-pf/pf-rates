@@ -117,7 +117,13 @@ class SyncRecentMarketData:
         daily_dates: list[date],
         monthly_dates: list[date],
     ) -> dict[str, list[date]]:
-        """Collect missing exchange-rate requests."""
+        """Collect missing exchange-rate requests.
+
+        Daily rates fetched on the same calendar day as their rate_date are treated
+        as missing so they are re-fetched — the published value may still be
+        preliminary on that day.  Monthly rates are excluded from this logic as they
+        are finalised on publication and do not change intraday.
+        """
         missing_requests: dict[str, list[date]] = {}
 
         for currency_code in DAILY_MARKET_RATE_CODES:
@@ -126,10 +132,14 @@ class SyncRecentMarketData:
                     currency_code, daily_dates[0], daily_dates[-1]
                 )
             )
+            same_day_dates = set(
+                await self.repository.list_same_day_fetched_dates(
+                    currency_code, daily_dates[0], daily_dates[-1]
+                )
+            )
+            stable_dates = existing_dates - same_day_dates
             missing_requests[currency_code] = [
-                rate_date
-                for rate_date in daily_dates
-                if rate_date not in existing_dates
+                rate_date for rate_date in daily_dates if rate_date not in stable_dates
             ]
 
         for currency_code in MONTHLY_MARKET_RATE_CODES:
