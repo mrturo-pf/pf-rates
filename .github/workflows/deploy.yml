@@ -41,10 +41,10 @@
 #     gcloud secrets create FINANCIAL_DATA_DATABASE_URL --data-file=-
 #
 #   # 5. Create service account and grant IAM roles
-#   gcloud iam service-accounts create pf-rates-deployer \
+#   gcloud iam service-accounts create pf-rates \
 #     --display-name="pf-rates GitHub Actions deployer"
 #
-#   SA="pf-rates-deployer@<PROJECT>.iam.gserviceaccount.com"
+#   SA="pf-rates@<PROJECT>.iam.gserviceaccount.com"
 #
 #   for ROLE in \
 #     roles/run.admin \
@@ -98,6 +98,9 @@ env:
   AR_REPO: pf-rates
   SERVICE_NAME: pf-rates
   MIGRATION_JOB: pf-rates-migrate
+  # Runtime service account for Cloud Run Job and Service.
+  # Must have roles/secretmanager.secretAccessor on the DB secret.
+  RUNTIME_SA: pf-rates@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
 
 permissions:
   contents: read
@@ -278,6 +281,7 @@ jobs:
             --region="${{ env.REGION }}" \
             --command="alembic" \
             --args="upgrade,head" \
+            --service-account="${{ env.RUNTIME_SA }}" \
             --set-secrets="FINANCIAL_DATA_DATABASE_URL=FINANCIAL_DATA_DATABASE_URL:latest" \
             --memory=512Mi \
             --cpu=1 \
@@ -308,6 +312,7 @@ jobs:
             --region="${{ env.REGION }}" \
             --platform=managed \
             --allow-unauthenticated \
+            --service-account="${{ env.RUNTIME_SA }}" \
             --min-instances=0 \
             --max-instances=2 \
             --memory=512Mi \
