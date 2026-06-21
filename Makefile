@@ -157,7 +157,7 @@ test-cov:
 # Executes all repository quality gates in sequence.
 check:
 	@set -e; \
-	for target in lint dead-code typecheck duplicate-code-src duplicate-code-tests test test-cov; do \
+	for target in lint dead-code typecheck duplicate-code-src duplicate-code-tests duplicate-code test test-cov; do \
 		echo "==> make $$target"; \
 		if ! $(MAKE) --no-print-directory $$target; then \
 			echo "FAILED: $$target"; \
@@ -166,13 +166,17 @@ check:
 	done; \
 	echo "All checks passed."
 
-# Detects duplicated code in tests with a 10% threshold.
-duplicate-code-tests:
-	$(MAKE) --no-print-directory _duplicate-code DUPLICATE_PATH=tests DUPLICATE_THRESHOLD=10
+# Detects duplicated code across src and tests together (cross-boundary clones included).
+duplicate-code:
+	$(MAKE) --no-print-directory _duplicate-code DUPLICATE_PATH="src tests" DUPLICATE_THRESHOLD=0
 
-# Detects duplicated code in src with a 1% threshold.
+# Detects duplicated code in tests only.
+duplicate-code-tests:
+	$(MAKE) --no-print-directory _duplicate-code DUPLICATE_PATH=tests DUPLICATE_THRESHOLD=0
+
+# Detects duplicated code in src only.
 duplicate-code-src:
-	$(MAKE) --no-print-directory _duplicate-code DUPLICATE_PATH=src DUPLICATE_THRESHOLD=1
+	$(MAKE) --no-print-directory _duplicate-code DUPLICATE_PATH=src DUPLICATE_THRESHOLD=0
 
 # Runs jscpd with configurable path and threshold.
 _duplicate-code:

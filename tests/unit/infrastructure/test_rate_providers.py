@@ -30,6 +30,37 @@ from financial_data.infrastructure.rate_providers.official_providers import (
 )
 
 
+def _rate_entries(
+    currency_code: str, requested_dates: list[date], source: str
+) -> list[ExchangeRateWriteDTO]:
+    """Build ExchangeRateWriteDTO list at a fixed value of 950.12 CLP."""
+    return [
+        ExchangeRateWriteDTO(
+            currency_code=currency_code,
+            rate_date=requested_date,
+            value_clp=Decimal("950.12"),
+            source=source,
+        )
+        for requested_date in requested_dates
+    ]
+
+
+def _index_entries(
+    code: str, requested_periods: list[tuple[int, int]], source: str
+) -> list[EconomicIndexWriteDTO]:
+    """Build EconomicIndexWriteDTO list at a fixed value of 109.71."""
+    return [
+        EconomicIndexWriteDTO(
+            code=code,
+            period_year=period_year,
+            period_month=period_month,
+            index_value=Decimal("109.71"),
+            source=source,
+        )
+        for period_year, period_month in requested_periods
+    ]
+
+
 async def test_mindicador_rate_provider_parses_year_series_and_unknown_indicator() -> (
     None
 ):
@@ -456,15 +487,7 @@ async def test_chained_rate_and_index_providers_use_first_success() -> None:
             self, currency_code: str, requested_dates: list[date]
         ) -> list[ExchangeRateWriteDTO]:
             """Handle fetch rate entries."""
-            return [
-                ExchangeRateWriteDTO(
-                    currency_code=currency_code,
-                    rate_date=requested_date,
-                    value_clp=Decimal("950.12"),
-                    source="mindicador",
-                )
-                for requested_date in requested_dates
-            ]
+            return _rate_entries(currency_code, requested_dates, "mindicador")
 
     class FailingIndex:
         """Represent Failing Index."""
@@ -504,16 +527,7 @@ async def test_chained_rate_and_index_providers_use_first_success() -> None:
             self, code: str, requested_periods: list[tuple[int, int]]
         ) -> list[EconomicIndexWriteDTO]:
             """Handle fetch indices."""
-            return [
-                EconomicIndexWriteDTO(
-                    code=code,
-                    period_year=period_year,
-                    period_month=period_month,
-                    index_value=Decimal("109.71"),
-                    source="sii",
-                )
-                for period_year, period_month in requested_periods
-            ]
+            return _index_entries(code, requested_periods, "sii")
 
     fx_chain = ChainedFxProvider([FailingFx(), WorkingFx()])
     index_chain = ChainedEconomicIndexProvider([FailingIndex(), WorkingIndex()])
@@ -568,15 +582,7 @@ async def test_chained_bulk_providers_stop_after_full_match() -> None:
             self, currency_code: str, requested_dates: list[date]
         ) -> list[ExchangeRateWriteDTO]:
             """Handle fetch rate entries."""
-            return [
-                ExchangeRateWriteDTO(
-                    currency_code=currency_code,
-                    rate_date=requested_date,
-                    value_clp=Decimal("950.12"),
-                    source="first",
-                )
-                for requested_date in requested_dates
-            ]
+            return _rate_entries(currency_code, requested_dates, "first")
 
     class SecondFx:
         """Fail if called after requests were already satisfied."""
@@ -612,16 +618,7 @@ async def test_chained_bulk_providers_stop_after_full_match() -> None:
             self, code: str, requested_periods: list[tuple[int, int]]
         ) -> list[EconomicIndexWriteDTO]:
             """Handle fetch indices."""
-            return [
-                EconomicIndexWriteDTO(
-                    code=code,
-                    period_year=period_year,
-                    period_month=period_month,
-                    index_value=Decimal("109.71"),
-                    source="first",
-                )
-                for period_year, period_month in requested_periods
-            ]
+            return _index_entries(code, requested_periods, "first")
 
     class SecondIndex:
         """Fail if called after requests were already satisfied."""

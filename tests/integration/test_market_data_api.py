@@ -33,6 +33,22 @@ from financial_data.interfaces.api.dependencies import (
 )
 
 
+def _make_session_override(
+    session_factory: async_sessionmaker,  # type: ignore[type-arg]
+) -> object:
+    """Return a FastAPI dependency override that yields sessions from *session_factory*.
+
+    Use this to replace ``get_session`` in ``app.dependency_overrides`` during tests
+    that need a real DB session backed by a testcontainers engine.
+    """
+
+    async def _inner():  # type: ignore[return]
+        async with session_factory() as session:
+            yield session
+
+    return _inner
+
+
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
@@ -570,14 +586,7 @@ async def test_refresh_income_tax_brackets_route_success(pg_url: str) -> None:
                 year=cmd.year, refreshed_months=1, upserted_brackets=3
             )
 
-    def _stub_get_session_override():  # type: ignore[return]
-        async def _inner():  # type: ignore[return]
-            async with session_factory() as session:
-                yield session
-
-        return _inner
-
-    app.dependency_overrides[get_session] = _stub_get_session_override()
+    app.dependency_overrides[get_session] = _make_session_override(session_factory)
     app.dependency_overrides[get_sync_use_case] = lambda: None  # type: ignore[assignment, return-value]
     app.dependency_overrides[get_refresh_income_tax_brackets_use_case] = lambda: (
         _StubRefreshBrackets()
@@ -614,14 +623,7 @@ async def test_refresh_income_tax_brackets_route_propagates_error(
             """Raise a dependency error to simulate provider failure."""
             raise FinancialDataDependencyError("provider unavailable")
 
-    def _stub_get_session_override():  # type: ignore[return]
-        async def _inner():  # type: ignore[return]
-            async with session_factory() as session:
-                yield session
-
-        return _inner
-
-    app.dependency_overrides[get_session] = _stub_get_session_override()
+    app.dependency_overrides[get_session] = _make_session_override(session_factory)
     app.dependency_overrides[get_sync_use_case] = lambda: None  # type: ignore[assignment, return-value]
     app.dependency_overrides[get_refresh_income_tax_brackets_use_case] = lambda: (
         _FailingRefreshBrackets()
@@ -658,14 +660,7 @@ async def test_refresh_economic_indices_route_propagates_error(pg_url: str) -> N
             """Raise a dependency error to simulate provider failure."""
             raise FinancialDataDependencyError("provider unavailable")
 
-    def _stub_get_session_override():  # type: ignore[return]
-        async def _inner():  # type: ignore[return]
-            async with session_factory() as session:
-                yield session
-
-        return _inner
-
-    app.dependency_overrides[get_session] = _stub_get_session_override()
+    app.dependency_overrides[get_session] = _make_session_override(session_factory)
     app.dependency_overrides[get_sync_use_case] = lambda: None  # type: ignore[assignment, return-value]
     app.dependency_overrides[get_refresh_rates_use_case] = lambda: (
         _FailingRefreshRates()

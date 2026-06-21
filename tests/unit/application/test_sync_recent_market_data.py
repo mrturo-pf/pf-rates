@@ -197,6 +197,21 @@ class StubBracketProvider:
         ]
 
 
+def _make_default_use_case(
+    today: date,
+    repository: StubMarketDataRepository | None = None,
+) -> SyncRecentMarketData:
+    """Build SyncRecentMarketData with standard stubs and a fixed today."""
+    return SyncRecentMarketData(
+        repository or StubMarketDataRepository(),
+        StubFxProvider(),  # type: ignore[arg-type]
+        StubIndexProvider(),  # type: ignore[arg-type]
+        StubReferenceDataRepository(existing_years={2025, 2026}),
+        StubBracketProvider(),  # type: ignore[arg-type]
+        today_provider=lambda: today,
+    )
+
+
 class EmptyFxProvider:
     """Test double for FxRateProvider that returns no entries."""
 
@@ -525,14 +540,7 @@ async def test_execute_requests_forward_dates_for_uf_only() -> None:
     """execute() includes future dates in UF requests but not in USD or EUR."""
     today = date(2026, 1, 15)
     repository = StubMarketDataRepository()
-    use_case = SyncRecentMarketData(
-        repository,
-        StubFxProvider(),  # type: ignore[arg-type]
-        StubIndexProvider(),  # type: ignore[arg-type]
-        StubReferenceDataRepository(existing_years={2025, 2026}),
-        StubBracketProvider(),  # type: ignore[arg-type]
-        today_provider=lambda: today,
-    )
+    use_case = _make_default_use_case(today, repository)
 
     await use_case.execute()
 
@@ -558,14 +566,7 @@ async def test_execute_custom_lookback_limits_requested_window() -> None:
     today = date(2026, 1, 15)
     cutoff = today - timedelta(days=7)
     repository = StubMarketDataRepository()
-    use_case = SyncRecentMarketData(
-        repository,
-        StubFxProvider(),  # type: ignore[arg-type]
-        StubIndexProvider(),  # type: ignore[arg-type]
-        StubReferenceDataRepository(existing_years={2025, 2026}),
-        StubBracketProvider(),  # type: ignore[arg-type]
-        today_provider=lambda: today,
-    )
+    use_case = _make_default_use_case(today, repository)
 
     await use_case.execute(lookback_days=7, forward_days=0)
 
