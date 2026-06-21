@@ -150,7 +150,7 @@ jobs:
       #   1st pass — emit SARIF (exit-code 0 so upload always runs)
       #   2nd pass — gate the pipeline (exit-code 1 on CRITICAL/HIGH)
       - name: Trivy scan — SARIF output
-        uses: aquasecurity/trivy-action@0.20.0
+        uses: aquasecurity/trivy-action@0.31.0
         with:
           image-ref: pf-rates:scan
           format: sarif
@@ -165,7 +165,7 @@ jobs:
           sarif_file: trivy-results.sarif
 
       - name: Trivy scan — pipeline gate
-        uses: aquasecurity/trivy-action@0.20.0
+        uses: aquasecurity/trivy-action@0.31.0
         with:
           image-ref: pf-rates:scan
           format: table
