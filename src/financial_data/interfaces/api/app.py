@@ -81,6 +81,7 @@ async def _run_startup_sync() -> None:
         "startup_market_data_sync_completed",
         upserted_exchange_rates=result.upserted_exchange_rates,
         upserted_economic_indices=result.upserted_economic_indices,
+        upserted_brackets=result.upserted_brackets,
     )
 
 

@@ -94,7 +94,7 @@ create_container() {
     --name "$ADMINER_CONTAINER" \
     --restart unless-stopped \
     -p "$port:8080" \
-    -e ADMINER_DEFAULT_SERVER=host.docker.internal \
+    -e ADMINER_DEFAULT_SERVER=host.docker.internal:5433 \
     adminer >/dev/null
 
   printf 'http://localhost:%s\n' "$port"

@@ -134,6 +134,7 @@ class SyncRecentMarketDataResultDTO:
     requested_economic_indices: int
     upserted_exchange_rates: int
     upserted_economic_indices: int
+    upserted_brackets: int = 0
 
 
 @dataclass(frozen=True, slots=True)

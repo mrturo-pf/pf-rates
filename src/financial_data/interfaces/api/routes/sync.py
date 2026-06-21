@@ -19,4 +19,5 @@ async def sync_market_data(
     return {
         "exchange_rates_upserted": result.upserted_exchange_rates,
         "economic_indices_upserted": result.upserted_economic_indices,
+        "brackets_upserted": result.upserted_brackets,
     }

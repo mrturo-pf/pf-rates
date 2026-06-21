@@ -293,6 +293,7 @@ async def test_sync_endpoint_runs_without_error(http_client: AsyncClient) -> Non
     body = response.json()
     assert "exchange_rates_upserted" in body
     assert "economic_indices_upserted" in body
+    assert "brackets_upserted" in body
 
 
 # ---------------------------------------------------------------------------

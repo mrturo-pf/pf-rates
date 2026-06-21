@@ -6,6 +6,8 @@ from decimal import Decimal
 from financial_data.application.dto import (
     EconomicIndexWriteDTO,
     ExchangeRateWriteDTO,
+    IncomeTaxBracketDTO,
+    IncomeTaxBracketWriteDTO,
     MarketDataSyncRequestDTO,
     RefreshRatesCommandDTO,
     RefreshRatesResultDTO,
@@ -71,6 +73,47 @@ class StubMarketDataRepository:
         raise AssertionError("not used")
 
 
+class StubReferenceDataRepository:
+    """Test double for ReferenceDataRepository with controllable bracket data."""
+
+    def __init__(self, existing_years: set[int] | None = None) -> None:
+        """Initialize the instance."""
+        self._existing_years = existing_years or set()
+        self.upserted: list[IncomeTaxBracketWriteDTO] = []
+
+    async def list_income_tax_brackets(
+        self, year: int | None = None
+    ) -> list[IncomeTaxBracketDTO]:
+        """Return a non-empty list for years already in the DB, empty otherwise."""
+        if year is not None and year not in self._existing_years:
+            return []
+        return [
+            IncomeTaxBracketDTO(
+                valid_from=date(year or 2026, 1, 1),
+                valid_to=None,
+                lower_bound_utm=Decimal("0"),
+                upper_bound_utm=None,
+                marginal_rate=Decimal("0.04"),
+                rebate_utm=Decimal("0"),
+            )
+        ]
+
+    async def upsert_income_tax_brackets(
+        self, brackets: list[IncomeTaxBracketWriteDTO]
+    ) -> int:
+        """Capture upserted brackets and return count."""
+        self.upserted.extend(brackets)
+        return len(brackets)
+
+    async def list_currencies(self) -> list[object]:
+        """List currencies."""
+        raise AssertionError("not used")
+
+    async def get_income_tax_bracket(self, *args: object) -> None:
+        """Get income tax bracket."""
+        raise AssertionError("not used")
+
+
 class StubFxProvider:
     """Test double for FxRateProvider that returns one entry per requested date."""
 
@@ -127,6 +170,25 @@ class StubIndexProvider:
         ]
 
 
+class StubBracketProvider:
+    """Test double for IncomeTaxBracketProvider returning one bracket per year."""
+
+    async def fetch_income_tax_brackets(
+        self, year: int
+    ) -> list[IncomeTaxBracketWriteDTO]:
+        """Handle fetch income tax brackets."""
+        return [
+            IncomeTaxBracketWriteDTO(
+                valid_from=date(year, 1, 1),
+                valid_to=None,
+                lower_bound_utm=Decimal("0"),
+                upper_bound_utm=None,
+                marginal_rate=Decimal("0.04"),
+                rebate_utm=Decimal("0"),
+            )
+        ]
+
+
 class EmptyFxProvider:
     """Test double for FxRateProvider that returns no entries."""
 
@@ -147,14 +209,27 @@ class EmptyIndexProvider:
         return []
 
 
+class EmptyBracketProvider:
+    """Test double for IncomeTaxBracketProvider returning no brackets."""
+
+    async def fetch_income_tax_brackets(
+        self, year: int
+    ) -> list[IncomeTaxBracketWriteDTO]:
+        """Handle fetch income tax brackets."""
+        return []
+
+
 async def test_execute_syncs_missing_entries() -> None:
     """execute() fetches and persists rates that are absent from the DB."""
     today = date(2026, 1, 15)
     repository = StubMarketDataRepository()
+    reference_repository = StubReferenceDataRepository()
     use_case = SyncRecentMarketData(
         repository,
         StubFxProvider(),  # type: ignore[arg-type]
         StubIndexProvider(),  # type: ignore[arg-type]
+        reference_repository,
+        StubBracketProvider(),  # type: ignore[arg-type]
         today_provider=lambda: today,
     )
 
@@ -184,10 +259,14 @@ async def test_execute_skips_already_existing_entries() -> None:
         existing_dates={"USD": daily, "EUR": daily, "UF": daily, "UTM": daily},
         existing_periods=monthly,
     )
+    # Pre-populate brackets for both years in the 12-month window (2025, 2026)
+    reference_repository = StubReferenceDataRepository(existing_years={2025, 2026})
     use_case = SyncRecentMarketData(
         repository,
         StubFxProvider(),  # type: ignore[arg-type]
         StubIndexProvider(),  # type: ignore[arg-type]
+        reference_repository,
+        StubBracketProvider(),  # type: ignore[arg-type]
         today_provider=lambda: today,
     )
 
@@ -195,7 +274,67 @@ async def test_execute_skips_already_existing_entries() -> None:
 
     assert result.upserted_exchange_rates == 0
     assert result.upserted_economic_indices == 0
+    assert result.upserted_brackets == 0
     assert repository.refreshed == []
+    assert reference_repository.upserted == []
+
+
+async def test_execute_syncs_missing_brackets() -> None:
+    """execute() fetches and persists brackets for years not yet in the DB."""
+    today = date(2026, 1, 15)
+    reference_repository = StubReferenceDataRepository()  # empty — no brackets stored
+    use_case = SyncRecentMarketData(
+        StubMarketDataRepository(),
+        StubFxProvider(),  # type: ignore[arg-type]
+        StubIndexProvider(),  # type: ignore[arg-type]
+        reference_repository,
+        StubBracketProvider(),  # type: ignore[arg-type]
+        today_provider=lambda: today,
+    )
+
+    result = await use_case.execute()
+
+    # The 12-month window for 2026-01-15 spans 2025 and 2026 → 2 years upserted
+    assert result.upserted_brackets == 2
+    assert len(reference_repository.upserted) == 2
+
+
+async def test_execute_skips_years_with_existing_brackets() -> None:
+    """execute() does not re-fetch brackets for years already in the DB."""
+    today = date(2026, 1, 15)
+    reference_repository = StubReferenceDataRepository(existing_years={2025, 2026})
+    use_case = SyncRecentMarketData(
+        StubMarketDataRepository(),
+        StubFxProvider(),  # type: ignore[arg-type]
+        StubIndexProvider(),  # type: ignore[arg-type]
+        reference_repository,
+        StubBracketProvider(),  # type: ignore[arg-type]
+        today_provider=lambda: today,
+    )
+
+    result = await use_case.execute()
+
+    assert result.upserted_brackets == 0
+    assert reference_repository.upserted == []
+
+
+async def test_execute_skips_when_bracket_provider_returns_nothing() -> None:
+    """execute() does not upsert when the provider returns no brackets."""
+    today = date(2026, 1, 15)
+    reference_repository = StubReferenceDataRepository()  # empty DB
+    use_case = SyncRecentMarketData(
+        StubMarketDataRepository(),
+        StubFxProvider(),  # type: ignore[arg-type]
+        StubIndexProvider(),  # type: ignore[arg-type]
+        reference_repository,
+        EmptyBracketProvider(),  # type: ignore[arg-type]
+        today_provider=lambda: today,
+    )
+
+    result = await use_case.execute()
+
+    assert result.upserted_brackets == 0
+    assert reference_repository.upserted == []
 
 
 async def test_execute_request_syncs_specific_gaps() -> None:
@@ -205,6 +344,8 @@ async def test_execute_request_syncs_specific_gaps() -> None:
         repository,
         StubFxProvider(),  # type: ignore[arg-type]
         StubIndexProvider(),  # type: ignore[arg-type]
+        StubReferenceDataRepository(),
+        StubBracketProvider(),  # type: ignore[arg-type]
     )
 
     request = MarketDataSyncRequestDTO(
@@ -226,6 +367,8 @@ async def test_execute_request_skips_empty_lists() -> None:
         repository,
         StubFxProvider(),  # type: ignore[arg-type]
         StubIndexProvider(),  # type: ignore[arg-type]
+        StubReferenceDataRepository(),
+        StubBracketProvider(),  # type: ignore[arg-type]
     )
 
     result = await use_case.execute_request(
@@ -247,6 +390,8 @@ async def test_execute_request_skips_when_provider_returns_nothing() -> None:
         repository,
         EmptyFxProvider(),  # type: ignore[arg-type]
         EmptyIndexProvider(),  # type: ignore[arg-type]
+        StubReferenceDataRepository(),
+        StubBracketProvider(),  # type: ignore[arg-type]
     )
 
     result = await use_case.execute_request(
@@ -273,6 +418,8 @@ async def test_collect_remaining_request_returns_none_when_all_synced() -> None:
         repository,
         StubFxProvider(),  # type: ignore[arg-type]
         StubIndexProvider(),  # type: ignore[arg-type]
+        StubReferenceDataRepository(),
+        StubBracketProvider(),  # type: ignore[arg-type]
         today_provider=lambda: today,
     )
 
@@ -291,6 +438,8 @@ async def test_collect_remaining_request_returns_gaps() -> None:
         repository,
         EmptyFxProvider(),  # type: ignore[arg-type]
         EmptyIndexProvider(),  # type: ignore[arg-type]
+        StubReferenceDataRepository(),
+        StubBracketProvider(),  # type: ignore[arg-type]
     )
 
     request = MarketDataSyncRequestDTO(
@@ -312,6 +461,8 @@ async def test_collect_remaining_request_skips_empty_date_and_period_lists() -> 
         repository,
         StubFxProvider(),  # type: ignore[arg-type]
         StubIndexProvider(),  # type: ignore[arg-type]
+        StubReferenceDataRepository(),
+        StubBracketProvider(),  # type: ignore[arg-type]
     )
 
     request = MarketDataSyncRequestDTO(

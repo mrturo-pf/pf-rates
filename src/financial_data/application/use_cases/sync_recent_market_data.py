@@ -1,5 +1,6 @@
 """Use case for syncing recent market data history."""
 
+import dataclasses
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -9,11 +10,15 @@ from financial_data.application.dto import (
     RefreshRatesCommandDTO,
     SyncRecentMarketDataResultDTO,
 )
+from financial_data.application.ports.market_data_repository import MarketDataRepository
 from financial_data.application.ports.rate_provider import (
     EconomicIndexProvider,
     FxRateProvider,
+    IncomeTaxBracketProvider,
 )
-from financial_data.application.ports.market_data_repository import MarketDataRepository
+from financial_data.application.ports.reference_data_repository import (
+    ReferenceDataRepository,
+)
 from financial_data.shared.constants import (
     DAILY_MARKET_RATE_CODES,
     MONTHLY_ECONOMIC_INDEX_CODES,
@@ -31,6 +36,8 @@ class SyncRecentMarketData:
     repository: MarketDataRepository
     fx_provider: FxRateProvider
     economic_index_provider: EconomicIndexProvider
+    reference_repository: ReferenceDataRepository
+    bracket_provider: IncomeTaxBracketProvider
     today_provider: Callable[[], date] = date.today
 
     async def execute(self) -> SyncRecentMarketDataResultDTO:
@@ -45,12 +52,15 @@ class SyncRecentMarketData:
         missing_economic_index_requests = await self._collect_missing_economic_indices(
             monthly_dates
         )
-        return await self.execute_request(
+        rates_result = await self.execute_request(
             MarketDataSyncRequestDTO(
                 exchange_rate_dates=missing_exchange_rate_requests,
                 economic_index_periods=missing_economic_index_requests,
             )
         )
+        years = {d.year for d in monthly_dates}
+        upserted_brackets = await self._sync_income_tax_brackets(years)
+        return dataclasses.replace(rates_result, upserted_brackets=upserted_brackets)
 
     async def execute_request(
         self, request: MarketDataSyncRequestDTO
@@ -234,6 +244,21 @@ class SyncRecentMarketData:
             if missing_periods:
                 remaining_requests[code] = missing_periods
         return remaining_requests
+
+    async def _sync_income_tax_brackets(self, years: set[int]) -> int:
+        """Fetch and persist income tax brackets for years not yet in the DB."""
+        upserted = 0
+        for year in sorted(years):
+            existing = await self.reference_repository.list_income_tax_brackets(year)
+            if existing:
+                continue
+            brackets = await self.bracket_provider.fetch_income_tax_brackets(year)
+            if not brackets:
+                continue
+            upserted += await self.reference_repository.upsert_income_tax_brackets(
+                brackets
+            )
+        return upserted
 
     def _build_daily_dates(self, today: date) -> list[date]:
         """Build daily dates for the rolling one-year window."""

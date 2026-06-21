@@ -30,6 +30,7 @@ class _StubSyncUseCase:
             requested_economic_indices=0,
             upserted_exchange_rates=0,
             upserted_economic_indices=0,
+            upserted_brackets=0,
         )
 
 

@@ -136,6 +136,8 @@ def build_sync_use_case(session: AsyncSession) -> SyncRecentMarketData:
         SqlAlchemyMarketDataRepository(session),
         get_fx_rate_provider(),
         get_economic_index_provider(),
+        SqlAlchemyReferenceDataRepository(session),
+        get_income_tax_bracket_provider(),
     )
 
 
