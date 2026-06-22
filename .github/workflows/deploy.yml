@@ -129,10 +129,24 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Lint (ruff)
-        run: ruff check src tests
+        run: |
+          ruff check src tests
+          ruff format --check src tests
 
-      - name: Run tests
-        run: pytest
+      - name: Dead code (vulture)
+        run: make dead-code
+
+      - name: Type check (mypy)
+        run: make typecheck
+
+      - name: Duplicate code (jscpd)
+        run: |
+          make duplicate-code-src
+          make duplicate-code-tests
+          make duplicate-code
+
+      - name: Run tests with coverage
+        run: make test-cov
 
       # Build image locally so Trivy can scan it without pushing first.
       # The image is NOT pushed in this step.
