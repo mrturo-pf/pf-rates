@@ -111,6 +111,47 @@ class StubMarketDataRepository:
 6. Add a stub-based unit test in `tests/unit/application/`
 7. Run `make check` — it must pass clean
 
+## CI/CD pipeline
+
+The pipeline lives in `.github/workflows/deploy.yml`. It has two jobs:
+
+- **`test`** — triggered on every PR and push to `main`. Runs lint, pytest, builds the Docker image locally, exports it to a tar file, and runs **Trivy** in two passes: SARIF upload to GitHub Security (exit 0) and a blocking gate on unfixed CRITICAL/HIGH CVEs (exit 1).
+- **`deploy`** — triggered only on push to `main` via the `GCP` GitHub environment. Authenticates to GCP, asserts AR scanning is disabled, builds and pushes the image to Artifact Registry, runs Alembic migrations as a Cloud Run Job with `--wait`, then deploys the Cloud Run Service.
+
+**Non-negotiable invariants when editing the pipeline:**
+
+1. **Migrations run before traffic.** The `pf-rates-migrate` Cloud Run Job executes `alembic upgrade head` with `--wait` and `--max-retries=0`. Do not route traffic to a new revision until this job completes successfully.
+2. **DB URL only from Secret Manager.** `FINANCIAL_DATA_DATABASE_URL` is injected via `--set-secrets`, never `--set-env-vars`. Do not add it to environment variables.
+3. **AR vulnerability scanning must stay disabled.** The deploy step checks `vulnerabilityScanningConfig.enablementConfig` and blocks if `ENABLED`. Enabling it incurs ~$5/month per image. The pipeline uses Trivy instead.
+4. **Scale-to-zero is intentional.** `--min-instances=0` keeps compute cost at zero at rest. Do not change this without explicit approval.
+5. **Image tagged with `github.sha` and `latest`.** Both tags are pushed. The migration job and service deploy reference the SHA tag — do not replace it with `latest` alone (immutability).
+6. **Non-root container.** The Dockerfile creates and switches to `appuser` in the final stage. Do not run as root.
+7. **Multi-stage Docker build.** The builder stage installs deps; the final stage copies only the venv and `alembic/`. Do not add `COPY src ./src` to the final stage — the package is already installed in the venv.
+
+**GitHub Secrets used by the pipeline:**
+
+| Secret | Where used |
+| --- | --- |
+| `GCP_SA_KEY` | `google-github-actions/auth` (deploy job) |
+| `GCP_PROJECT_ID` | `setup-gcloud`, image tags, IAM references |
+| `FINANCIAL_DATA_DATABASE_URL` | Injected into Cloud Run via `--set-secrets` at runtime |
+| `GCP_CLOUD_SQL_INSTANCE` | Optional — adds `--set-cloudsql-instances` / `--add-cloudsql-instances` flags when non-empty |
+
+> `FINANCIAL_DATA_BCCH_API_USER` and `FINANCIAL_DATA_BCCH_API_PASSWORD` are listed in the workflow header as references but are **not currently injected** into Cloud Run steps. Add explicit `--set-secrets` entries if they are needed at runtime.
+
+**Database options (A vs B):**
+
+- **Option A (external DB):** set `FINANCIAL_DATA_DATABASE_URL` in Secret Manager pointing to an external host (e.g. Neon, Supabase). Leave `GCP_CLOUD_SQL_INSTANCE` empty — no Cloud SQL flags are added.
+- **Option B (Cloud SQL):** set `GCP_CLOUD_SQL_INSTANCE=PROJECT:us-central1:pf-rates-db`. The pipeline adds the Cloud SQL proxy sidecar to both the migration job and the service.
+
+**Cloud Run configuration (as deployed):**
+
+- Region: `us-central1`
+- Instances: min 0, max 2
+- Memory: 512 MiB; CPU: 1
+- Port: 8080 (`PORT` injected by Cloud Run at runtime; Dockerfile defaults to 8080)
+- Runtime SA: `pf-rates@<PROJECT>.iam.gserviceaccount.com` — must hold `roles/secretmanager.secretAccessor` on the DB secret
+
 ## Versioning and operations
 
 - **SemVer** for version numbers

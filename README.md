@@ -26,6 +26,63 @@ Once running, the interactive docs are available at:
 - **Swagger UI** → `http://localhost:8001/docs`
 - **ReDoc** → `http://localhost:8001/redoc`
 
+## Deployment (GCP Cloud Run)
+
+The service is deployed to **Google Cloud Run** via **GitHub Actions** (`.github/workflows/deploy.yml`).
+
+### Pipeline overview
+
+| Event | Jobs |
+| --- | --- |
+| Pull request → `main` | `test` only (lint, pytest, Docker build, Trivy scan) |
+| Push → `main` | `test` → `deploy` (build, push image, migrate, deploy) |
+
+**`test` job** — runs on every PR and push:
+1. Lint with ruff and run pytest.
+2. Build the Docker image locally (not pushed) for scanning.
+3. Scan the image with **Trivy**: uploads a SARIF report to the GitHub Security tab and blocks the pipeline on unfixed CRITICAL/HIGH CVEs.
+
+**`deploy` job** — runs only on push to `main`, requires the `GCP` GitHub environment:
+1. Authenticate to GCP using a service-account key.
+2. Assert that Artifact Registry vulnerability scanning is disabled (cost control — ~$5/month per image if enabled).
+3. Build and push the image to Artifact Registry (`us-central1`, repository `pf-rates`) tagged with the commit SHA and `latest`.
+4. Deploy a Cloud Run **Job** (`pf-rates-migrate`) that runs `alembic upgrade head` and waits for it to succeed before any traffic is shifted.
+5. Deploy the Cloud Run **Service** (`pf-rates`) with the new image.
+
+### Database options
+
+The pipeline supports two database configurations, controlled by the optional `GCP_CLOUD_SQL_INSTANCE` secret:
+
+| Option | Setup | `GCP_CLOUD_SQL_INSTANCE` |
+| --- | --- | --- |
+| **A — external DB** (e.g. Neon, Supabase) | Set `FINANCIAL_DATA_DATABASE_URL` in Secret Manager pointing to the external host | leave the secret **empty** |
+| **B — Cloud SQL** | Create a `db-f1-micro` Cloud SQL instance (`pf-rates-db`, `us-central1`) | set to `PROJECT:us-central1:pf-rates-db` |
+
+### GitHub Secrets
+
+Configure the following secrets in the repository (Settings → Secrets and variables → Actions):
+
+| Secret | Required | Description |
+| --- | --- | --- |
+| `GCP_SA_KEY` | ✅ | Service-account JSON key with the roles listed in the deploy workflow header. |
+| `GCP_PROJECT_ID` | ✅ | GCP project ID. |
+| `FINANCIAL_DATA_DATABASE_URL` | ✅ | Connection string stored in Secret Manager (injected into Cloud Run at runtime). |
+| `GCP_CLOUD_SQL_INSTANCE` | optional | Cloud SQL instance in `PROJECT:REGION:INSTANCE` format (leave empty for Option A). |
+
+> **BCCH credentials** (`FINANCIAL_DATA_BCCH_API_USER` / `FINANCIAL_DATA_BCCH_API_PASSWORD`) are listed in the workflow header for reference. They are not currently injected into Cloud Run automatically — add `--set-secrets` entries in the deploy step if your environment requires them.
+
+### Cloud Run configuration
+
+- **Region:** `us-central1`
+- **Scale:** min 0 → max 2 instances (scales to zero when idle — zero compute cost at rest)
+- **Resources:** 512 MiB RAM, 1 vCPU
+- **Port:** 8080 (Cloud Run injects `PORT` at runtime)
+- **Secrets at runtime:** `FINANCIAL_DATA_DATABASE_URL` is read from Secret Manager; it is never stored in environment variables.
+
+### One-time GCP setup
+
+The full bootstrap sequence (enable APIs, create Artifact Registry repository, Cloud SQL instance, Secret Manager secret, service account, IAM bindings) is documented in the comment block at the top of `.github/workflows/deploy.yml`.
+
 ## API
 
 | Method | Path | Description |
