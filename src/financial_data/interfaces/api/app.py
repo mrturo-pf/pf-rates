@@ -3,6 +3,7 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager, suppress
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, FastAPI
 from pydantic import BaseModel
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 from financial_data.application.ports.reference_data_repository import (
     ReferenceDataRepository,
 )
+from financial_data.config import settings
 from financial_data.infrastructure.db.session import SessionLocal
 from financial_data.infrastructure.logging.logger import logger
 from financial_data.interfaces.api.dependencies import (
@@ -74,7 +76,7 @@ async def _run_startup_sync() -> None:
         logger.info("startup_market_data_sync_cancelled")
         raise
     except Exception as exc:
-        logger.exception("startup_market_data_sync_failed", error=str(exc))
+        logger.warning("startup_market_data_sync_skipped", reason=str(exc))
         return
 
     logger.info(
@@ -88,6 +90,13 @@ async def _run_startup_sync() -> None:
 @asynccontextmanager
 async def lifespan(application: FastAPI):  # type: ignore[type-arg]
     """Run application lifespan hooks."""
+    _parsed = urlparse(settings.database_url)
+    logger.info(
+        "startup_database_target",
+        host=_parsed.hostname,
+        port=_parsed.port,
+        database=_parsed.path.lstrip("/"),
+    )
     sync_task = asyncio.create_task(_run_startup_sync())
     application.state.market_data_sync_task = sync_task
     try:

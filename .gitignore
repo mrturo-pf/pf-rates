@@ -206,6 +206,9 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# Temporary text files at repo root
+/*.txt
+
 # PyPI configuration file
 .pypirc
 
