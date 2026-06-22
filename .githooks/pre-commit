@@ -34,4 +34,3 @@ mypy src
 
 echo ""
 echo "✓ pre-commit checks passed"
-# hook test
