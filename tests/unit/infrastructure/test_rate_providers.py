@@ -786,3 +786,92 @@ async def test_chained_fx_fetch_rate_entry_returns_none_when_no_match() -> None:
     chain = ChainedFxProvider([_NoneProvider()])  # type: ignore[arg-type]
     result = await chain.fetch_rate_entry("USD", date(2026, 1, 31))
     assert result is None
+
+
+async def test_mindicador_empty_serie_returns_empty() -> None:
+    """Mindicador returns empty when the API responds with an empty serie list."""
+    provider = MindicadorRateProvider(fetcher=lambda url, timeout: '{"serie":[]}')
+
+    assert await provider.fetch_rate("USD", date(2026, 1, 31)) is None
+    assert await provider.fetch_rate_entries("USD", [date(2026, 1, 31)]) == []
+
+
+async def test_mindicador_handles_timeout_error() -> None:
+    """Mindicador returns empty/None when the fetcher raises TimeoutError."""
+    provider = MindicadorRateProvider(
+        fetcher=lambda url, timeout: (_ for _ in ()).throw(TimeoutError("read timed out"))
+    )
+
+    assert await provider.fetch_rate("USD", date(2026, 1, 31)) is None
+    assert await provider.fetch_rate_entries("USD", [date(2026, 1, 31)]) == []
+
+
+async def test_sii_indicators_provider_handles_timeout_error() -> None:
+    """SII provider returns empty/None when the fetcher raises TimeoutError."""
+    provider = SiiIndicatorsProvider(
+        fetcher=lambda url, timeout: (_ for _ in ()).throw(TimeoutError("read timed out"))
+    )
+
+    assert await provider.fetch_rate("UTM", date(2026, 1, 15)) is None
+    assert await provider.fetch_indices("IPC_CL", [(2026, 1)]) == []
+
+
+async def test_bcch_series_code_not_configured_returns_empty() -> None:
+    """BCCH returns empty when credentials are present but the series code is missing."""
+    provider = BcchSeriesProvider(
+        user="user",
+        password="pass",
+        series_codes={},  # no USD mapping
+    )
+
+    assert await provider.fetch_rate("USD", date(2026, 1, 31)) is None
+    assert await provider.fetch_rate_entries("USD", [date(2026, 1, 31)]) == []
+    assert await provider.fetch_indices("IPC_CL", [(2026, 1)]) == []
+
+
+async def test_bcch_handles_timeout_error() -> None:
+    """BCCH returns empty/None when the fetcher raises TimeoutError."""
+    provider = BcchSeriesProvider(
+        user="user",
+        password="pass",
+        series_codes={"USD": "USD_SERIES"},
+        fetcher=lambda url, timeout: (_ for _ in ()).throw(TimeoutError("read timed out")),
+    )
+
+    assert await provider.fetch_rate("USD", date(2026, 1, 31)) is None
+    assert await provider.fetch_rate_entries("USD", [date(2026, 1, 31)]) == []
+
+
+async def test_chained_provider_logs_exhausted_when_all_providers_return_empty() -> None:
+    """Chain returns empty and logs warning when no provider fills all requested items."""
+
+    class EmptyFx:
+        """Return no entries for any request."""
+
+        async def fetch_rate_entries(
+            self, currency_code: str, requested_dates: list[date]
+        ) -> list[ExchangeRateWriteDTO]:
+            """Handle fetch rate entries."""
+            return []
+
+    class EmptyIndex:
+        """Return no entries for any request."""
+
+        async def fetch_indices(
+            self, code: str, requested_periods: list[tuple[int, int]]
+        ) -> list[EconomicIndexWriteDTO]:
+            """Handle fetch indices."""
+            return []
+
+    assert (
+        await ChainedFxProvider([EmptyFx()]).fetch_rate_entries(  # type: ignore[arg-type]
+            "USD", [date(2026, 1, 31)]
+        )
+        == []
+    )
+    assert (
+        await ChainedEconomicIndexProvider([EmptyIndex()]).fetch_indices(  # type: ignore[arg-type]
+            "IPC_CL", [(2026, 1)]
+        )
+        == []
+    )

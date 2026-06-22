@@ -412,13 +412,32 @@ class MindicadorRateProvider(_FetchRateEntryMixin):
             payload = _parse_json_document(
                 await asyncio.to_thread(self._fetcher, url, self._timeout_seconds)
             )
-        except (HTTPError, URLError, json.JSONDecodeError) as exc:
-            _log.warning("mindicador_fetch_failed", indicator=indicator, year=year, error=str(exc))
+        except (HTTPError, URLError, json.JSONDecodeError, TimeoutError) as exc:
+            _log.warning(
+                "mindicador_fetch_failed",
+                indicator=indicator,
+                year=year,
+                error=str(exc),
+            )
             self._series_cache[cache_key] = {}
             return {}
 
         series = payload.get("serie")
         if not isinstance(series, list):
+            _log.warning(
+                "mindicador_unexpected_response_format",
+                indicator=indicator,
+                year=year,
+                serie_type=type(series).__name__,
+            )
+            self._series_cache[cache_key] = {}
+            return {}
+        if not series:
+            _log.warning(
+                "mindicador_no_series_data",
+                indicator=indicator,
+                year=year,
+            )
             self._series_cache[cache_key] = {}
             return {}
 
@@ -534,7 +553,7 @@ class SiiIndicatorsProvider(_SiiBaseProvider, _FetchRateEntryMixin):
         url = f"{self._base_url}/valores_y_fechas/utm/utm{year}.htm"
         try:
             html = await asyncio.to_thread(self._fetcher, url, self._timeout_seconds)
-        except (HTTPError, URLError) as exc:
+        except (HTTPError, URLError, TimeoutError) as exc:
             _log.warning("sii_fetch_failed", url=url, error=str(exc))
             self._rows_cache[year] = {}
             return {}
@@ -614,6 +633,12 @@ class SiiIndicatorsProvider(_SiiBaseProvider, _FetchRateEntryMixin):
             for period_month in period_months:
                 row = rows.get(period_month)
                 if row is None or len(row) < 6:
+                    _log.debug(
+                        "sii_index_month_not_available",
+                        code=code,
+                        year=period_year,
+                        month=period_month,
+                    )
                     continue
                 index_value = _parse_chilean_decimal(row[3])
                 if index_value is None:
@@ -686,7 +711,11 @@ class BcchSeriesProvider(_FetchRateEntryMixin):
     ) -> list[dict[str, object]]:
         """Handle fetch series."""
         series_code = self._series_codes.get(code.upper())
-        if not self._user or not self._password or not series_code:
+        if not self._user or not self._password:
+            _log.debug("bcch_credentials_not_configured", code=code)
+            return []
+        if not series_code:
+            _log.debug("bcch_series_code_not_configured", code=code)
             return []
 
         query = urlencode(
@@ -704,7 +733,7 @@ class BcchSeriesProvider(_FetchRateEntryMixin):
             payload = _parse_json_document(
                 await asyncio.to_thread(self._fetcher, url, self._timeout_seconds)
             )
-        except (HTTPError, URLError, json.JSONDecodeError) as exc:
+        except (HTTPError, URLError, json.JSONDecodeError, TimeoutError) as exc:
             _log.warning("bcch_fetch_failed", code=code, error=str(exc))
             return []
 
@@ -718,6 +747,11 @@ class BcchSeriesProvider(_FetchRateEntryMixin):
             and isinstance(series[0].get("Obs"), list)
         ):
             return [entry for entry in series[0]["Obs"] if isinstance(entry, dict)]
+        _log.warning(
+            "bcch_unexpected_series_structure",
+            code=code,
+            series_type=type(series).__name__,
+        )
         return []
 
     async def fetch_rate(self, currency_code: str, on: date) -> Decimal | None:

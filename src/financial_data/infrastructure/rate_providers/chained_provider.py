@@ -65,6 +65,12 @@ async def _fetch_remaining_entries[P, TKey: Hashable, TEntry](
             for requested_item in remaining_items
             if requested_item not in provided_keys
         ]
+    if remaining_items:
+        log.warning(
+            "provider_chain_exhausted",
+            unfilled_count=len(remaining_items),
+            total_requested=len(dict.fromkeys(requested_items)),
+        )
     return [
         entries_by_key[requested_item]
         for requested_item in requested_items
