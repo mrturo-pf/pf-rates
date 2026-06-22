@@ -134,7 +134,8 @@ The pipeline lives in `.github/workflows/deploy.yml`. It has two jobs:
 | --- | --- |
 | `GCP_SA_KEY` | `google-github-actions/auth` (deploy job) |
 | `GCP_PROJECT_ID` | `setup-gcloud`, image tags, IAM references |
-| `FINANCIAL_DATA_DATABASE_URL` | Injected into Cloud Run via `--set-secrets` at runtime |
+| `FINANCIAL_DATA_DATABASE_URL` | Injected into Cloud Run migration job and service via `--set-secrets` at runtime |
+| `FINANCIAL_DATA_API_KEY` | Injected into Cloud Run migration job and service via `--set-secrets` at runtime |
 | `GCP_CLOUD_SQL_INSTANCE` | Optional — adds `--set-cloudsql-instances` / `--add-cloudsql-instances` flags when non-empty |
 
 > `FINANCIAL_DATA_BCCH_API_USER` and `FINANCIAL_DATA_BCCH_API_PASSWORD` are listed in the workflow header as references but are **not currently injected** into Cloud Run steps. Add explicit `--set-secrets` entries if they are needed at runtime.

@@ -17,13 +17,14 @@ This repository implements a dedicated microservice for Chilean financial refere
 ```bash
 make install            # create virtualenv + install deps
 make env-write          # generate .env with default local values
+                        # then edit .env and set FINANCIAL_DATA_API_KEY to a secure value
 make db-up              # start PostgreSQL, apply schema + seed
 make run                # start FastAPI with auto-reload
 ```
 
 Once running, the interactive docs are available at:
 
-- **Swagger UI** → `http://localhost:8001/docs`
+- **Swagger UI** → `http://localhost:8001/docs` (use the "Authorize" button to set `X-API-Key`)
 - **ReDoc** → `http://localhost:8001/redoc`
 
 ## Deployment (GCP Cloud Run)
@@ -67,6 +68,7 @@ Configure the following secrets in the repository (Settings → Secrets and vari
 | `GCP_SA_KEY` | ✅ | Service-account JSON key with the roles listed in the deploy workflow header. |
 | `GCP_PROJECT_ID` | ✅ | GCP project ID. |
 | `FINANCIAL_DATA_DATABASE_URL` | ✅ | Connection string stored in Secret Manager (injected into Cloud Run at runtime). |
+| `FINANCIAL_DATA_API_KEY` | ✅ | API key for client authentication; stored in Secret Manager and injected into both the migration job and the service at runtime. |
 | `GCP_CLOUD_SQL_INSTANCE` | optional | Cloud SQL instance in `PROJECT:REGION:INSTANCE` format (leave empty for Option A). |
 
 > **BCCH credentials** (`FINANCIAL_DATA_BCCH_API_USER` / `FINANCIAL_DATA_BCCH_API_PASSWORD`) are listed in the workflow header for reference. They are not currently injected into Cloud Run automatically — add `--set-secrets` entries in the deploy step if your environment requires them.
@@ -85,20 +87,25 @@ The full bootstrap sequence (enable APIs, create Artifact Registry repository, C
 
 ## API
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/health` | Service liveness check. |
-| `GET` | `/currencies` | List all supported currencies. |
-| `GET` | `/exchange-rates` | List exchange rates. Filter: `?currency_code=USD` |
-| `GET` | `/exchange-rates/value` | CLP value for a currency on a date. Params: `currency_code`, `rate_date` |
-| `POST` | `/exchange-rates/refresh` | Upsert exchange rates from manual entries or provider fetches. |
-| `GET` | `/economic-indices` | List economic indices. Filter: `?code=UF` |
-| `GET` | `/economic-indices/value` | Index value for a code and period. Params: `code`, `year`, `month` |
-| `POST` | `/economic-indices/refresh` | Upsert economic indices from manual entries or provider fetches. |
-| `GET` | `/income-tax-brackets` | Matching bracket for a payment date and taxable base. Params: `payment_date`, `taxable_base_utm` |
-| `GET` | `/income-tax-brackets/list` | List all brackets for a year. Param: `year` |
-| `POST` | `/income-tax-brackets/refresh` | Fetch and persist official brackets for a year. |
-| `POST` | `/sync` | Rolling sync of all missing market data. Optional body: `{"lookback_days": 365, "forward_days": 35}`. UF includes pre-published future values. |
+All endpoints except `GET /health` require the `X-API-Key` header. Set it via the **Authorize** button in Swagger UI or pass it explicitly in every request:
+```
+X-API-Key: <your-key>
+```
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| `GET` | `/health` | — | Service liveness check. |
+| `GET` | `/currencies` | 🔑 | List all supported currencies. |
+| `GET` | `/exchange-rates` | 🔑 | List exchange rates. Filter: `?currency_code=USD` |
+| `GET` | `/exchange-rates/value` | 🔑 | CLP value for a currency on a date. Params: `currency_code`, `rate_date` |
+| `POST` | `/exchange-rates/refresh` | 🔑 | Upsert exchange rates from manual entries or provider fetches. |
+| `GET` | `/economic-indices` | 🔑 | List economic indices. Filter: `?code=UF` |
+| `GET` | `/economic-indices/value` | 🔑 | Index value for a code and period. Params: `code`, `year`, `month` |
+| `POST` | `/economic-indices/refresh` | 🔑 | Upsert economic indices from manual entries or provider fetches. |
+| `GET` | `/income-tax-brackets` | 🔑 | Matching bracket for a payment date and taxable base. Params: `payment_date`, `taxable_base_utm` |
+| `GET` | `/income-tax-brackets/list` | 🔑 | List all brackets for a year. Param: `year` |
+| `POST` | `/income-tax-brackets/refresh` | 🔑 | Fetch and persist official brackets for a year. |
+| `POST` | `/sync` | 🔑 | Rolling sync of all missing market data. Optional body: `{"lookback_days": 365, "forward_days": 35}`. UF includes pre-published future values. |
 
 ## Engineering policy
 

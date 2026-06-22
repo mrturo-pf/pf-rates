@@ -119,6 +119,11 @@ Chilean financial reference data microservice.
 
 Provides exchange rates (USD, EUR), economic indices (UF, UTM, IPC),
 and income tax brackets sourced from Mindicador and Banco Central de Chile.
+
+## Authentication
+
+All endpoints except `GET /health` require an `X-API-Key` header.
+Use the **Authorize** button above to set your key for this session.
 """
 
 _OPENAPI_TAGS = [
