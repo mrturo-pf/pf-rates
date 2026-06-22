@@ -305,7 +305,7 @@ jobs:
             --command="alembic" \
             --args="upgrade,head" \
             --service-account="${{ env.RUNTIME_SA }}" \
-            --set-secrets="FINANCIAL_DATA_DATABASE_URL=FINANCIAL_DATA_DATABASE_URL:latest" \
+            --set-secrets="FINANCIAL_DATA_DATABASE_URL=FINANCIAL_DATA_DATABASE_URL:latest,FINANCIAL_DATA_API_KEY=FINANCIAL_DATA_API_KEY:latest" \
             --memory=512Mi \
             --cpu=1 \
             --max-retries=0 \
