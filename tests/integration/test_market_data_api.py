@@ -32,6 +32,7 @@ from financial_data.interfaces.api.dependencies import (
     get_session,
     get_sync_use_case,
 )
+from tests.conftest import _ECONOMIC_INDICES_REFRESH_PAYLOAD
 
 # Shared kwargs for inline AsyncClient calls that require authentication.
 _AUTHED_CLIENT: dict[str, Any] = {
@@ -673,17 +674,7 @@ async def test_refresh_economic_indices_route_propagates_error(pg_url: str) -> N
         async with AsyncClient(**_AUTHED_CLIENT) as client:
             response = await client.post(
                 "/economic-indices/refresh",
-                json={
-                    "economic_indices": [
-                        {
-                            "code": "IPC_CL",
-                            "period_year": 2026,
-                            "period_month": 1,
-                            "index_value": "112.00",
-                            "source": "test",
-                        }
-                    ]
-                },
+                json=_ECONOMIC_INDICES_REFRESH_PAYLOAD,
             )
         assert response.status_code == 502
     finally:

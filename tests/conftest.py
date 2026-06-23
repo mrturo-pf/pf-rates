@@ -38,6 +38,23 @@ class _StubSyncUseCase:
         )
 
 
+# ---------------------------------------------------------------------------
+# Shared test payloads
+# ---------------------------------------------------------------------------
+
+_ECONOMIC_INDICES_REFRESH_PAYLOAD: dict[str, Any] = {
+    "economic_indices": [
+        {
+            "code": "IPC_CL",
+            "period_year": 2026,
+            "period_month": 1,
+            "index_value": "112.00",
+            "source": "test",
+        }
+    ]
+}
+
+
 def _stub_get_sync_use_case() -> _StubSyncUseCase:
     """FastAPI dependency override that returns the stub sync use case."""
     return _StubSyncUseCase()

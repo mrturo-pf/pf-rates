@@ -32,12 +32,20 @@ from financial_data.interfaces.api.dependencies import (
     get_refresh_rates_use_case,
     get_sync_use_case,
 )
+from tests.conftest import _ECONOMIC_INDICES_REFRESH_PAYLOAD
 
 _AUTHED: dict[str, Any] = {
     "transport": ASGITransport(app=app),
     "base_url": "http://test",
     "headers": {"X-API-Key": "test-key"},
 }
+
+
+async def _authed_post(url: str, payload: dict[str, Any]) -> Any:
+    """POST to *url* with test-key auth and return the httpx Response."""
+    async with AsyncClient(**_AUTHED) as client:
+        return await client.post(url, json=payload)
+
 
 # ---------------------------------------------------------------------------
 # Stubs
@@ -227,20 +235,19 @@ async def test_refresh_exchange_rates_returns_upserted_count() -> None:
     app.dependency_overrides[get_refresh_rates_use_case] = lambda: stub
     app.dependency_overrides[get_sync_use_case] = lambda: _StubSyncUseCase()
     try:
-        async with AsyncClient(**_AUTHED) as client:
-            response = await client.post(
-                "/exchange-rates/refresh",
-                json={
-                    "exchange_rates": [
-                        {
-                            "currency_code": "USD",
-                            "rate_date": "2026-01-15",
-                            "value_clp": "980.00",
-                            "source": "test",
-                        }
-                    ]
-                },
-            )
+        response = await _authed_post(
+            "/exchange-rates/refresh",
+            {
+                "exchange_rates": [
+                    {
+                        "currency_code": "USD",
+                        "rate_date": "2026-01-15",
+                        "value_clp": "980.00",
+                        "source": "test",
+                    }
+                ]
+            },
+        )
         assert response.status_code == 200
         body = response.json()
         assert body["upserted_exchange_rates"] == 2
@@ -311,21 +318,9 @@ async def test_refresh_economic_indices_returns_upserted_count() -> None:
     app.dependency_overrides[get_refresh_rates_use_case] = lambda: stub
     app.dependency_overrides[get_sync_use_case] = lambda: _StubSyncUseCase()
     try:
-        async with AsyncClient(**_AUTHED) as client:
-            response = await client.post(
-                "/economic-indices/refresh",
-                json={
-                    "economic_indices": [
-                        {
-                            "code": "IPC_CL",
-                            "period_year": 2026,
-                            "period_month": 1,
-                            "index_value": "112.00",
-                            "source": "test",
-                        }
-                    ]
-                },
-            )
+        response = await _authed_post(
+            "/economic-indices/refresh", _ECONOMIC_INDICES_REFRESH_PAYLOAD
+        )
         assert response.status_code == 200
         body = response.json()
         assert body["upserted_economic_indices"] == 1
@@ -456,19 +451,18 @@ async def test_refresh_exchange_rates_error_returns_502() -> None:
     )
     app.dependency_overrides[get_sync_use_case] = lambda: _StubSyncUseCase()
     try:
-        async with AsyncClient(**_AUTHED) as client:
-            response = await client.post(
-                "/exchange-rates/refresh",
-                json={
-                    "exchange_rates": [
-                        {
-                            "currency_code": "USD",
-                            "rate_date": "2026-01-15",
-                            "value_clp": "1.0",
-                        }
-                    ]
-                },
-            )
+        response = await _authed_post(
+            "/exchange-rates/refresh",
+            {
+                "exchange_rates": [
+                    {
+                        "currency_code": "USD",
+                        "rate_date": "2026-01-15",
+                        "value_clp": "1.0",
+                    }
+                ]
+            },
+        )
         assert response.status_code == 502
     finally:
         app.dependency_overrides.clear()
@@ -497,20 +491,19 @@ async def test_refresh_economic_indices_error_returns_502() -> None:
     )
     app.dependency_overrides[get_sync_use_case] = lambda: _StubSyncUseCase()
     try:
-        async with AsyncClient(**_AUTHED) as client:
-            response = await client.post(
-                "/economic-indices/refresh",
-                json={
-                    "economic_indices": [
-                        {
-                            "code": "IPC_CL",
-                            "period_year": 2026,
-                            "period_month": 1,
-                            "index_value": "112.00",
-                        }
-                    ]
-                },
-            )
+        response = await _authed_post(
+            "/economic-indices/refresh",
+            {
+                "economic_indices": [
+                    {
+                        "code": "IPC_CL",
+                        "period_year": 2026,
+                        "period_month": 1,
+                        "index_value": "112.00",
+                    }
+                ]
+            },
+        )
         assert response.status_code == 502
     finally:
         app.dependency_overrides.clear()
