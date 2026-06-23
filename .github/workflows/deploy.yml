@@ -420,12 +420,14 @@ jobs:
   # ------------------------------------------------------------------
   # notify-failure: email alert when any job fails on push to main.
   # failure() is false on cancellation, so cancelled runs produce no email.
-  # Rejecting the approval gate counts as failure and does trigger an email.
+  # gate is intentionally excluded from needs: when a reviewer rejects the
+  # approval, deploy is skipped (not failed), so failure() stays false and
+  # no email is sent — rejection is treated like a cancellation.
   # ------------------------------------------------------------------
   notify-failure:
     name: Notify — Failure
     runs-on: ubuntu-latest
-    needs: [test, build, gate, deploy]
+    needs: [test, build, deploy]
     if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
