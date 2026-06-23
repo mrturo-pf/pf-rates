@@ -119,7 +119,7 @@ The pipeline lives in `.github/workflows/deploy.yml`. It has six jobs:
 - **`build`** — triggered on every PR and push to `main` (needs: `test`). Builds the Docker image locally, exports it to a tar file, and runs **Trivy** in two passes: SARIF upload to GitHub Security (exit 0) and a blocking gate on unfixed CRITICAL/HIGH CVEs (exit 1). On push to `main` only: tags the image for Artifact Registry and uploads it as a GitHub Actions artifact (expires after 1 day).
 - **`gate`** — triggered only on push to `main` (needs: `build`). Pauses for manual approval via the `production` GitHub environment (configure required reviewers in Settings → Environments). Rejecting or cancelling the workflow does not send any notification.
 - **`deploy`** — triggered only on push to `main` via the `GCP` GitHub environment (needs: `gate`). Authenticates to GCP, asserts AR scanning is disabled, loads the image artifact and pushes it to Artifact Registry, runs Alembic migrations as a Cloud Run Job with `--wait`, then deploys the Cloud Run Service.
-- **`notify-failure`** — runs after any job failure on push to `main`. Sends a failure email via SMTP. Does not fire on cancellation.
+- **`notify-failure`** — runs after any job failure on push to `main`. Sends a failure email via SMTP. Does not fire on cancellation or gate rejection (uses explicit result checks, not `failure()`, to avoid transitive failure detection).
 - **`notify-success`** — runs after a successful full deploy on push to `main`. Sends a confirmation email via SMTP.
 
 **Non-negotiable invariants when editing the pipeline:**
@@ -141,6 +141,12 @@ The pipeline lives in `.github/workflows/deploy.yml`. It has six jobs:
 | `FINANCIAL_DATA_DATABASE_URL` | Injected into Cloud Run migration job and service via `--set-secrets` at runtime |
 | `FINANCIAL_DATA_API_KEY` | Injected into Cloud Run migration job and service via `--set-secrets` at runtime |
 | `GCP_CLOUD_SQL_INSTANCE` | Optional — adds `--set-cloudsql-instances` / `--add-cloudsql-instances` flags when non-empty |
+| `MAIL_SERVER` | SMTP server hostname for pipeline notifications (notify-failure / notify-success) |
+| `MAIL_PORT` | SMTP port (e.g. `587` for STARTTLS) |
+| `MAIL_USERNAME` | SMTP username / sender address |
+| `MAIL_PASSWORD` | SMTP password or app-specific password |
+| `MAIL_FROM` | Sender display address |
+| `MAIL_TO` | Recipient address(es), comma-separated |
 
 > `FINANCIAL_DATA_BCCH_API_USER` and `FINANCIAL_DATA_BCCH_API_PASSWORD` are listed in the workflow header as references but are **not currently injected** into Cloud Run steps. Add explicit `--set-secrets` entries if they are needed at runtime.
 

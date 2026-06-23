@@ -36,7 +36,7 @@ The service is deployed to **Google Cloud Run** via **GitHub Actions** (`.github
 | Event | Jobs |
 | --- | --- |
 | Pull request → `main` | `test` → `build` (lint, pytest, Docker build, Trivy scan) |
-| Push → `main` | `test` → `build` → `deploy` (push image to AR, migrate, deploy) |
+| Push → `main` | `test` → `build` → `gate` ⏸ → `deploy` → `notify-success` |
 
 **`test` job** — runs on every PR and push:
 1. Lint with ruff, run static analysis (vulture, mypy, jscpd), and run pytest with coverage. No Docker.
@@ -46,12 +46,22 @@ The service is deployed to **Google Cloud Run** via **GitHub Actions** (`.github
 2. Scan the image with **Trivy**: uploads a SARIF report to the GitHub Security tab and blocks the pipeline on unfixed CRITICAL/HIGH CVEs.
 3. On push to `main` only: tag the image for Artifact Registry and upload it as a GitHub Actions artifact (expires after 1 day).
 
-**`deploy` job** — runs only on push to `main`, requires the `GCP` GitHub environment (needs: `build`):
+**`gate` job** — runs only on push to `main` (needs: `build`):
+1. Pauses for manual approval via the `production` GitHub environment.
+2. Configure required reviewers in Settings → Environments → production. Rejecting or cancelling does not send any notification.
+
+**`deploy` job** — runs only on push to `main`, requires the `GCP` GitHub environment (needs: `gate`):
 1. Authenticate to GCP using a service-account key.
 2. Assert that Artifact Registry vulnerability scanning is disabled (cost control — ~$5/month per image if enabled).
 3. Load the image artifact and push it to Artifact Registry (`us-central1`, repository `pf-rates`) tagged with the commit SHA and `latest`.
 4. Deploy a Cloud Run **Job** (`pf-rates-migrate`) that runs `alembic upgrade head` and waits for it to succeed before any traffic is shifted.
 5. Deploy the Cloud Run **Service** (`pf-rates`) with the new image.
+
+**`notify-failure` job** — runs on push to `main` if `test`, `build`, or `deploy` fail:
+1. Sends a failure email via SMTP. Does not fire on cancellation or gate rejection.
+
+**`notify-success` job** — runs on push to `main` after a successful deploy:
+1. Sends a confirmation email via SMTP.
 
 ### Database options
 
@@ -73,6 +83,12 @@ Configure the following secrets in the repository (Settings → Secrets and vari
 | `FINANCIAL_DATA_DATABASE_URL` | ✅ | Connection string stored in Secret Manager (injected into Cloud Run at runtime). |
 | `FINANCIAL_DATA_API_KEY` | ✅ | API key for client authentication; stored in Secret Manager and injected into both the migration job and the service at runtime. |
 | `GCP_CLOUD_SQL_INSTANCE` | optional | Cloud SQL instance in `PROJECT:REGION:INSTANCE` format (leave empty for Option A). |
+| `MAIL_SERVER` | ✅ | SMTP server hostname (e.g. `smtp.gmail.com`). |
+| `MAIL_PORT` | ✅ | SMTP port (e.g. `587` for STARTTLS). |
+| `MAIL_USERNAME` | ✅ | SMTP username / sender address. |
+| `MAIL_PASSWORD` | ✅ | SMTP password or app-specific password. |
+| `MAIL_FROM` | ✅ | Sender display address (e.g. `pf-rates CI <you@gmail.com>`). |
+| `MAIL_TO` | ✅ | Recipient address(es), comma-separated. |
 
 > **BCCH credentials** (`FINANCIAL_DATA_BCCH_API_USER` / `FINANCIAL_DATA_BCCH_API_PASSWORD`) are listed in the workflow header for reference. They are not currently injected into Cloud Run automatically — add `--set-secrets` entries in the deploy step if your environment requires them.
 
