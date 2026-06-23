@@ -92,6 +92,21 @@
 #   FINANCIAL_DATA_BCCH_API_USER    — (optional) Banco Central API user
 #   FINANCIAL_DATA_BCCH_API_PASSWORD — (optional) Banco Central API password
 #
+# Email notification secrets (pipeline failure / success alerts):
+#   MAIL_SERVER                     — SMTP server hostname (e.g. smtp.gmail.com)
+#   MAIL_PORT                       — SMTP port (e.g. 587 for STARTTLS, 465 for SSL)
+#   MAIL_USERNAME                   — SMTP username / sender address
+#   MAIL_PASSWORD                   — SMTP password or app-specific password
+#   MAIL_FROM                       — Sender display address (e.g. pf-rates CI <you@example.com>)
+#   MAIL_TO                         — Recipient address(es), comma-separated
+#
+# Manual approval setup (one-time, GitHub UI):
+#   1. Go to Settings → Environments → New environment → name it "production"
+#   2. Enable "Required reviewers" and add yourself (or your team)
+#   The "gate" job pauses there; deploy only runs after approval.
+#   Rejecting the approval counts as failure and triggers the failure email.
+#   Cancelling the workflow does not send any email.
+#
 # ============================================================
 
 name: CI / Deploy to Cloud Run
@@ -260,12 +275,28 @@ jobs:
           retention-days: 1
 
   # ------------------------------------------------------------------
+  # gate: manual approval before deploying (only on push to main)
+  # Configure required reviewers for the "production" environment in:
+  #   GitHub → Settings → Environments → production → Required reviewers
+  # ------------------------------------------------------------------
+  gate:
+    name: Approval Gate
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Deployment approved
+        run: echo "Manual approval granted — proceeding to deploy."
+
+  # ------------------------------------------------------------------
   # deploy: push image to AR, migrate, deploy (only on push to main)
   # ------------------------------------------------------------------
   deploy:
     name: Deploy to Cloud Run
     runs-on: ubuntu-latest
-    needs: build
+    needs: gate
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: GCP
 
@@ -385,3 +416,66 @@ jobs:
           gcloud run services describe "${{ env.SERVICE_NAME }}" \
             --region="${{ env.REGION }}" \
             --format="value(status.url)"
+
+  # ------------------------------------------------------------------
+  # notify-failure: email alert when any job fails on push to main.
+  # failure() is false on cancellation, so cancelled runs produce no email.
+  # Rejecting the approval gate counts as failure and does trigger an email.
+  # ------------------------------------------------------------------
+  notify-failure:
+    name: Notify — Failure
+    runs-on: ubuntu-latest
+    needs: [test, build, gate, deploy]
+    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Send failure email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.MAIL_SERVER }}
+          server_port: ${{ secrets.MAIL_PORT }}
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "❌ [pf-rates] Pipeline failed — ${{ github.ref_name }}"
+          to: ${{ secrets.MAIL_TO }}
+          from: ${{ secrets.MAIL_FROM }}
+          body: |
+            One or more jobs failed in the pf-rates CI/CD pipeline.
+
+            Branch:  ${{ github.ref_name }}
+            Commit:  ${{ github.sha }}
+            Author:  ${{ github.actor }}
+
+            Run details:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  # ------------------------------------------------------------------
+  # notify-success: email confirmation after a successful full deploy.
+  # Only fires on push to main when all jobs (including deploy) pass.
+  # ------------------------------------------------------------------
+  notify-success:
+    name: Notify — Success
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Send success email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.MAIL_SERVER }}
+          server_port: ${{ secrets.MAIL_PORT }}
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "✅ [pf-rates] Deployed successfully — ${{ github.sha }}"
+          to: ${{ secrets.MAIL_TO }}
+          from: ${{ secrets.MAIL_FROM }}
+          body: |
+            pf-rates deployed successfully to Cloud Run.
+
+            Branch:  ${{ github.ref_name }}
+            Commit:  ${{ github.sha }}
+            Author:  ${{ github.actor }}
+
+            Run details:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
