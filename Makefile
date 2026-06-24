@@ -151,7 +151,9 @@ unset-proxy-vars:
 
 # Brings up the full local stack (DB, Adminer, env, deps, and API).
 local-up:
-	$(DB_ENV) $(ADMINER_ENV) APP_PORT="$(APP_PORT)" VENV="$(VENV)" ENV_FILE="$(ENV_FILE)" \
+	$(DB_ENV) $(ADMINER_ENV) \
+	  APP_PORT="$(APP_PORT)" \
+	  VENV="$(VENV)" ENV_FILE="$(ENV_FILE)" \
 	  CORPORATIVE_PIP_INDEX="$(CORPORATIVE_PIP_INDEX)" \
 	  CORPORATIVE_NPM_REGISTRY="$(CORPORATIVE_NPM_REGISTRY)" \
 	  ./scripts/local_stack.sh
