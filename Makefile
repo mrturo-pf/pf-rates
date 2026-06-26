@@ -9,22 +9,20 @@ VENV ?= .venv
 # Rancher Desktop routes nerdctl through Docker-managed containerd; the default
 # k3s socket is absent on that setup, so we fall back to the Docker socket address.
 NERDCTL ?= $(shell nerdctl info >/dev/null 2>&1 && echo "nerdctl" || echo "nerdctl --address /var/run/docker/containerd/containerd.sock")
-DB_CONTAINER ?= pf-rates-postgres
-DB_VOLUME ?= pf-rates-postgres-data
-DB_NAME ?= rates
-DB_USER ?= rates
-DB_PASSWORD ?= rates
-DB_PORT ?= 5433
+# Database is now managed by pf-db (shared with pf-payroll).
+# Run `make db-up` in the pf-db repo to start the database.
+DB_CONTAINER ?= pf-db-db-1
+DB_NAME ?= pf
+DB_USER ?= pf
+DB_PASSWORD ?= pf
+DB_PORT ?= 5432
 ADMINER_CONTAINER ?= pf-rates-adminer
 ADMINER_PORT ?= 8090
 APP_PORT ?= 8001
 ENV_FILE ?= .env
 VENV_BIN = PATH="$(VENV)/bin:$$PATH"
 
-DB_ENV = NERDCTL_BIN="$(NERDCTL)" DB_CONTAINER="$(DB_CONTAINER)" DB_VOLUME="$(DB_VOLUME)" DB_NAME="$(DB_NAME)" DB_USER="$(DB_USER)" DB_PASSWORD="$(DB_PASSWORD)" DB_PORT="$(DB_PORT)"
-DB_SEED_FLAG_base =
-DB_SEED_FLAG_test = APPLY_TEST_SEED=1
-DB_SEED_FLAG_real = APPLY_REAL_SEED=1
+DB_ENV = NERDCTL_BIN="$(NERDCTL)" DB_CONTAINER="$(DB_CONTAINER)" DB_NAME="$(DB_NAME)" DB_USER="$(DB_USER)" DB_PASSWORD="$(DB_PASSWORD)" DB_PORT="$(DB_PORT)"
 ADMINER_ENV = NERDCTL_BIN="$(NERDCTL)" ADMINER_CONTAINER="$(ADMINER_CONTAINER)" ADMINER_PORT="$(ADMINER_PORT)"
 UNSET_PROXY_VARS = bash -eu -o pipefail -c 'vars=(http_proxy https_proxy all_proxy no_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY); for v in "$${vars[@]}"; do if [[ -n "$${!v-}" ]]; then printf "  ✓ Unsetting %s → %s\n" "$$v" "$${!v}"; unset "$$v"; else printf "  • %s not set\n" "$$v"; fi; done'
 
@@ -81,6 +79,7 @@ reinstall: clean
 	@$(MAKE) --no-print-directory install
 
 # Writes a local .env file with database connection and tooling defaults.
+# Database is the shared pf-db instance (run `make db-up` in the pf-db repo first).
 env-write:
 	@printf 'FINANCIAL_DATA_DATABASE_URL=postgresql+asyncpg://$(DB_USER):$(DB_PASSWORD)@localhost:$(DB_PORT)/$(DB_NAME)\n' > $(ENV_FILE)
 	@printf 'FINANCIAL_DATA_API_KEY=change-me-before-use\n' >> $(ENV_FILE)
@@ -93,44 +92,20 @@ env-write:
 	@printf '#FINANCIAL_DATA_HTTP_PROXY=http://proxy.corpo-rative.com:8080\n' >> $(ENV_FILE)
 	@echo "  ✓ $(ENV_FILE) written"
 
-# Internal: run scripts/db.sh with a selected action and optional seed mode.
-_db-flow:
-	$(DB_ENV) $(DB_SEED_FLAG_$(SEED_MODE)) ./scripts/db.sh $(DB_ACTION)
-
-# Starts PostgreSQL with the base schema and seed data.
+# Database is owned by pf-db. Use `make db-up` in that repo to start it.
+# The targets below operate on the shared pf-db container for convenience.
 db-up:
-	$(MAKE) --no-print-directory _db-flow DB_ACTION=up SEED_MODE=base
+	@echo "pf-rates no longer manages its own database container."
+	@echo "Start the shared database from the pf-db repository:"
+	@echo "  cd ../pf-db && make db-up"
 
-# Starts PostgreSQL and also loads test fixtures.
-db-up-test:
-	$(MAKE) --no-print-directory _db-flow DB_ACTION=up SEED_MODE=test
-
-# Starts PostgreSQL and also loads real operational seed data.
-db-up-real:
-	$(MAKE) --no-print-directory _db-flow DB_ACTION=up SEED_MODE=real
-
-# Recreates the schema and reloads only base seed data.
-db-reset-data:
-	$(MAKE) --no-print-directory _db-flow DB_ACTION=reset-data SEED_MODE=base
-
-# Recreates the schema and reloads base + test seed data.
-db-reset-data-test:
-	$(MAKE) --no-print-directory _db-flow DB_ACTION=reset-data SEED_MODE=test
-
-# Recreates the schema and reloads base + real operational seed data.
-db-reset-data-real:
-	$(MAKE) --no-print-directory _db-flow DB_ACTION=reset-data SEED_MODE=real
-
-# Stops and removes the PostgreSQL container.
 db-down:
-	$(MAKE) --no-print-directory _db-flow DB_ACTION=down SEED_MODE=base
+	@echo "Database is managed by pf-db. To stop it:"
+	@echo "  cd ../pf-db && make db-down"
 
-# Stops PostgreSQL (if running) and starts it again with the base schema and seed data.
-db-restart: db-down db-up
-
-# Opens an interactive psql session inside the PostgreSQL container.
+# Opens an interactive psql session inside the shared pf-db container.
 db-psql:
-	$(MAKE) --no-print-directory _db-flow DB_ACTION=psql SEED_MODE=base
+	docker exec -it $(DB_CONTAINER) psql -U $(DB_USER) -d $(DB_NAME)
 
 # Starts Adminer after ensuring PostgreSQL is up.
 adminer-up: db-up

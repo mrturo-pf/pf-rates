@@ -1,4 +1,9 @@
 -- ============================================================
+-- TEST FIXTURE ONLY — do not apply in production.
+-- Schema source of truth lives in pf-db (alembic/versions/0001_rates_schema.py).
+-- This file is used exclusively by tests/conftest.py to bootstrap the
+-- testcontainers PostgreSQL instance for integration tests.
+-- ============================================================
 -- 1. Currencies and exchange rates
 -- ============================================================
 CREATE TABLE IF NOT EXISTS currencies (

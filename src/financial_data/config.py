@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     """Represent Settings."""
 
     api_key: str
-    database_url: str = "postgresql+asyncpg://rates:rates@localhost:5433/rates"
+    database_url: str = "postgresql+asyncpg://pf:pf@localhost:5432/pf"
     rate_provider_timeout_seconds: int = 10
     http_proxy: str | None = None
 
