@@ -27,10 +27,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Runtime: installed package + alembic migration files
+# Runtime: installed package only.
+# Migrations are now managed by pf-db (alembic upgrade head runs from that repo).
 COPY --from=builder /opt/venv /opt/venv
-COPY alembic.ini ./
-COPY alembic ./alembic
 
 RUN useradd --no-create-home --shell /bin/false appuser
 USER appuser
