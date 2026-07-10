@@ -20,27 +20,13 @@
 #     --location=us-central1 \
 #     --description="pf-rates container images"
 #
-#   # 3. Create Cloud SQL instance (db-f1-micro ≈ $7/month, cheapest GCP-native)
-#   #    Alternative: set FINANCIAL_DATA_DATABASE_URL to a free external DB
-#   #    (Neon, Supabase) and skip Cloud SQL entirely.
-#   gcloud sql instances create pf-rates-db \
-#     --database-version=POSTGRES_16 \
-#     --tier=db-f1-micro \
-#     --region=us-central1 \
-#     --no-assign-ip \
-#     --storage-type=SSD \
-#     --storage-size=10GB
-#
-#   gcloud sql databases create rates --instance=pf-rates-db
-#   gcloud sql users create rates --instance=pf-rates-db --password=<STRONG_PASSWORD>
-#
-#   # 4. Create the DATABASE_URL secret in Secret Manager
+#   # 3. Create the DATABASE_URL secret in Secret Manager
 #   #    Cloud SQL Unix socket format:
-#   #      postgresql+asyncpg://rates:<PASSWORD>@/rates?host=/cloudsql/PROJECT:REGION:INSTANCE
-#   echo -n "postgresql+asyncpg://rates:<PASSWORD>@/rates?host=/cloudsql/<PROJECT>:us-central1:pf-rates-db" | \
+#   #      postgresql+asyncpg://<USER>:<PASSWORD>@/pf_db?host=/cloudsql/PROJECT:REGION:pf-db
+#   echo -n "postgresql+asyncpg://<USER>:<PASSWORD>@/pf_db?host=/cloudsql/<PROJECT>:us-central1:pf-db" | \
 #     gcloud secrets create FINANCIAL_DATA_DATABASE_URL --data-file=-
 #
-#   # 5. Create service account and grant IAM roles
+#   # 4. Create service account and grant IAM roles
 #   gcloud iam service-accounts create pf-rates \
 #     --display-name="pf-rates GitHub Actions deployer"
 #
@@ -56,17 +42,17 @@
 #       --member="serviceAccount:${SA}" --role="${ROLE}"
 #   done
 #
-#   # 6. Create and export the SA JSON key → add as GCP_SA_KEY GitHub secret
+#   # 5. Create and export the SA JSON key → add as GCP_SA_KEY GitHub secret
 #   gcloud iam service-accounts keys create sa-key.json --iam-account="${SA}"
 #   # Upload sa-key.json contents to GitHub secret GCP_SA_KEY, then delete the file.
 #   rm sa-key.json
 #
-#   # 7. Grant SA access to the DATABASE_URL secret
+#   # 6. Grant SA access to the DATABASE_URL secret
 #   gcloud secrets add-iam-policy-binding FINANCIAL_DATA_DATABASE_URL \
 #     --member="serviceAccount:${SA}" \
 #     --role="roles/secretmanager.secretAccessor"
 #
-#   # 8. Create the Dockerfile at repo root before running this pipeline.
+#   # 7. Create the Dockerfile at repo root before running this pipeline.
 #   #    Minimal example:
 #   #      FROM python:3.12-slim
 #   #      WORKDIR /app
@@ -76,7 +62,7 @@
 #   #      CMD ["uvicorn", "financial_data.interfaces.api.app:app", \
 #   #           "--host", "0.0.0.0", "--port", "8080"]
 #
-#   # 8b. Create the API_KEY secret (one-time setup, after step 7)
+#   # 7b. Create the API_KEY secret (one-time setup, after step 7)
 #   echo -n "<STRONG_RANDOM_KEY>" | \
 #     gcloud secrets create FINANCIAL_DATA_API_KEY --data-file=-
 #
@@ -89,6 +75,9 @@
 #   GCP_PROJECT_ID                  — GCP project ID
 #   FINANCIAL_DATA_DATABASE_URL     — stored in Secret Manager; referenced below
 #   FINANCIAL_DATA_API_KEY          — stored in Secret Manager; injected at runtime
+#   GH_PAT                          — GitHub Personal Access Token with repo read scope
+#                                     on mrturo/pf-db (needed by "Checkout pf-db" test step)
+#                                     Omit if pf-db is public.
 #   FINANCIAL_DATA_BCCH_API_USER    — (optional) Banco Central API user
 #   FINANCIAL_DATA_BCCH_API_PASSWORD — (optional) Banco Central API password
 #
@@ -121,8 +110,7 @@ env:
   REGION: us-central1
   AR_REPO: pf-rates
   SERVICE_NAME: pf-rates
-  MIGRATION_JOB: pf-rates-migrate
-  # Runtime service account for Cloud Run Job and Service.
+  # Runtime service account for Cloud Run Service.
   # Must have roles/secretmanager.secretAccessor on the DB secret.
   RUNTIME_SA: pf-rates@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
 
@@ -152,6 +140,16 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
+      # pf-db is checked out as a sibling (_pf-db/) so conftest.py can read the
+      # SQL test fixtures (schema + seed) without duplicating them in this repo.
+      # Requires GH_PAT secret if pf-db is a private repository.
+      - name: Checkout pf-db (SQL test fixtures)
+        uses: actions/checkout@v7
+        with:
+          repository: mrturo/pf-db
+          path: _pf-db
+          token: ${{ secrets.GH_PAT }}
+
       - name: Lint (ruff)
         run: |
           ruff check src tests
@@ -170,6 +168,8 @@ jobs:
           make duplicate-code
 
       - name: Run tests with coverage
+        env:
+          PF_DB_PATH: _pf-db
         run: make test-cov
 
       - name: Install Trivy
@@ -305,7 +305,8 @@ jobs:
         run: echo "Manual approval granted — proceeding to deploy."
 
   # ------------------------------------------------------------------
-  # deploy: push image to AR, migrate, deploy (only on push to main)
+  # deploy: push image to AR, deploy (only on push to main)
+  # Migrations are handled by pf-db before this service receives traffic.
   # ------------------------------------------------------------------
   deploy:
     name: Deploy to Cloud Run
@@ -364,38 +365,6 @@ jobs:
           docker load -i /tmp/pf-rates-release.tar
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.SERVICE_NAME }}:latest
-
-      # Run Alembic migrations via a Cloud Run Job BEFORE the new service
-      # revision receives traffic. --wait makes the step fail if migrations fail.
-      # GCP_CLOUD_SQL_INSTANCE is optional: set it to "PROJECT:REGION:INSTANCE"
-      # for Cloud SQL (Option B). Leave it empty for external DB (Option A).
-      - name: Create or update Alembic migration Cloud Run Job
-        run: |
-          set -euo pipefail
-          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
-          CLOUDSQL_FLAG=""
-          if [ -n "${{ secrets.GCP_CLOUD_SQL_INSTANCE }}" ]; then
-            CLOUDSQL_FLAG="--set-cloudsql-instances=${{ secrets.GCP_CLOUD_SQL_INSTANCE }}"
-          fi
-
-          gcloud run jobs deploy "${{ env.MIGRATION_JOB }}" \
-            --image="${IMAGE}" \
-            --region="${{ env.REGION }}" \
-            --command="alembic" \
-            --args="upgrade,head" \
-            --service-account="${{ env.RUNTIME_SA }}" \
-            --set-secrets="FINANCIAL_DATA_DATABASE_URL=FINANCIAL_DATA_DATABASE_URL:latest,FINANCIAL_DATA_API_KEY=FINANCIAL_DATA_API_KEY:latest" \
-            --memory=512Mi \
-            --cpu=1 \
-            --max-retries=0 \
-            --task-timeout=300 \
-            ${CLOUDSQL_FLAG}
-
-      - name: Execute Alembic migrations
-        run: |
-          gcloud run jobs execute "${{ env.MIGRATION_JOB }}" \
-            --region="${{ env.REGION }}" \
-            --wait
 
       # Deploy the new service revision.
       # --min-instances=0: scales to zero when idle → $0 compute at rest.

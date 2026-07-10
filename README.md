@@ -10,7 +10,7 @@ This repository implements a dedicated microservice for Chilean financial refere
 - economic indices (UF, UTM, IPC) from official Chilean sources
 - income tax brackets for payroll tax calculation
 - FastAPI API
-- PostgreSQL persistence with Alembic migrations and local Rancher Desktop workflows
+- PostgreSQL persistence (schema and migrations managed by **pf-db**
 
 ## Quick start
 
@@ -18,7 +18,6 @@ This repository implements a dedicated microservice for Chilean financial refere
 make install            # create virtualenv + install deps
 make env-write          # generate .env with default local values
                         # then edit .env and set FINANCIAL_DATA_API_KEY to a secure value
-make db-up              # start PostgreSQL, apply schema + seed
 make run                # start FastAPI with auto-reload
 ```
 
@@ -54,8 +53,9 @@ The service is deployed to **Google Cloud Run** via **GitHub Actions** (`.github
 1. Authenticate to GCP using a service-account key.
 2. Assert that Artifact Registry vulnerability scanning is disabled (cost control — ~$5/month per image if enabled).
 3. Load the image artifact and push it to Artifact Registry (`us-central1`, repository `pf-rates`) tagged with the commit SHA and `latest`.
-4. Deploy a Cloud Run **Job** (`pf-rates-migrate`) that runs `alembic upgrade head` and waits for it to succeed before any traffic is shifted.
-5. Deploy the Cloud Run **Service** (`pf-rates`) with the new image.
+4. Deploy the Cloud Run **Service** (`pf-rates`) with the new image.
+
+> **Migrations** are handled by [pf-db](../pf-db) — a separate Cloud Run Job applies all pending migrations before pf-rates receives traffic.
 
 **`notify-failure` job** — runs on push to `main` if `test`, `build`, or `deploy` fail:
 1. Sends a failure email via SMTP. Does not fire on cancellation or gate rejection.
@@ -70,7 +70,7 @@ The pipeline supports two database configurations, controlled by the optional `G
 | Option | Setup | `GCP_CLOUD_SQL_INSTANCE` |
 | --- | --- | --- |
 | **A — external DB** (e.g. Neon, Supabase) | Set `FINANCIAL_DATA_DATABASE_URL` in Secret Manager pointing to the external host | leave the secret **empty** |
-| **B — Cloud SQL** | Create a `db-f1-micro` Cloud SQL instance (`pf-rates-db`, `us-central1`) | set to `PROJECT:us-central1:pf-rates-db` |
+| **B — Cloud SQL** | Use the shared Cloud SQL instance managed by pf-db | set to `PROJECT:us-central1:pf-db` |
 
 ### GitHub Secrets
 
@@ -81,7 +81,7 @@ Configure the following secrets in the repository (Settings → Secrets and vari
 | `GCP_SA_KEY` | ✅ | Service-account JSON key with the roles listed in the deploy workflow header. |
 | `GCP_PROJECT_ID` | ✅ | GCP project ID. |
 | `FINANCIAL_DATA_DATABASE_URL` | ✅ | Connection string stored in Secret Manager (injected into Cloud Run at runtime). |
-| `FINANCIAL_DATA_API_KEY` | ✅ | API key for client authentication; stored in Secret Manager and injected into both the migration job and the service at runtime. |
+| `FINANCIAL_DATA_API_KEY` | ✅ | API key for client authentication; stored in Secret Manager and injected into the service at runtime. |
 | `GCP_CLOUD_SQL_INSTANCE` | optional | Cloud SQL instance in `PROJECT:REGION:INSTANCE` format (leave empty for Option A). |
 | `MAIL_SERVER` | ✅ | SMTP server hostname (e.g. `smtp.gmail.com`). |
 | `MAIL_PORT` | ✅ | SMTP port (e.g. `587` for STARTTLS). |
@@ -149,5 +149,4 @@ This repository adopts the following engineering standards and conventions:
 - `src/financial_data/infrastructure`: database, rate providers, logging
 - `src/financial_data/interfaces`: FastAPI entrypoint
 - `tests`: unit and integration coverage
-- `db`: SQL schema and seed data
-- `alembic`: database migrations
+- `db`: SQL test fixtures (schema + seed for integration tests via testcontainers)

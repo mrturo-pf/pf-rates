@@ -5,19 +5,11 @@ set -euo pipefail
 # The pf-db container must be running before this script is called.
 # Start it with: cd ../pf-db && make db-up
 
-DB_CONTAINER="${DB_CONTAINER:-pf-db-db-1}"
-DB_NAME="${DB_NAME:-pf}"
-DB_USER="${DB_USER:-pf}"
-DB_PASSWORD="${DB_PASSWORD:-pf}"
-DB_PORT="${DB_PORT:-5432}"
-ADMINER_CONTAINER="${ADMINER_CONTAINER:-pf-rates-adminer}"
-ADMINER_PORT="${ADMINER_PORT:-8090}"
 APP_PORT="${APP_PORT:-8001}"
 VENV="${VENV:-.venv}"
 ENV_FILE="${ENV_FILE:-.env}"
 CORPORATIVE_PIP_INDEX="${CORPORATIVE_PIP_INDEX:-}"
 CORPORATIVE_NPM_REGISTRY="${CORPORATIVE_NPM_REGISTRY:-}"
-NERDCTL_BIN="${NERDCTL_BIN:-nerdctl}"
 
 log() {
   printf '[local-up] %s\n' "$1"
@@ -29,10 +21,10 @@ venv_ready() {
 }
 
 # Verify the shared pf-db container is running.
-log "Checking shared pf-db container ($DB_CONTAINER)"
-if ! docker inspect --format '{{.State.Status}}' "$DB_CONTAINER" 2>/dev/null | grep -q "^running$"; then
+log "Checking shared pf-db container (pf-db-db-1)"
+if ! docker inspect --format '{{.State.Status}}' pf-db-db-1 2>/dev/null | grep -q "^running$"; then
   echo ""
-  echo "ERROR: pf-db container '$DB_CONTAINER' is not running."
+  echo "ERROR: pf-db container 'pf-db-db-1' is not running."
   echo ""
   echo "Start the shared database first:"
   echo "  cd ../pf-db && make db-up"
@@ -41,21 +33,10 @@ if ! docker inspect --format '{{.State.Status}}' "$DB_CONTAINER" 2>/dev/null | g
 fi
 log "pf-db container is running"
 
-log "Starting or reusing Adminer"
-adminer_output="$(
-  NERDCTL_BIN="$NERDCTL_BIN" \
-  ADMINER_CONTAINER="$ADMINER_CONTAINER" \
-  ADMINER_PORT="$ADMINER_PORT" \
-  ./scripts/adminer.sh up
-)"
-printf '%s\n' "$adminer_output"
-adminer_url="$(printf '%s\n' "$adminer_output" | tail -n 1)"
-
 log "Writing environment file to $ENV_FILE"
 {
   printf '# Database managed by pf-db (shared with pf-payroll)\n'
-  printf 'FINANCIAL_DATA_DATABASE_URL=postgresql+asyncpg://%s:%s@localhost:%s/%s\n' \
-    "$DB_USER" "$DB_PASSWORD" "$DB_PORT" "$DB_NAME"
+  printf 'FINANCIAL_DATA_DATABASE_URL=postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db\n'
   printf '\n# Tooling — corporate pip/npm registries (used by make install/check on VPN)\n'
   printf 'CORPORATIVE_PIP_INDEX=%s\n' "$CORPORATIVE_PIP_INDEX"
   printf 'CORPORATIVE_NPM_REGISTRY=%s\n' "$CORPORATIVE_NPM_REGISTRY"
@@ -73,10 +54,9 @@ else
 fi
 
 printf '\n'
-printf 'Adminer : %s\n' "$adminer_url"
-printf 'API     : http://127.0.0.1:%s\n' "$APP_PORT"
-printf 'Docs    : http://127.0.0.1:%s/docs\n' "$APP_PORT"
-printf 'Env     : %s\n' "$ENV_FILE"
+printf 'API  : http://127.0.0.1:%s\n' "$APP_PORT"
+printf 'Docs : http://127.0.0.1:%s/docs\n' "$APP_PORT"
+printf 'Env  : %s\n' "$ENV_FILE"
 printf '\n'
 
 exec "$VENV/bin/uvicorn" financial_data.interfaces.api.app:app --reload --host 127.0.0.1 --port "$APP_PORT"

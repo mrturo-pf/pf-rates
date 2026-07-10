@@ -50,8 +50,7 @@ shared/          # Cross-cutting constants
 
 ```bash
 # Database must be started from pf-db first (see Database section below)
-make local-up              # check pf-db is running, start Adminer, write .env, install deps, run API
-make db-psql               # open psql session in the shared pf-db container
+make local-up              # check pf-db is running, write .env, install deps, run API
 make env-write             # regenerate .env with default local DB values
 make check                 # lint → dead-code → typecheck → dup-check → test → test-cov
 # Individual: make lint | dead-code | typecheck | duplicate-code-src | duplicate-code-tests | test | test-cov
@@ -74,9 +73,10 @@ class StubMarketDataRepository:
 ```
 
 - Shared fixtures in `tests/conftest.py`
-- Integration tests bootstrap a throwaway postgres via testcontainers using `db/01_schema.sql`
-  and `db/02_seed_currencies.sql` — these files are **test fixtures only**, kept in `db/` for this
-  purpose; the production schema source of truth is `pf-db/alembic/versions/0001_rates_schema.py`
+- Integration tests bootstrap a throwaway postgres via testcontainers reading SQL fixtures
+  directly from the pf-db repository (`db/01_schema.sql` and `db/02_seed_base.sql`).
+  The path is resolved via the `PF_DB_PATH` env var (default: `../pf-db` — assumes sibling repos).
+  In CI the `test` job checks out `mrturo/pf-db` into `_pf-db/` and sets `PF_DB_PATH=_pf-db`.
 - Verify meaningful outputs (return values, state, errors) — not just that methods were called
 - `asyncio_mode = "auto"` in `pyproject.toml` — do not add `@pytest.mark.asyncio`
 - 100% coverage required for `src/`
@@ -89,7 +89,7 @@ class StubMarketDataRepository:
 4. Wire dependency in `interfaces/api/dependencies.py`
 5. Add route in `interfaces/api/routes/`
 6. Add stub-based unit test in `tests/unit/application/`
-7. If the change requires a new column or table, add a migration in `pf-db/alembic/versions/`
+7. If the change requires a new column or table, add a migration in the pf-db repository
 8. `make check` must pass clean
 
 ## CI/CD pipeline
@@ -107,13 +107,13 @@ class StubMarketDataRepository:
 
 Pipeline invariants (never violate):
 
-1. Migrations before traffic — the `pf-db` Cloud Run Job must run `alembic upgrade head` before either service receives traffic. pf-rates no longer runs its own migration job.
+1. Migrations before traffic — the `pf-db` Cloud Run Job must apply all pending migrations before either service receives traffic. pf-rates ships no migration tooling.
 2. DB URL via `--set-secrets` only — never `--set-env-vars`
 3. AR scanning stays disabled — pipeline uses Trivy (~$5/month if enabled)
 4. `--min-instances=0` — intentional scale-to-zero; do not change without approval
 5. Image tagged with both `github.sha` and `latest` — deploy references SHA, not `latest`
 6. Non-root container — Dockerfile switches to `appuser` in final stage
-7. Multi-stage build — final stage copies only the venv; do not add `COPY alembic.ini`, `COPY alembic`, or `COPY src ./src`
+7. Multi-stage build — final stage copies only the venv; do not add `COPY src ./src`
 
 GitHub Secrets:
 
@@ -139,14 +139,14 @@ Cloud Run: region `us-central1`, min 0/max 2 instances, 512 MiB/1 CPU, port 8080
 
 ## Database
 
-Schema and migrations are owned by **[pf-db](../pf-db)** — a separate repository.
+Schema and migrations are owned by **pf-db** — a separate repository.
 pf-rates only holds SQLAlchemy ORM models and repositories.
 
 - **Connection**: `FINANCIAL_DATA_DATABASE_URL` env var (default local: `postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db`)
 - **Sessions**: `infrastructure/db/session.py` — always use `async with SessionLocal() as session`
 - **Repositories**: implement port `Protocol`s; live in `infrastructure/db/repositories/`
 - **ORM models**: `infrastructure/db/models/financial_data.py`
-- **Schema changes**: add a migration in `pf-db/alembic/versions/` — never edit models without a corresponding pf-db migration
+- **Schema changes**: add a migration in the pf-db repository — never edit models without a corresponding pf-db migration
 
 ### Local database setup
 
@@ -161,7 +161,7 @@ Then start pf-rates:
 
 ```bash
 cd ../pf-rates
-make local-up        # verifies pf-db is running, starts Adminer, writes .env, runs API
+make local-up        # verifies pf-db is running, writes .env, runs API
 ```
 
 ### Tables owned by pf-rates
@@ -170,8 +170,7 @@ make local-up        # verifies pf-db is running, starts Adminer, writes .env, r
 
 These tables are written exclusively by pf-rates. `pf-payroll` reads them via the pf-rates HTTP API — never via direct SQL.
 
-### db/ SQL files
+### SQL test fixtures
 
-`db/01_schema.sql` and `db/02_seed_currencies.sql` are **test fixtures** used by `tests/conftest.py`
-to bootstrap throwaway testcontainers databases for integration tests. They are not the production
-schema source of truth and must not be applied outside of tests.
+Integration tests read SQL fixtures directly from the pf-db repository — no local copies.
+Set `PF_DB_PATH` in `.env` (default: `../pf-db`) to point to the pf-db checkout.

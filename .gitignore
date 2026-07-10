@@ -206,6 +206,9 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# pf-db checkout used by CI for SQL test fixtures (checked out alongside this repo)
+_pf-db/
+
 # Temporary text files at repo root
 /*.txt
 

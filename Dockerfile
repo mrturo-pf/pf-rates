@@ -28,7 +28,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Runtime: installed package only.
-# Migrations are now managed by pf-db (alembic upgrade head runs from that repo).
+# Migrations are managed by pf-db — this image ships no migration tooling.
 COPY --from=builder /opt/venv /opt/venv
 
 RUN useradd --no-create-home --shell /bin/false appuser

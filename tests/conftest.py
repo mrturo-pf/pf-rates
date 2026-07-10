@@ -1,6 +1,7 @@
 """Shared test fixtures."""
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,15 @@ from financial_data.interfaces.api.app import app
 from financial_data.interfaces.api.dependencies import get_session, get_sync_use_case
 
 _ROOT = Path(__file__).parent.parent
+
+# pf-db path: resolved from PF_DB_PATH env var (default: ../pf-db, sibling repo).
+# CI: set PF_DB_PATH=_pf-db after checking out pf-db into _pf-db/.
+_PF_DB_ENV = os.environ.get("PF_DB_PATH", "../pf-db")
+_PF_DB = (
+    Path(_PF_DB_ENV)
+    if Path(_PF_DB_ENV).is_absolute()
+    else (_ROOT / _PF_DB_ENV).resolve()
+)
 
 # SQLAlchemy connect_args for testcontainers: the ephemeral PostgreSQL does not
 # use TLS, so we must disable SSL to avoid asyncpg's SSL-first handshake.
@@ -109,10 +119,16 @@ def pg_url() -> str:
             pg_dsn = dsn.replace("postgresql+asyncpg://", "postgresql://")
             conn = await _asyncpg.connect(dsn=pg_dsn, ssl=False)
             try:
-                await conn.execute((_ROOT / "db" / "01_schema.sql").read_text())
-                await conn.execute(
-                    (_ROOT / "db" / "02_seed_currencies.sql").read_text()
-                )
+                schema = _PF_DB / "db" / "01_schema.sql"
+                seed = _PF_DB / "db" / "02_seed_base.sql"
+                if not schema.exists():
+                    raise FileNotFoundError(
+                        f"pf-db SQL fixtures not found at '{_PF_DB}'. "
+                        "Set PF_DB_PATH in .env (default: ../pf-db). "
+                        "CI: checkout mrturo/pf-db into _pf-db/."
+                    )
+                await conn.execute(schema.read_text())
+                await conn.execute(seed.read_text())
             finally:
                 await conn.close()
 
