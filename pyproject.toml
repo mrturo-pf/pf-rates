@@ -14,7 +14,7 @@ dependencies = [
   "greenlet>=3.2",
   "pydantic>=2.11",
   "pydantic-settings>=2.10",
-  "sqlalchemy>=2.0",
+  "sqlalchemy>=2.0.36",
   "structlog>=25.4",
   "uvicorn[standard]>=0.35",
 ]
