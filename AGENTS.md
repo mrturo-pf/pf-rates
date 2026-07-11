@@ -121,14 +121,14 @@ GitHub Secrets:
 |---|---|
 | `GCP_SA_KEY` | GCP auth (deploy job) |
 | `GCP_PROJECT_ID` | image tags, IAM |
-| `FINANCIAL_DATA_DATABASE_URL` | Cloud Run `--set-secrets` (points to shared pf-db instance) |
-| `FINANCIAL_DATA_API_KEY` | Cloud Run `--set-secrets` |
+| `PF_DATABASE_URL` | Cloud Run `--set-secrets` (points to shared pf-db instance) |
+| `PF_RATES_API_KEY` | Cloud Run `--set-secrets` |
 | `GCP_CLOUD_SQL_INSTANCE` | optional Cloud SQL proxy sidecar |
 | `MAIL_SERVER/PORT/USERNAME/PASSWORD/FROM/TO` | SMTP notifications |
 
 > `FINANCIAL_DATA_BCCH_API_USER` / `BCCH_API_PASSWORD` referenced in workflow header but not injected — add `--set-secrets` if needed at runtime.
 
-DB options: A) External — set `FINANCIAL_DATA_DATABASE_URL` → shared Neon/Supabase pf-db instance, leave `GCP_CLOUD_SQL_INSTANCE` empty. B) Cloud SQL — set `GCP_CLOUD_SQL_INSTANCE=PROJECT:us-central1:pf-db`, pipeline adds proxy sidecar.
+DB options: A) External — set `PF_DATABASE_URL` → shared Neon/Supabase pf-db instance, leave `GCP_CLOUD_SQL_INSTANCE` empty. B) Cloud SQL — set `GCP_CLOUD_SQL_INSTANCE=PROJECT:us-central1:pf-db`, pipeline adds proxy sidecar.
 
 Cloud Run: region `us-central1`, min 0/max 2 instances, 512 MiB/1 CPU, port 8080, SA `pf-rates@<PROJECT>.iam.gserviceaccount.com` needs `roles/secretmanager.secretAccessor`.
 
@@ -142,7 +142,7 @@ Cloud Run: region `us-central1`, min 0/max 2 instances, 512 MiB/1 CPU, port 8080
 Schema and migrations are owned by **pf-db** — a separate repository.
 pf-rates only holds SQLAlchemy ORM models and repositories.
 
-- **Connection**: `FINANCIAL_DATA_DATABASE_URL` env var (default local: `postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db`)
+- **Connection**: `PF_DATABASE_URL` env var (default local: `postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db`)
 - **Sessions**: `infrastructure/db/session.py` — always use `async with SessionLocal() as session`
 - **Repositories**: implement port `Protocol`s; live in `infrastructure/db/repositories/`
 - **ORM models**: `infrastructure/db/models/financial_data.py`

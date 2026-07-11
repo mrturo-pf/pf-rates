@@ -11,4 +11,4 @@ import os
 # Force a known test value regardless of the developer's shell environment.
 # setdefault would silently keep a real key, causing verify_api_key to reject
 # the hardcoded "test-key" header used in every test fixture.
-os.environ["FINANCIAL_DATA_API_KEY"] = "test-key"
+os.environ["PF_RATES_API_KEY"] = "test-key"

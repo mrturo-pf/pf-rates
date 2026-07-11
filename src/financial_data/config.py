@@ -1,14 +1,17 @@
 """Application settings."""
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Represent Settings."""
 
-    api_key: str
-    database_url: str = "postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db"
+    api_key: str = Field(validation_alias="pf_rates_api_key")
+    database_url: str = Field(
+        default="postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db",
+        validation_alias="pf_database_url",
+    )
     rate_provider_timeout_seconds: int = 10
     http_proxy: str | None = None
 

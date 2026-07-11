@@ -8,7 +8,7 @@ from financial_data.interfaces.api.security import verify_api_key
 
 def test_verify_api_key_accepts_correct_key() -> None:
     """verify_api_key does not raise when the configured key is provided."""
-    verify_api_key("test-key")  # matches FINANCIAL_DATA_API_KEY set in root conftest
+    verify_api_key("test-key")  # matches PF_RATES_API_KEY set in root conftest
 
 
 def test_verify_api_key_raises_403_when_key_is_absent() -> None:

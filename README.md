@@ -17,7 +17,7 @@ This repository implements a dedicated microservice for Chilean financial refere
 ```bash
 make install            # create virtualenv + install deps
 make env-write          # generate .env with default local values
-                        # then edit .env and set FINANCIAL_DATA_API_KEY to a secure value
+                        # then edit .env and set PF_RATES_API_KEY to a secure value
 make run                # start FastAPI with auto-reload
 ```
 
@@ -69,7 +69,7 @@ The pipeline supports two database configurations, controlled by the optional `G
 
 | Option | Setup | `GCP_CLOUD_SQL_INSTANCE` |
 | --- | --- | --- |
-| **A — external DB** (e.g. Neon, Supabase) | Set `FINANCIAL_DATA_DATABASE_URL` in Secret Manager pointing to the external host | leave the secret **empty** |
+| **A — external DB** (e.g. Neon, Supabase) | Set `PF_DATABASE_URL` in Secret Manager pointing to the external host | leave the secret **empty** |
 | **B — Cloud SQL** | Use the shared Cloud SQL instance managed by pf-db | set to `PROJECT:us-central1:pf-db` |
 
 ### GitHub Secrets
@@ -80,8 +80,8 @@ Configure the following secrets in the repository (Settings → Secrets and vari
 | --- | --- | --- |
 | `GCP_SA_KEY` | ✅ | Service-account JSON key with the roles listed in the deploy workflow header. |
 | `GCP_PROJECT_ID` | ✅ | GCP project ID. |
-| `FINANCIAL_DATA_DATABASE_URL` | ✅ | Connection string stored in Secret Manager (injected into Cloud Run at runtime). |
-| `FINANCIAL_DATA_API_KEY` | ✅ | API key for client authentication; stored in Secret Manager and injected into the service at runtime. |
+| `PF_DATABASE_URL` | ✅ | Connection string stored in Secret Manager (injected into Cloud Run at runtime). |
+| `PF_RATES_API_KEY` | ✅ | API key for client authentication; stored in Secret Manager and injected into the service at runtime. |
 | `GCP_CLOUD_SQL_INSTANCE` | optional | Cloud SQL instance in `PROJECT:REGION:INSTANCE` format (leave empty for Option A). |
 | `MAIL_SERVER` | ✅ | SMTP server hostname (e.g. `smtp.gmail.com`). |
 | `MAIL_PORT` | ✅ | SMTP port (e.g. `587` for STARTTLS). |
@@ -98,7 +98,7 @@ Configure the following secrets in the repository (Settings → Secrets and vari
 - **Scale:** min 0 → max 2 instances (scales to zero when idle — zero compute cost at rest)
 - **Resources:** 512 MiB RAM, 1 vCPU
 - **Port:** 8080 (Cloud Run injects `PORT` at runtime)
-- **Secrets at runtime:** `FINANCIAL_DATA_DATABASE_URL` is read from Secret Manager; it is never stored in environment variables.
+- **Secrets at runtime:** `PF_DATABASE_URL` is read from Secret Manager; it is never stored in environment variables.
 
 ### One-time GCP setup
 

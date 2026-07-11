@@ -36,7 +36,7 @@ log "pf-db container is running"
 log "Writing environment file to $ENV_FILE"
 {
   printf '# Database managed by pf-db (shared with pf-payroll)\n'
-  printf 'FINANCIAL_DATA_DATABASE_URL=postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db\n'
+  printf 'PF_DATABASE_URL=postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db\n'
   printf '\n# Tooling — corporate pip/npm registries (used by make install/check on VPN)\n'
   printf 'CORPORATIVE_PIP_INDEX=%s\n' "$CORPORATIVE_PIP_INDEX"
   printf 'CORPORATIVE_NPM_REGISTRY=%s\n' "$CORPORATIVE_NPM_REGISTRY"
