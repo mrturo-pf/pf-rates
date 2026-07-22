@@ -58,6 +58,15 @@ make check                 # lint → dead-code → typecheck → dup-check → 
 
 Run: `source .venv/bin/activate && make check` or `PATH=.venv/bin:$PATH make check`.
 
+## Git hooks
+
+Installed automatically by `make install` via `git config core.hooksPath .githooks`:
+
+| Hook | Runs | Bypass |
+|---|---|---|
+| `pre-commit` | lint · dead-code · typecheck | `git commit --no-verify` |
+| `pre-push` | duplicate-code-src · duplicate-code-tests | `git push --no-verify` |
+
 ## Testing conventions
 
 - `tests/unit/` — no DB, no network; `tests/integration/` — live PostgreSQL via testcontainers
