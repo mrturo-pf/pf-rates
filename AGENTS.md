@@ -34,7 +34,7 @@ shared/          # Cross-cutting constants
 
 - ruff: `extend-select = ["D", "E", "W", "UP"]`, `pep257` convention
 - Docstrings required for all modules, classes, and functions only
-- PEPs: 484 (mypy), 544 (Protocols), 585 (`list[X]`), 604 (`X | None`), 498 (f-strings), 492 (async/await)
+- PEPs: 484 (mypy), 544 (Protocols), 585 (`list[X]`), 604 (`X | None`), 498 (f-strings), 492 (async/await), 621 (pyproject.toml)
 - Domain dataclasses: `@dataclass(slots=True)`; frozen value objects add `frozen=True`
 - Async throughout; structlog only (`infrastructure/logging/logger.py`) — never `print` or stdlib `logging`
 
