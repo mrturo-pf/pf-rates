@@ -24,6 +24,13 @@ jobs:
           repository: mrturo-pf/pf-common
           path: pf-common
 
+      # Checkout pf-db para integration tests
+      - name: Checkout pf-db
+        uses: actions/checkout@v4
+        with:
+          repository: mrturo-pf/pf-db
+          path: _pf-db
+
       # Setup Python
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -56,6 +63,8 @@ jobs:
       # Ejecutar quality checks completo
       - name: Run quality checks
         working-directory: pf-rates
+        env:
+          PF_DB_PATH: ../_pf-db
         run: make check
 
       # (Opcional) Upload coverage
