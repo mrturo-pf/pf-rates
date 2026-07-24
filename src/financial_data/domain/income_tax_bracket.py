@@ -37,7 +37,7 @@ class IncomeTaxBracket:
                 f"upper_bound_utm ({self.upper_bound_utm}) must be greater than "
                 f"lower_bound_utm ({self.lower_bound_utm})"
             )
-        if not (Decimal("0") <= self.marginal_rate <= Decimal("1")):
+        if not (Decimal(0) <= self.marginal_rate <= Decimal(1)):
             raise ValueError(
                 f"marginal_rate must be in [0, 1]; got {self.marginal_rate}"
             )

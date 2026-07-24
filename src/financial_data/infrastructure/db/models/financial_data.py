@@ -67,4 +67,4 @@ class IncomeTaxBracketModel(Base):
         Numeric(10, 4), nullable=True
     )
     marginal_rate: Mapped[Decimal] = mapped_column(Numeric(8, 6))
-    rebate_utm: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal("0"))
+    rebate_utm: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal(0))

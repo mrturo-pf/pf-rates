@@ -1,10 +1,10 @@
 """Use case for synchronizing official monthly income tax brackets."""
 
-from financial_data.application.errors import FinancialDataDependencyError
 from financial_data.application.dto import (
     RefreshIncomeTaxBracketsCommandDTO,
     RefreshIncomeTaxBracketsResultDTO,
 )
+from financial_data.application.errors import FinancialDataDependencyError
 from financial_data.application.ports.rate_provider import IncomeTaxBracketProvider
 from financial_data.application.ports.reference_data_repository import (
     ReferenceDataRepository,

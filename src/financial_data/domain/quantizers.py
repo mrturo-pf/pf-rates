@@ -4,7 +4,7 @@ from decimal import Decimal
 
 __all__ = ["quantize_clp", "quantize_utm"]
 
-_CLP_QUANT = Decimal("1")
+_CLP_QUANT = Decimal(1)
 _UTM_QUANT = Decimal("0.000001")
 
 

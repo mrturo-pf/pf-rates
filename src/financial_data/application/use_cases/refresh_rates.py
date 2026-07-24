@@ -1,10 +1,5 @@
 """Use case for refreshing rates and economic indices."""
 
-from financial_data.application.errors import (
-    FinancialDataDependencyConfigurationError,
-    FinancialDataDependencyError,
-    FinancialDataValidationError,
-)
 from financial_data.application.dto import (
     EconomicIndexWriteDTO,
     ExchangeRateWriteDTO,
@@ -13,11 +8,16 @@ from financial_data.application.dto import (
     RefreshRatesCommandDTO,
     RefreshRatesResultDTO,
 )
+from financial_data.application.errors import (
+    FinancialDataDependencyConfigurationError,
+    FinancialDataDependencyError,
+    FinancialDataValidationError,
+)
+from financial_data.application.ports.market_data_repository import MarketDataRepository
 from financial_data.application.ports.rate_provider import (
     EconomicIndexProvider,
     FxRateProvider,
 )
-from financial_data.application.ports.market_data_repository import MarketDataRepository
 
 
 class RefreshRates:

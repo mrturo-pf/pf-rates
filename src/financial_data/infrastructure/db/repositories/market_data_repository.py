@@ -8,13 +8,13 @@ from sqlalchemy import Date, func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from financial_data.application.errors import FinancialDataValidationError
 from financial_data.application.dto import (
     EconomicIndexDTO,
     ExchangeRateDTO,
     RefreshRatesCommandDTO,
     RefreshRatesResultDTO,
 )
+from financial_data.application.errors import FinancialDataValidationError
 from financial_data.domain.normalization import (
     normalize_exchange_rate_lookup_date,
 )
