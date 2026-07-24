@@ -1,5 +1,6 @@
 """SQLAlchemy repository for currencies and income tax brackets."""
 
+from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
 
@@ -25,23 +26,42 @@ class SqlAlchemyReferenceDataRepository:
         """Initialize the instance."""
         self._session = session
 
+    def _map_currency_rows(self, rows: Sequence[CurrencyModel]) -> list[CurrencyDTO]:
+        """Map database rows to CurrencyDTO objects."""
+        dtos: list[CurrencyDTO] = []
+        for row in rows:
+            dto = CurrencyDTO(
+                code=row.code.strip(),
+                name=row.name,
+                is_fiat=row.is_fiat,
+                unit_kind=row.unit_kind,
+            )
+            dtos.append(dto)
+        return dtos
+
+    def _map_income_tax_bracket_rows(
+        self, rows: Sequence[IncomeTaxBracketModel]
+    ) -> list[IncomeTaxBracketDTO]:
+        """Map database rows to IncomeTaxBracketDTO objects."""
+        dtos: list[IncomeTaxBracketDTO] = []
+        for row in rows:
+            dto = IncomeTaxBracketDTO(
+                valid_from=row.valid_from,
+                valid_to=row.valid_to,
+                lower_bound_utm=row.lower_bound_utm,
+                upper_bound_utm=row.upper_bound_utm,
+                marginal_rate=row.marginal_rate,
+                rebate_utm=row.rebate_utm,
+            )
+            dtos.append(dto)
+        return dtos
+
     async def list_currencies(self) -> list[CurrencyDTO]:
         """List all supported currencies."""
         result = await self._session.execute(
             select(CurrencyModel).order_by(CurrencyModel.code)
         )
-        rows = result.scalars().all()
-        currencies = []
-        for row in rows:
-            currencies.append(
-                CurrencyDTO(
-                    code=row.code.strip(),
-                    name=row.name,
-                    is_fiat=row.is_fiat,
-                    unit_kind=row.unit_kind,
-                )
-            )
-        return currencies
+        return self._map_currency_rows(result.scalars().all())
 
     async def list_income_tax_brackets(
         self, year: int | None = None
@@ -59,20 +79,7 @@ class SqlAlchemyReferenceDataRepository:
                 IncomeTaxBracketModel.valid_from <= year_end,
             )
         result = await self._session.execute(statement)
-        rows = result.scalars().all()
-        brackets = []
-        for row in rows:
-            brackets.append(
-                IncomeTaxBracketDTO(
-                    valid_from=row.valid_from,
-                    valid_to=row.valid_to,
-                    lower_bound_utm=row.lower_bound_utm,
-                    upper_bound_utm=row.upper_bound_utm,
-                    marginal_rate=row.marginal_rate,
-                    rebate_utm=row.rebate_utm,
-                )
-            )
-        return brackets
+        return self._map_income_tax_bracket_rows(result.scalars().all())
 
     async def get_income_tax_bracket(
         self, reference_date: date, taxable_base_utm: Decimal
