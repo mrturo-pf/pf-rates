@@ -31,10 +31,10 @@ jobs:
           path: _pf-db
 
       # Setup Python
-      - name: Set up Python 3.12
+      - name: Set up Python 3.14
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.14"
 
       # Debug: Environment info
       - name: Debug - Environment info
