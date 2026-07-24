@@ -1,0 +1,67 @@
+name: Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Checkout pf-rates en subdirectorio
+      - name: Checkout pf-rates
+        uses: actions/checkout@v4
+        with:
+          path: pf-rates
+
+      # Checkout pf-common al lado de pf-rates
+      - name: Checkout pf-common
+        uses: actions/checkout@v4
+        with:
+          repository: mrturo/pf-common
+          path: pf-common
+
+      # Setup Python
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Instalar dependencias del sistema (si es necesario)
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      # Verificar estructura
+      - name: Verify directory structure
+        run: |
+          echo "Current directory:"
+          pwd
+          echo ""
+          echo "Directory structure:"
+          ls -la
+          echo ""
+          echo "pf-rates Makefile includes:"
+          grep "include.*pf-common" pf-rates/Makefile || echo "No pf-common include found"
+
+      # Instalar dependencias de pf-rates
+      - name: Install dependencies
+        working-directory: pf-rates
+        run: make install
+
+      # Ejecutar quality checks completo
+      - name: Run quality checks
+        working-directory: pf-rates
+        run: make check
+
+      # (Opcional) Upload coverage
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: pf-rates/htmlcov/
