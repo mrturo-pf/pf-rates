@@ -73,7 +73,12 @@ jobs:
         working-directory: pf-rates
         env:
           PF_DB_PATH: ${{ github.workspace }}/_pf-db
-        run: make check
+        run: |
+          echo "DEBUG: PF_DB_PATH=$PF_DB_PATH"
+          echo "DEBUG: github.workspace=${{ github.workspace }}"
+          echo "DEBUG: PWD=$(pwd)"
+          ls -la $PF_DB_PATH/db/ || echo "pf-db not found at $PF_DB_PATH"
+          make check
 
       # (Opcional) Upload coverage
       - name: Upload coverage reports
