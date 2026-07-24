@@ -81,7 +81,7 @@ async def _run_startup_sync() -> None:
     except asyncio.CancelledError:
         logger.info("startup_market_data_sync_cancelled")
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - gracefully skip startup sync on any error
         logger.warning("startup_market_data_sync_skipped", reason=str(exc))
         return
 

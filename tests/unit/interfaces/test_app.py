@@ -289,7 +289,7 @@ async def test_get_session_yields_session_from_session_local(
     import financial_data.interfaces.api.dependencies as deps_module
 
     class _StubSession:
-        async def __aenter__(self) -> "_StubSession":
+        async def __aenter__(self) -> Self:
             return self
 
         async def __aexit__(self, *args: object) -> None:
