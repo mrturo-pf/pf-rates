@@ -13,12 +13,6 @@ include ../pf-common/make/common.mk
 # Service-specific targets
 # ============================================================================
 
-# Override test-cov to use 99% threshold due to coverage.py quirks with
-# list comprehensions in CI (100% locally, 99.17% in CI - 11 lines)
-.PHONY: test-cov
-test-cov: ## Run tests with coverage report (99% threshold)
-	$(VENV_BIN) pytest --cov=src --cov-report=term-missing --cov-fail-under=99
-
 .PHONY: env-write
 env-write: ## Write .env file with service-specific defaults
 	@printf 'PF_DATABASE_URL=postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db\\n' > $(ENV_FILE)

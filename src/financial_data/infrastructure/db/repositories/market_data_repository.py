@@ -43,15 +43,18 @@ class SqlAlchemyMarketDataRepository:
                 ExchangeRateModel.currency_code == currency_code
             )
         result = await self._session.execute(statement)
-        return [
-            ExchangeRateDTO(
-                currency_code=row.currency_code.strip(),
-                rate_date=row.rate_date,
-                value_clp=row.value_clp,
-                source=row.source,
+        rows = result.scalars().all()
+        exchange_rates = []
+        for row in rows:
+            exchange_rates.append(
+                ExchangeRateDTO(
+                    currency_code=row.currency_code.strip(),
+                    rate_date=row.rate_date,
+                    value_clp=row.value_clp,
+                    source=row.source,
+                )
             )
-            for row in result.scalars().all()
-        ]
+        return exchange_rates
 
     async def list_economic_indices(
         self, code: str | None = None
@@ -65,19 +68,22 @@ class SqlAlchemyMarketDataRepository:
         if code is not None:
             statement = statement.where(EconomicIndexModel.code == code)
         result = await self._session.execute(statement)
-        return [
-            EconomicIndexDTO(
-                code=row.code,
-                period_year=row.period_year,
-                period_month=row.period_month,
-                index_value=row.index_value,
-                monthly_change=row.monthly_change,
-                yearly_change=row.yearly_change,
-                base_period=row.base_period,
-                source=row.source,
+        rows = result.scalars().all()
+        indices = []
+        for row in rows:
+            indices.append(
+                EconomicIndexDTO(
+                    code=row.code,
+                    period_year=row.period_year,
+                    period_month=row.period_month,
+                    index_value=row.index_value,
+                    monthly_change=row.monthly_change,
+                    yearly_change=row.yearly_change,
+                    base_period=row.base_period,
+                    source=row.source,
+                )
             )
-            for row in result.scalars().all()
-        ]
+        return indices
 
     async def get_exchange_rate_value(self, code: str, on: date) -> Decimal | None:
         """Get exchange rate value."""

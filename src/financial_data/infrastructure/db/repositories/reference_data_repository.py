@@ -30,15 +30,18 @@ class SqlAlchemyReferenceDataRepository:
         result = await self._session.execute(
             select(CurrencyModel).order_by(CurrencyModel.code)
         )
-        return [
-            CurrencyDTO(
-                code=row.code.strip(),
-                name=row.name,
-                is_fiat=row.is_fiat,
-                unit_kind=row.unit_kind,
+        rows = result.scalars().all()
+        currencies = []
+        for row in rows:
+            currencies.append(
+                CurrencyDTO(
+                    code=row.code.strip(),
+                    name=row.name,
+                    is_fiat=row.is_fiat,
+                    unit_kind=row.unit_kind,
+                )
             )
-            for row in result.scalars().all()
-        ]
+        return currencies
 
     async def list_income_tax_brackets(
         self, year: int | None = None
@@ -56,17 +59,20 @@ class SqlAlchemyReferenceDataRepository:
                 IncomeTaxBracketModel.valid_from <= year_end,
             )
         result = await self._session.execute(statement)
-        return [
-            IncomeTaxBracketDTO(
-                valid_from=row.valid_from,
-                valid_to=row.valid_to,
-                lower_bound_utm=row.lower_bound_utm,
-                upper_bound_utm=row.upper_bound_utm,
-                marginal_rate=row.marginal_rate,
-                rebate_utm=row.rebate_utm,
+        rows = result.scalars().all()
+        brackets = []
+        for row in rows:
+            brackets.append(
+                IncomeTaxBracketDTO(
+                    valid_from=row.valid_from,
+                    valid_to=row.valid_to,
+                    lower_bound_utm=row.lower_bound_utm,
+                    upper_bound_utm=row.upper_bound_utm,
+                    marginal_rate=row.marginal_rate,
+                    rebate_utm=row.rebate_utm,
+                )
             )
-            for row in result.scalars().all()
-        ]
+        return brackets
 
     async def get_income_tax_bracket(
         self, reference_date: date, taxable_base_utm: Decimal
