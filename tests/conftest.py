@@ -105,6 +105,15 @@ def pg_url() -> str:
     """Start a PostgreSQL container, apply schema + seed, and return the async DSN."""
     _ensure_docker()
 
+    # Skip if pf-db is not available (CI without pf-db checkout)
+    schema = _PF_DB / "db" / "01_schema.sql"
+    if not schema.exists():
+        pytest.skip(
+            f"pf-db SQL fixtures not found at '{_PF_DB}'. "
+            "Set PF_DB_PATH in .env (default: ../pf-db). "
+            "CI: checkout mrturo-pf/pf-db into _pf-db/."
+        )
+
     with PostgresContainer("postgres:16-alpine") as pg:
         raw_url = pg.get_connection_url()
         # Normalise to asyncpg regardless of the driver returned by testcontainers.
@@ -120,14 +129,7 @@ def pg_url() -> str:
             pg_dsn = dsn.replace("postgresql+asyncpg://", "postgresql://")
             conn = await _asyncpg.connect(dsn=pg_dsn, ssl=False)
             try:
-                schema = _PF_DB / "db" / "01_schema.sql"
                 seed = _PF_DB / "db" / "02_seed_base.sql"
-                if not schema.exists():
-                    raise FileNotFoundError(
-                        f"pf-db SQL fixtures not found at '{_PF_DB}'. "
-                        "Set PF_DB_PATH in .env (default: ../pf-db). "
-                        "CI: checkout mrturo/pf-db into _pf-db/."
-                    )
                 await conn.execute(schema.read_text())
                 await conn.execute(seed.read_text())
             finally:
