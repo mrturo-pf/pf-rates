@@ -26,7 +26,7 @@ This directory contains CI/CD workflows for pf-rates.
 
 ```
 /home/runner/work/pf-rates/pf-rates/
-├── pf-common/          <- Cloned from github.com/mrturo/pf-common
+├── pf-common/          <- Cloned from github.com/mrturo-pf/pf-common
 └── pf-rates/           <- This repository
     └── Makefile        <- include ../pf-common/make/common.mk
 ```
@@ -35,7 +35,7 @@ This recreates the same structure as local development.
 
 ## Requirements
 
-- **pf-common repository** must exist at `github.com/mrturo/pf-common`
+- **pf-common repository** must exist at `github.com/mrturo-pf/pf-common`
 - If pf-common is private, configure `PF_COMMON_TOKEN` secret
 
 ## Configuration
@@ -93,6 +93,6 @@ act -j test
 
 ## See Also
 
-- [pf-common](https://github.com/mrturo/pf-common) - Shared infrastructure
+- [pf-common](https://github.com/mrturo-pf/pf-common) - Shared infrastructure
 - [Makefile](../Makefile) - Build targets
 - [Contributing Guide](../docs/CONTRIBUTING.md) - Development workflow

@@ -21,7 +21,7 @@ jobs:
       - name: Checkout pf-common
         uses: actions/checkout@v4
         with:
-          repository: mrturo/pf-common
+          repository: mrturo-pf/pf-common
           path: pf-common
 
       # Setup Python
