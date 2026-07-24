@@ -64,7 +64,7 @@ jobs:
       - name: Run quality checks
         working-directory: pf-rates
         env:
-          PF_DB_PATH: ../_pf-db
+          PF_DB_PATH: ${{ github.workspace }}/_pf-db
         run: make check
 
       # (Opcional) Upload coverage
