@@ -127,15 +127,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout pf-rates
         uses: actions/checkout@v7
+        with:
+          path: pf-rates
 
       # pf-common provides shared Makefile targets (lint, dead-code, etc.)
       - name: Checkout pf-common
         uses: actions/checkout@v7
         with:
           repository: mrturo/pf-common
-          path: ../pf-common
+          path: pf-common
           token: ${{ secrets.GH_PAT || github.token }}
 
       - name: Set up Python 3.14
@@ -143,9 +145,10 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: pf-rates/pyproject.toml
 
       - name: Install dependencies
+        working-directory: pf-rates
         run: pip install -e ".[dev]"
 
       # pf-db is checked out as a sibling (_pf-db/) so conftest.py can read the
@@ -160,25 +163,30 @@ jobs:
           token: ${{ secrets.GH_PAT || github.token }}
 
       - name: Lint (ruff)
+        working-directory: pf-rates
         run: |
           ruff check src tests
           ruff format --check src tests
 
       - name: Dead code (vulture)
+        working-directory: pf-rates
         run: make dead-code
 
       - name: Type check (mypy)
+        working-directory: pf-rates
         run: make typecheck
 
       - name: Duplicate code (jscpd)
+        working-directory: pf-rates
         run: |
           make duplicate-code-src
           make duplicate-code-tests
           make duplicate-code
 
       - name: Run tests with coverage
+        working-directory: pf-rates
         env:
-          PF_DB_PATH: _pf-db
+          PF_DB_PATH: ../_pf-db
         run: make test-cov
 
       - name: Install Trivy
@@ -193,6 +201,7 @@ jobs:
           sudo apt-get install -y trivy
 
       - name: Security scan (trivy fs)
+        working-directory: pf-rates
         run: make security-scan
 
   # ------------------------------------------------------------------
@@ -206,8 +215,10 @@ jobs:
     needs: test
 
     steps:
-      - name: Checkout
+      - name: Checkout pf-rates
         uses: actions/checkout@v7
+        with:
+          path: pf-rates
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -217,7 +228,7 @@ jobs:
       - name: Build Docker image for scanning
         uses: docker/build-push-action@v7
         with:
-          context: .
+          context: ./pf-rates
           push: false
           load: true
           tags: pf-rates:scan
