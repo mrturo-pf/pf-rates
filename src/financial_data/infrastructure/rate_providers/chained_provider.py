@@ -33,7 +33,7 @@ async def _fetch_first_match[P, TEntry](
     for provider in providers:
         try:
             value = await fetcher(provider)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - fallback pattern: try next provider on any error
             _log_provider_failure(provider, exc)
             continue
         if value is not None:
@@ -55,7 +55,7 @@ async def _fetch_remaining_entries[P, TKey: Hashable, TEntry](
             break
         try:
             entries = await fetcher(provider, remaining_items)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - fallback pattern: try next provider on any error
             _log_provider_failure(provider, exc)
             continue
         provided_keys = {key_fn(entry) for entry in entries}

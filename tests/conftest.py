@@ -96,7 +96,7 @@ def _ensure_docker() -> None:
         import docker as _docker
 
         _docker.from_env().ping()
-    except Exception:
+    except Exception:  # noqa: BLE001 - skip tests on any Docker availability issue
         pytest.skip("Docker not available — skipping integration tests")
 
 

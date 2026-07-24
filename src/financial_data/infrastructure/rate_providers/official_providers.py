@@ -14,7 +14,7 @@ from collections.abc import Awaitable, Callable, Hashable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse, urlencode
 from urllib.request import ProxyHandler, build_opener, getproxies, urlopen
-from typing import TypeVar
+from typing import ClassVar, TypeVar
 
 import structlog
 
@@ -113,7 +113,7 @@ def _parse_json_document(raw: str) -> dict[str, object]:
 
 def _parse_iso_date(raw: str) -> date:
     """Handle parse iso date."""
-    return datetime.fromisoformat(raw.replace("Z", "+00:00")).date()
+    return datetime.fromisoformat(raw).date()
 
 
 def _extract_observation_date(observation: dict[str, object]) -> date | None:
@@ -386,7 +386,12 @@ class MindicadorRateProvider(_FetchRateEntryMixin):
     """Provide mindicador rate provider."""
 
     name = "mindicador"
-    _CODE_MAP = {"UF": "uf", "UTM": "utm", "USD": "dolar", "EUR": "euro"}
+    _CODE_MAP: ClassVar[dict[str, str]] = {
+        "UF": "uf",
+        "UTM": "utm",
+        "USD": "dolar",
+        "EUR": "euro",
+    }
 
     def __init__(
         self,

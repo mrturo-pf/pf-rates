@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+from typing import Self
 
 import pytest
 
@@ -89,7 +90,7 @@ async def test_startup_sync_logs_completion(
             return _RESULT
 
     class _StubSession:
-        async def __aenter__(self) -> "_StubSession":
+        async def __aenter__(self) -> Self:
             return self
 
         async def __aexit__(self, *args: object) -> None:
