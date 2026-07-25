@@ -8,4 +8,3 @@ jobs:
     uses: mrturo-pf/pf-common/.github/workflows/debug-reusable.yml@main
     with:
       repo_name: pf-rates
-      checkout_db: true
