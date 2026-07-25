@@ -110,5 +110,5 @@ jobs:
     uses: mrturo-pf/pf-common/.github/workflows/deploy-reusable.yml@main
     with:
       repo_name: pf-rates
-      require_approval: false  # Skip manual approval for automated deployment
+      require_approval: true  # Require manual approval before deployment to production
     secrets: inherit
