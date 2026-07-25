@@ -62,7 +62,7 @@
 #   #      CMD ["uvicorn", "financial_data.interfaces.api.app:app", \
 #   #           "--host", "0.0.0.0", "--port", "8080"]
 #
-#   # 8. Create the API_KEY secret (one-time setup)
+#   # 8. Create the PF_RATES_API_KEY secret (API key clients must supply to call this service)
 #   echo -n "<STRONG_RANDOM_KEY>" | \
 #     gcloud secrets create PF_RATES_API_KEY --data-file=-
 #
@@ -79,7 +79,7 @@
 #   MAIL_PORT                       — SMTP port (e.g. 587)
 #   MAIL_USERNAME                   — SMTP username
 #   MAIL_PASSWORD                   — SMTP password or app-specific password
-#   MAIL_FROM                       — Sender address (e.g. pf-rates CI <you@example.com>)
+#   MAIL_FROM                       — Sender address (e.g. you@example.com)
 #   MAIL_TO                         — Recipient address(es), comma-separated
 #
 # Secret Manager Secrets (auto-injected by reusable workflow):
@@ -89,7 +89,9 @@
 # Manual approval setup (one-time, GitHub UI):
 #   1. Go to Settings → Environments → New environment → name it "production"
 #   2. Enable "Required reviewers" and add yourself (or your team)
-#   The "gate" job pauses there; deploy only runs after approvaln# For more details, see docs/deployment.md
+#   The "gate" job pauses there; deploy only runs after approval.
+#
+# For more details, see docs/deployment.md
 #
 # ============================================================
 
