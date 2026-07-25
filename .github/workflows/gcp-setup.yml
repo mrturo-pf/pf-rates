@@ -1,0 +1,221 @@
+# ==============================================================================
+# GCP Setup Workflow - One-time setup for Cloud Run deployment
+# ==============================================================================
+#
+# This workflow creates all required GCP resources for deploying PF services:
+#   - Secret Manager secrets (PF_DATABASE_URL, PF_*_API_KEY)
+#   - Artifact Registry repositories
+#   - Service Account IAM permissions
+#
+# USAGE:
+#   1. Configure GitHub Secrets: GCP_SA_KEY, GCP_PROJECT_ID
+#   2. Run this workflow manually from GitHub Actions UI
+#   3. Follow the prompts to create secrets
+#
+# Run this ONCE before the first deployment of each service.
+#
+# ==============================================================================
+
+name: GCP Setup (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_name:
+        description: 'Service to setup (pf-rates, pf-payroll, pf-db)'
+        required: true
+        type: choice
+        options:
+          - pf-rates
+          - pf-payroll
+          - pf-db
+          - all
+      create_secrets:
+        description: 'Create Secret Manager secrets (placeholder values)'
+        required: true
+        type: boolean
+        default: true
+      create_artifact_registry:
+        description: 'Create Artifact Registry repository'
+        required: true
+        type: boolean
+        default: true
+
+env:
+  REGION: us-central1
+
+jobs:
+  setup:
+    name: GCP Setup - ${{ inputs.service_name }}
+    runs-on: ubuntu-latest
+    environment: GCP
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Enable required GCP APIs
+        run: |
+          echo "Enabling GCP APIs..."
+          gcloud services enable \
+            run.googleapis.com \
+            artifactregistry.googleapis.com \
+            sqladmin.googleapis.com \
+            secretmanager.googleapis.com \
+            cloudbuild.googleapis.com \
+            --quiet
+
+      - name: Create Artifact Registry repositories
+        if: inputs.create_artifact_registry
+        run: |
+          set -e
+          
+          SERVICES=()
+          if [ "${{ inputs.service_name }}" = "all" ]; then
+            SERVICES=("pf-rates" "pf-payroll" "pf-db")
+          else
+            SERVICES=("${{ inputs.service_name }}")
+          fi
+          
+          for SERVICE in "${SERVICES[@]}"; do
+            echo "Creating Artifact Registry repo for ${SERVICE}..."
+            
+            if gcloud artifacts repositories describe "${SERVICE}" \
+                --location="${{ env.REGION }}" > /dev/null 2>&1; then
+              echo " ${SERVICE} repository already exists"
+            else
+              gcloud artifacts repositories create "${SERVICE}" \
+                --repository-format=docker \
+                --location="${{ env.REGION }}" \
+                --description="${SERVICE} container images" \
+                --quiet
+              echo " Created ${SERVICE} repository"
+            fi
+            
+            # Ensure vulnerability scanning is DISABLED (saves ~$5/month)
+            echo "Disabling vulnerability scanning for ${SERVICE}..."
+            gcloud artifacts repositories update "${SERVICE}" \
+              --location="${{ env.REGION }}" \
+              --disable-vulnerability-scanning \
+              --quiet || echo "  Could not disable scanning (may not be enabled)"
+          done
+
+      - name: Create Secret Manager secrets (placeholders)
+        if: inputs.create_secrets
+        run: |
+          set -e
+          
+          # Function to create secret if it doesn't exist
+          create_secret_if_missing() {
+            local SECRET_NAME="$1"
+            local SECRET_VALUE="$2"
+            
+            if gcloud secrets describe "${SECRET_NAME}" > /dev/null 2>&1; then
+              echo " ${SECRET_NAME} already exists"
+            else
+              echo "Creating ${SECRET_NAME}..."
+              echo -n "${SECRET_VALUE}" | gcloud secrets create "${SECRET_NAME}" \
+                --data-file=- \
+                --replication-policy=automatic \
+                --quiet
+              echo " Created ${SECRET_NAME}"
+            fi
+          }
+          
+          # PF_DATABASE_URL (shared by all services)
+          create_secret_if_missing \
+            "PF_DATABASE_URL" \
+            "postgresql+asyncpg://user:pass@/pf_db?host=/cloudsql/${{ secrets.GCP_PROJECT_ID }}:${{ env.REGION }}:pf-db"
+          
+          # Service-specific API keys
+          if [ "${{ inputs.service_name }}" = "pf-rates" ] || [ "${{ inputs.service_name }}" = "all" ]; then
+            create_secret_if_missing "PF_RATES_API_KEY" "$(openssl rand -hex 32)"
+          fi
+          
+          if [ "${{ inputs.service_name }}" = "pf-payroll" ] || [ "${{ inputs.service_name }}" = "all" ]; then
+            create_secret_if_missing "PF_PAYROLL_API_KEY" "$(openssl rand -hex 32)"
+            # pf-payroll also needs PF_RATES_API_KEY to call pf-rates
+            create_secret_if_missing "PF_RATES_API_KEY" "$(openssl rand -hex 32)"
+          fi
+
+      - name: Grant Service Account access to secrets
+        if: inputs.create_secrets
+        run: |
+          set -e
+          
+          SERVICES=()
+          if [ "${{ inputs.service_name }}" = "all" ]; then
+            SERVICES=("pf-rates" "pf-payroll")
+          elif [ "${{ inputs.service_name }}" != "pf-db" ]; then
+            SERVICES=("${{ inputs.service_name }}")
+          fi
+          
+          for SERVICE in "${SERVICES[@]}"; do
+            SA="${SERVICE}@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com"
+            
+            echo "Granting ${SA} access to secrets..."
+            
+            # Grant access to PF_DATABASE_URL (all services need this)
+            gcloud secrets add-iam-policy-binding PF_DATABASE_URL \
+              --member="serviceAccount:${SA}" \
+              --role="roles/secretmanager.secretAccessor" \
+              --quiet || echo "  Could not grant ${SA} access to PF_DATABASE_URL"
+            
+            # Grant service-specific secret access
+            if [ "${SERVICE}" = "pf-rates" ]; then
+              gcloud secrets add-iam-policy-binding PF_RATES_API_KEY \
+                --member="serviceAccount:${SA}" \
+                --role="roles/secretmanager.secretAccessor" \
+                --quiet || echo "  Could not grant access to PF_RATES_API_KEY"
+            fi
+            
+            if [ "${SERVICE}" = "pf-payroll" ]; then
+              gcloud secrets add-iam-policy-binding PF_PAYROLL_API_KEY \
+                --member="serviceAccount:${SA}" \
+                --role="roles/secretmanager.secretAccessor" \
+                --quiet || echo "  Could not grant access to PF_PAYROLL_API_KEY"
+              gcloud secrets add-iam-policy-binding PF_RATES_API_KEY \
+                --member="serviceAccount:${SA}" \
+                --role="roles/secretmanager.secretAccessor" \
+                --quiet || echo "  Could not grant access to PF_RATES_API_KEY"
+            fi
+          done
+
+      - name: Setup Summary
+        run: |
+          echo "========================================="
+          echo "GCP Setup Complete!"
+          echo "========================================="
+          echo ""
+          echo "Service: ${{ inputs.service_name }}"
+          echo "Project: ${{ secrets.GCP_PROJECT_ID }}"
+          echo "Region: ${{ env.REGION }}"
+          echo ""
+          echo "Created Resources:"
+          if [ "${{ inputs.create_artifact_registry }}" = "true" ]; then
+            echo "   Artifact Registry repositories"
+          fi
+          if [ "${{ inputs.create_secrets }}" = "true" ]; then
+            echo "   Secret Manager secrets (with placeholder values)"
+          fi
+          echo ""
+          echo "Next Steps:"
+          echo "1. Update Secret Manager secrets with real values:"
+          echo "   - PF_DATABASE_URL: your actual database connection string"
+          echo "   - API keys: secure random values (already generated)"
+          echo ""
+          echo "2. Verify Service Account permissions are correct"
+          echo ""
+          echo "3. Run the deployment workflow for ${{ inputs.service_name }}"
+          echo ""
+          echo "========================================="
