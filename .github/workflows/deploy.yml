@@ -101,6 +101,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  security-events: write  # required for SARIF upload to GitHub Security
+
 jobs:
   deploy:
     uses: mrturo-pf/pf-common/.github/workflows/deploy-reusable.yml@main
