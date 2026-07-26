@@ -12,7 +12,7 @@ from financial_data.infrastructure.db.base import Base
 class CurrencyModel(Base):
     """Represent Currency Model."""
 
-    __tablename__ = "currencies"
+    __tablename__ = "RAT_CURRENCY"
 
     code: Mapped[str] = mapped_column(String(3), primary_key=True)
     name: Mapped[str] = mapped_column(String(60))
@@ -23,7 +23,7 @@ class CurrencyModel(Base):
 class ExchangeRateModel(Base):
     """Represent Exchange Rate Model."""
 
-    __tablename__ = "exchange_rates"
+    __tablename__ = "RAT_EXCH_RATE"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     currency_code: Mapped[str] = mapped_column(String(3))
@@ -38,7 +38,7 @@ class ExchangeRateModel(Base):
 class EconomicIndexModel(Base):
     """Represent Economic Index Model."""
 
-    __tablename__ = "economic_indices"
+    __tablename__ = "RAT_ECON_INDEX"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(20))
@@ -57,7 +57,7 @@ class EconomicIndexModel(Base):
 class IncomeTaxBracketModel(Base):
     """Represent Income Tax Bracket Model."""
 
-    __tablename__ = "income_tax_brackets"
+    __tablename__ = "RAT_TAX_BRCKT"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     valid_from: Mapped[date] = mapped_column(Date)
