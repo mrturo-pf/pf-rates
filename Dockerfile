@@ -31,6 +31,17 @@ WORKDIR /app
 # Migrations are managed by pf-db — this image ships no migration tooling.
 COPY --from=builder /opt/venv /opt/venv
 
+# The base image's SYSTEM Python (/usr/local/lib/python3.12/site-packages,
+# separate from our /opt/venv) ships an old setuptools/msgpack with known
+# HIGH severity CVEs (CVE-2025-47273, GHSA-6v7p-g79w-8964). Nothing at
+# runtime uses the system Python — everything runs from /opt/venv via PATH
+# below — so the safest fix is to remove this unused, vulnerable cruft
+# rather than try to patch code we never execute.
+RUN find /usr/local/lib/python3.12/site-packages -maxdepth 1 \
+      \( -iname 'setuptools*' -o -iname 'msgpack*' \
+         -o -iname '_distutils_hack' -o -iname 'pkg_resources' \) \
+      -exec rm -rf {} +
+
 RUN useradd --no-create-home --shell /bin/false appuser
 USER appuser
 
