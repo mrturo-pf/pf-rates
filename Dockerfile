@@ -31,13 +31,16 @@ WORKDIR /app
 # Migrations are managed by pf-db — this image ships no migration tooling.
 COPY --from=builder /opt/venv /opt/venv
 
-# The base image's SYSTEM Python ships an old pip whose *vendored* msgpack
-# and setuptools references trip Trivy with known HIGH severity CVEs
-# (CVE-2025-47273, GHSA-6v7p-g79w-8964) — deleting just the vendored code
-# wasn't enough because Trivy reads pip's own vendor manifest. Nothing at
-# runtime uses the system Python or its pip — everything runs from
-# /opt/venv via PATH below — so just remove the system pip entirely.
-RUN rm -rf /usr/local/lib/python3.12/site-packages/pip* \
+# The base image's system pip AND our venv's pip both vendor an old
+# msgpack/setuptools that trip Trivy with known HIGH severity CVEs
+# (CVE-2025-47273, GHSA-6v7p-g79w-8964) via pip's internal vendor
+# manifest. Confirmed by elimination: removing only the system pip had
+# zero effect, so the venv's own pip (copied in above) is the real
+# culprit. Nothing at runtime uses pip in either location — the app
+# runs via uvicorn from /opt/venv — so delete pip from both.
+RUN rm -rf /opt/venv/lib/python3.12/site-packages/pip* \
+           /opt/venv/bin/pip* \
+           /usr/local/lib/python3.12/site-packages/pip* \
            /usr/local/bin/pip*
 
 RUN useradd --no-create-home --shell /bin/false appuser
