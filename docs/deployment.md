@@ -158,7 +158,7 @@ The pipeline supports two database configurations, controlled by the optional `G
 | **Max instances** | `2` | Prevent runaway scaling |
 | **Memory** | `512 MiB` | Sufficient for rate data workloads |
 | **CPU** | `1` | Single vCPU |
-| **Port** | `8080` | Cloud Run injects `PORT` env var (app listens on 8001 in dev) |
+| **Port** | `8001` | Cloud Run injects `PORT` env var (matches the port used in dev) |
 | **Service account** | `pf-rates@<PROJECT>.iam.gserviceaccount.com` | Needs `roles/secretmanager.secretAccessor` |
 | **Secrets** | `PF_DATABASE_URL` and `PF_RATES_API_KEY` from Secret Manager | Never use `--set-env-vars` |
 
@@ -230,7 +230,7 @@ gcloud run deploy pf-rates \
   --max-instances=2 \
   --memory=512Mi \
   --cpu=1 \
-  --port=8080 \
+  --port=8001 \
   --service-account=pf-rates@PROJECT_ID.iam.gserviceaccount.com \
   --allow-unauthenticated
 ```

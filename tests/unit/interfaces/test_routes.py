@@ -28,7 +28,7 @@ from financial_data.application.errors import (
     ExchangeRateNotFoundError,
     FinancialDataDependencyError,
 )
-from financial_data.interfaces.api.app import app
+from financial_data.interfaces.api.main import app
 from financial_data.interfaces.api.dependencies import (
     get_exchange_rate_value_use_case,
     get_market_data_repository,

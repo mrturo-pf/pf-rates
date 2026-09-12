@@ -59,4 +59,4 @@ printf 'Docs : http://127.0.0.1:%s/docs\n' "$APP_PORT"
 printf 'Env  : %s\n' "$ENV_FILE"
 printf '\n'
 
-exec "$VENV/bin/uvicorn" financial_data.interfaces.api.app:app --reload --host 127.0.0.1 --port "$APP_PORT"
+exec "$VENV/bin/uvicorn" financial_data.interfaces.api.main:app --reload --host 127.0.0.1 --port "$APP_PORT"

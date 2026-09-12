@@ -59,7 +59,7 @@
 #   #      COPY . .
 #   #      RUN pip install --no-cache-dir -e .
 #   #      ENV PORT=8080
-#   #      CMD ["uvicorn", "financial_data.interfaces.api.app:app", \
+#   #      CMD ["uvicorn", "financial_data.interfaces.api.main:app", \
 #   #           "--host", "0.0.0.0", "--port", "8080"]
 #
 #   # 8. Create the PF_RATES_API_KEY secret (API key clients must supply to call this service)

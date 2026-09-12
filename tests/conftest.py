@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from testcontainers.community.postgres import PostgresContainer
 
 from financial_data.application.dto import SyncRecentMarketDataResultDTO
-from financial_data.interfaces.api.app import app
+from financial_data.interfaces.api.main import app
 from financial_data.interfaces.api.dependencies import get_session, get_sync_use_case
 
 _ROOT = Path(__file__).parent.parent

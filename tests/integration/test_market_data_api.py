@@ -26,7 +26,7 @@ from financial_data.infrastructure.db.repositories.market_data_repository import
 from financial_data.infrastructure.db.repositories.reference_data_repository import (
     SqlAlchemyReferenceDataRepository,
 )
-from financial_data.interfaces.api.app import app
+from financial_data.interfaces.api.main import app
 from financial_data.interfaces.api.dependencies import (
     get_refresh_income_tax_brackets_use_case,
     get_refresh_rates_use_case,

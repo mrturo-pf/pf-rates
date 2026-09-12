@@ -56,8 +56,8 @@ RUN rm -rf /opt/venv/lib/python3.12/site-packages/pip* \
 RUN useradd --no-create-home --shell /bin/false appuser
 USER appuser
 
-# Cloud Run injects PORT at runtime; default to 8080 for local runs.
-# Uses shell form (via sh -c) to allow ${PORT:-8080} variable expansion
+# Cloud Run injects PORT at runtime; default to 8001 for local runs.
+# Uses shell form (via sh -c) to allow ${PORT:-8001} variable expansion
 # while properly forwarding OS signals via exec.
 ENTRYPOINT ["sh", "-c"]
-CMD ["exec uvicorn financial_data.interfaces.api.app:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["exec uvicorn financial_data.interfaces.api.main:app --host 0.0.0.0 --port ${PORT:-8001}"]

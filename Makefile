@@ -4,7 +4,7 @@
 
 # Service configuration (REQUIRED by common.mk)
 APP_PORT := 8001
-APP_MODULE := financial_data.interfaces.api.app:app
+APP_MODULE := financial_data.interfaces.api.main:app
 
 # Include shared targets from pf-common/
 include ../pf-common/make/common.mk

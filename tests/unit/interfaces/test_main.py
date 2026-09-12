@@ -6,7 +6,7 @@ from typing import Self
 
 import pytest
 
-import financial_data.interfaces.api.app as app_module
+import financial_data.interfaces.api.main as app_module
 from financial_data.application.dto import SyncRecentMarketDataResultDTO
 from financial_data.application.use_cases.refresh_income_tax_brackets import (
     RefreshIncomeTaxBrackets,
