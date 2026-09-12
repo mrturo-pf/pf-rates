@@ -27,6 +27,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Pull the latest Debian security patches for OS packages baked into the base
+# image (gzip, libpcre2, libsqlite3, perl-base, etc.). python:3.12-slim is a
+# floating tag; Trivy's vuln DB updates daily and will flag whatever CVEs were
+# published against the image's OS packages since it was last rebuilt, even
+# when our own dependencies haven't changed at all.
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Runtime: installed package only.
 # Migrations are managed by pf-db — this image ships no migration tooling.
 COPY --from=builder /opt/venv /opt/venv
