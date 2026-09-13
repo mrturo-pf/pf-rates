@@ -36,6 +36,16 @@ class ExportExchangeRatesCsv:
     omitted from the CSV -- this is expected for most future dates on true
     FX currencies (USD/EUR), which have no "tomorrow's rate" to publish.
 
+    Exception worth knowing about: Chile has no FX market on weekends, so
+    the official USD/EUR rate for the next Monday is calculated from the
+    preceding Friday and published in advance, dated for that Monday. A
+    CSV generated on a Friday, Saturday, or Sunday can therefore contain a
+    real, correctly-dated USD/EUR value 1-2 days into the future -- that
+    is not a timezone bug, just Chile's official rate-publication
+    schedule working as intended (verified directly against
+    mindicador.cl on 2026-09-13, a Sunday: the series already had a real
+    entry for Monday 2026-09-14, with nothing for the Sat/Sun gap).
+
     Calls are made sequentially, not concurrently: `GetExchangeRateValue`
     is backed by a single SQLAlchemy AsyncSession, which is not safe for
     concurrent use across coroutines. Sequential calls are also naturally

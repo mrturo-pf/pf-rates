@@ -44,7 +44,14 @@ class GetExchangeRateValue:
         if value is not None:
             return value
 
-        # 2. Provider — exact date only (no carry-forward).
+        # 2. Provider — exact date only (no carry-forward). Not guarded by
+        # a past/today check: some providers genuinely publish an exact
+        # future date ahead of time (UF for the whole current month, or
+        # USD/EUR for the next business day when it follows a Chilean
+        # weekend, since the official rate is calculated from the last
+        # trading day and published in advance). When that happens it is
+        # a real, correctly-dated value, not a timezone bug — see
+        # ExportExchangeRatesCsv's docstring for a verified example.
         entry = await self._provider.fetch_rate_entry(currency_code, rate_date)
         if entry is not None:
             await self._repository.refresh_rates(
@@ -52,7 +59,7 @@ class GetExchangeRateValue:
             )
             return entry.value_clp
 
-        # Steps 3 and 4 apply only to past/today — future dates always 404 here.
+        # Steps 3 and 4 apply only to past/today — future dates 404 past this point.
         today = datetime.now(tz=_CHILE_TZ).date()
         if rate_date <= today:
             # 3. Nearest prior date in the database within the lookback window
