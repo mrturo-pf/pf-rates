@@ -32,6 +32,23 @@ class Settings(BaseSettings):
     bcch_series_utm: str | None = None
     bcch_series_ipc_cl: str | None = None
 
+    # Exactly one of the two below should be set. In production, Secret
+    # Manager injects the raw JSON content directly into
+    # gdrive_oauth_token_json. Locally, gdrive_oauth_token_json_path points
+    # at the token file produced by scripts/gdrive_oauth_setup.py (see
+    # ../secrets/pf-rates/ at the repo root). This is an OAuth authorized-
+    # user token (refresh_token + client_id/secret), NOT a service account
+    # key -- see docs/google-drive-credentials-setup.md for why.
+    gdrive_oauth_token_json: str | None = Field(
+        default=None, validation_alias="pf_rates_gdrive_oauth_token_json"
+    )
+    gdrive_oauth_token_json_path: str | None = Field(
+        default=None, validation_alias="pf_rates_gdrive_oauth_token_json_path"
+    )
+    gdrive_export_folder_id: str | None = Field(
+        default=None, validation_alias="pf_rates_gdrive_export_folder_id"
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

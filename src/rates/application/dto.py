@@ -161,3 +161,11 @@ class RefreshIncomeTaxBracketsResultDTO:
     year: int
     refreshed_months: int
     upserted_brackets: int
+
+
+@dataclass(frozen=True, slots=True)
+class ExportExchangeRatesResultDTO:
+    """Represent Export Exchange Rates Result DTO."""
+
+    rows_written: int
+    file_id: str

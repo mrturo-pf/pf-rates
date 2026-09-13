@@ -147,7 +147,7 @@ _OPENAPI_TAGS = [
     {"name": "currencies", "description": "Supported currency catalogue."},
     {
         "name": "exchange-rates",
-        "description": "CLP exchange rates — list, lookup, and refresh.",
+        "description": "CLP exchange rates — list, lookup, refresh, and CSV export.",
     },
     {
         "name": "economic-indices",

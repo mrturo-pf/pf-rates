@@ -14,10 +14,18 @@ from rates.application.dto import (
     ProviderExchangeRateRequestDTO,
     RefreshRatesCommandDTO,
 )
+from rates.application.use_cases.export_exchange_rates_csv import (
+    DEFAULT_FORWARD_DAYS,
+    DEFAULT_LOOKBACK_DAYS,
+    ExportExchangeRatesCsv,
+)
 from rates.application.use_cases.get_exchange_rate_value import (
     GetExchangeRateValue,
 )
-from rates.interfaces.api.dependencies import get_exchange_rate_value_use_case
+from rates.interfaces.api.dependencies import (
+    get_exchange_rate_value_use_case,
+    get_export_exchange_rates_csv_use_case,
+)
 from rates.interfaces.api.routes._refresh_deps import (
     MarketDataRepository,
     RefreshRates,
@@ -62,6 +70,30 @@ class ExchangeRateRefreshRequest(BaseModel):
     fetch_exchange_rates: list[ProviderExchangeRateRequest] = Field(
         default_factory=list
     )
+
+
+class ExportExchangeRatesRequest(BaseModel):
+    """Represent Export Exchange Rates Request."""
+
+    lookback_days: int = Field(
+        default=DEFAULT_LOOKBACK_DAYS,
+        ge=1,
+        le=365,
+        description="Days in the past to include, relative to today (Chile time).",
+    )
+    forward_days: int = Field(
+        default=DEFAULT_FORWARD_DAYS,
+        ge=0,
+        le=365,
+        description="Days in the future to include, relative to today (Chile time).",
+    )
+
+
+class ExportExchangeRatesResponse(BaseModel):
+    """Represent Export Exchange Rates Response."""
+
+    rows_written: int
+    file_id: str
 
 
 @router.get("", response_model=list[ExchangeRateRead])
@@ -131,4 +163,31 @@ async def refresh_exchange_rates(
     return RefreshRatesResponse(
         upserted_exchange_rates=result.upserted_exchange_rates,
         upserted_economic_indices=result.upserted_economic_indices,
+    )
+
+
+@router.post("/export", response_model=ExportExchangeRatesResponse)
+async def export_exchange_rates(
+    payload: ExportExchangeRatesRequest = ExportExchangeRatesRequest(),
+    use_case: ExportExchangeRatesCsv = Depends(get_export_exchange_rates_csv_use_case),
+) -> ExportExchangeRatesResponse:
+    """Build a CSV of resolved exchange-rate values and upload it to Drive.
+
+    Iterates every non-CLP currency across the requested rolling window
+    (default: 90 days back, 30 days forward), resolving each value with
+    the same fallback chain as `GET /exchange-rates/value`. Dates that
+    cannot be resolved (e.g. most future dates for USD/EUR) are omitted
+    from the CSV rather than erroring out the whole export.
+
+    Returns 503 if Google Drive export is not configured yet.
+    """
+    try:
+        result = await use_case.execute(
+            lookback_days=payload.lookback_days,
+            forward_days=payload.forward_days,
+        )
+    except FinancialDataError as exc:
+        raise to_http_exception(exc) from exc
+    return ExportExchangeRatesResponse(
+        rows_written=result.rows_written, file_id=result.file_id
     )

@@ -11,6 +11,8 @@ requires-python = ">=3.12"
 dependencies = [
   "asyncpg>=0.30",
   "fastapi>=0.116",
+  "google-api-python-client>=2.200",
+  "google-auth>=2.58",
   "greenlet>=3.2",
   "pydantic>=2.11",
   "pydantic-settings>=2.10",
@@ -21,6 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "google-auth-oauthlib>=1.2",
   "httpx>=0.28",
   "mypy>=1.18",
   "pytest>=8.4",
@@ -51,6 +54,10 @@ convention = "pep257"
 
 [tool.mypy]
 python_version = "3.12"
+
+[[tool.mypy.overrides]]
+module = "googleapiclient.*"
+ignore_missing_imports = true
 
 [tool.vulture]
 paths = ["src"]
