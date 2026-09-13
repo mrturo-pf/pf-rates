@@ -10,6 +10,7 @@ import pytest
 
 from rates.application.dto import (
     CurrencyDTO,
+    ExchangeRateWriteDTO,
     RefreshRatesCommandDTO,
     RefreshRatesResultDTO,
 )
@@ -61,6 +62,16 @@ class _StubMarketDataRepository:
         """Return None -- fallback is out of scope for these tests."""
         return None
 
+    async def list_exchange_rate_values(
+        self, code: str, start: date, end: date
+    ) -> dict[date, Decimal]:
+        """Return the preconfigured DB values that fall within [start, end]."""
+        return {
+            rate_date: value
+            for rate_date, value in self._db_values.items()
+            if start <= rate_date <= end
+        }
+
     async def refresh_rates(
         self, command: RefreshRatesCommandDTO
     ) -> RefreshRatesResultDTO:
@@ -76,6 +87,28 @@ class _StubFxRateProvider:
 
     async def fetch_rate_entry(self, currency_code: str, on: date) -> None:
         """Return None unconditionally."""
+        return None
+
+
+class _StubFxRateProviderWithEntry:
+    """FxRateProvider test double that resolves exactly one (code, date) pair."""
+
+    def __init__(self, currency_code: str, rate_date: date, value: Decimal) -> None:
+        self._currency_code = currency_code
+        self._rate_date = rate_date
+        self._value = value
+
+    async def fetch_rate_entry(
+        self, currency_code: str, on: date
+    ) -> ExchangeRateWriteDTO | None:
+        """Return the preconfigured entry for the matching pair, else None."""
+        if currency_code == self._currency_code and on == self._rate_date:
+            return ExchangeRateWriteDTO(
+                currency_code=currency_code,
+                rate_date=on,
+                value_clp=self._value,
+                source="provider",
+            )
         return None
 
 
@@ -105,11 +138,15 @@ def _build_use_case(
 ) -> ExportExchangeRatesCsv:
     """Wire an ExportExchangeRatesCsv with the given stub data."""
     reference_data_repository = _StubReferenceDataRepository(currencies)
+    market_data_repository = _StubMarketDataRepository(db_values)
     get_exchange_rate_value = GetExchangeRateValue(
-        _StubMarketDataRepository(db_values), _StubFxRateProvider()
+        market_data_repository, _StubFxRateProvider()
     )
     return ExportExchangeRatesCsv(
-        reference_data_repository, get_exchange_rate_value, file_export
+        reference_data_repository,
+        market_data_repository,
+        get_exchange_rate_value,
+        file_export,
     )
 
 
@@ -163,6 +200,54 @@ async def test_iterates_every_non_clp_currency() -> None:
     rows = _read_csv_rows(file_export.uploads[0][1])
     currency_codes = {row[0] for row in rows[1:]}
     assert currency_codes == {"USD", "EUR", "UF"}
+
+
+@pytest.mark.asyncio
+async def test_widens_bulk_fetch_start_for_monthly_currencies() -> None:
+    """UTM resolves via its 1st-of-month row even when the window starts later."""
+    # _TODAY (2024-06-15) is not the 1st; UTM's only stored row is dated the 1st
+    # of that month, which sits before the naive per-date query start.
+    db_values = {date(2024, 6, 1): Decimal("65000.00")}
+    file_export = _StubFileExport()
+    use_case = _build_use_case(
+        [_currency("CLP"), _currency("UTM")], db_values, file_export
+    )
+
+    with patch(f"{_MODULE}.datetime") as mock_dt:
+        mock_dt.now.return_value.date.return_value = _TODAY
+        result = await use_case.execute(lookback_days=0, forward_days=0)
+
+    assert result.rows_written == 1
+    rows = _read_csv_rows(file_export.uploads[0][1])
+    assert rows[1] == ["UTM", "2024-06-15", "65000.00"]
+
+
+@pytest.mark.asyncio
+async def test_falls_back_to_slow_resolution_for_dates_outside_bulk_fetch() -> None:
+    """A date the bulk fetch didn't cover still resolves via the provider chain."""
+    file_export = _StubFileExport()
+    reference_data_repository = _StubReferenceDataRepository(
+        [_currency("CLP"), _currency("USD")]
+    )
+    market_data_repository = _StubMarketDataRepository({})
+    get_exchange_rate_value = GetExchangeRateValue(
+        market_data_repository,
+        _StubFxRateProviderWithEntry("USD", _TODAY, Decimal("950.00")),
+    )
+    use_case = ExportExchangeRatesCsv(
+        reference_data_repository,
+        market_data_repository,
+        get_exchange_rate_value,
+        file_export,
+    )
+
+    with patch(f"{_MODULE}.datetime") as mock_dt:
+        mock_dt.now.return_value.date.return_value = _TODAY
+        result = await use_case.execute(lookback_days=0, forward_days=0)
+
+    assert result.rows_written == 1
+    rows = _read_csv_rows(file_export.uploads[0][1])
+    assert rows[1] == ["USD", "2024-06-15", "950.00"]
 
 
 @pytest.mark.asyncio

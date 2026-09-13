@@ -211,6 +211,7 @@ def get_export_exchange_rates_csv_use_case(
     reference_data_repository: ReferenceDataRepository = Depends(
         get_reference_data_repository
     ),
+    market_data_repository: MarketDataRepository = Depends(get_market_data_repository),
     exchange_rate_value_use_case: GetExchangeRateValue = Depends(
         get_exchange_rate_value_use_case
     ),
@@ -218,6 +219,7 @@ def get_export_exchange_rates_csv_use_case(
     """Build the ExportExchangeRatesCsv use case."""
     return ExportExchangeRatesCsv(
         reference_data_repository,
+        market_data_repository,
         exchange_rate_value_use_case,
         get_file_export_port(),
     )

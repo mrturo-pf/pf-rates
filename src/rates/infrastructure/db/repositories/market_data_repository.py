@@ -139,6 +139,19 @@ class SqlAlchemyMarketDataRepository:
         )
         return list(result.scalars().all())
 
+    async def list_exchange_rate_values(
+        self, code: str, start: date, end: date
+    ) -> dict[date, Decimal]:
+        """Return a {rate_date: value_clp} map for a currency within [start, end]."""
+        result = await self._session.execute(
+            select(ExchangeRateModel.rate_date, ExchangeRateModel.value_clp).where(
+                ExchangeRateModel.currency_code == code,
+                ExchangeRateModel.rate_date >= start,
+                ExchangeRateModel.rate_date <= end,
+            )
+        )
+        return {row.rate_date: row.value_clp for row in result.all()}
+
     async def list_unconfirmed_rate_dates(
         self, code: str, start: date, end: date
     ) -> list[date]:

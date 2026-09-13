@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from rates.application.errors import FinancialDataDependencyConfigurationError
+from rates.application.ports.market_data_repository import MarketDataRepository
 from rates.application.ports.reference_data_repository import (
     ReferenceDataRepository,
 )
@@ -78,12 +79,15 @@ def test_get_file_export_port_builds_drive_adapter_from_file_path(
 def test_get_export_exchange_rates_csv_use_case_wires_dependencies() -> None:
     """The FastAPI dependency builds a fully wired ExportExchangeRatesCsv."""
     reference_data_repository = Mock(spec=ReferenceDataRepository)
+    market_data_repository = Mock(spec=MarketDataRepository)
     exchange_rate_value_use_case = Mock(spec=GetExchangeRateValue)
 
     with patch(f"{_MODULE}.get_file_export_port") as mock_get_port:
         mock_get_port.return_value = Mock()
         use_case = get_export_exchange_rates_csv_use_case(
-            reference_data_repository, exchange_rate_value_use_case
+            reference_data_repository,
+            market_data_repository,
+            exchange_rate_value_use_case,
         )
 
     assert isinstance(use_case, ExportExchangeRatesCsv)

@@ -3,17 +3,21 @@
 import csv
 import io
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from rates.application.dto import ExportExchangeRatesResultDTO
 from rates.application.errors import ExchangeRateNotFoundError
 from rates.application.ports.file_export_port import FileExportPort
+from rates.application.ports.market_data_repository import MarketDataRepository
 from rates.application.ports.reference_data_repository import (
     ReferenceDataRepository,
 )
 from rates.application.use_cases.get_exchange_rate_value import (
     GetExchangeRateValue,
 )
+from rates.domain.normalization import normalize_exchange_rate_lookup_date
+from rates.shared.constants import MONTHLY_EXCHANGE_RATE_CODES
 
 _CHILE_TZ = ZoneInfo("America/Santiago")
 
@@ -51,16 +55,30 @@ class ExportExchangeRatesCsv:
     concurrent use across coroutines. Sequential calls are also naturally
     rate-limit-friendly toward the external providers this use case may
     fall back to.
+
+    Performance note: for each currency, one bulk range query fetches
+    every already-stored value for the whole window up front (via
+    `MarketDataRepository.list_exchange_rate_values`) instead of hitting
+    the DB once per date. `GetExchangeRateValue`'s slower, per-date
+    resolution chain (DB hit -> provider fetch -> nearest-prior fallback)
+    is only used for the dates that bulk fetch didn't cover -- expected to
+    be a small remainder once `POST /sync` has warmed the window. Skipping
+    this and resolving every date one at a time does not scale: a
+    multi-year window times several currencies means tens of thousands of
+    sequential round-trips, comfortably enough to blow through both
+    Cloud Run's request timeout and any corporate proxy in front of it.
     """
 
     def __init__(
         self,
         reference_data_repository: ReferenceDataRepository,
+        market_data_repository: MarketDataRepository,
         get_exchange_rate_value: GetExchangeRateValue,
         file_export: FileExportPort,
     ) -> None:
         """Initialize the instance."""
         self._reference_data_repository = reference_data_repository
+        self._market_data_repository = market_data_repository
         self._get_exchange_rate_value = get_exchange_rate_value
         self._file_export = file_export
 
@@ -84,8 +102,15 @@ class ExportExchangeRatesCsv:
         rows_written = 0
 
         for currency_code in currency_codes:
+            cached_values = await self._bulk_fetch_values(
+                currency_code, rate_dates[0], rate_dates[-1]
+            )
             for rate_date in rate_dates:
-                value = await self._resolve_value(currency_code, rate_date)
+                value = self._lookup_cached_value(
+                    currency_code, rate_date, cached_values
+                )
+                if value is None:
+                    value = await self._resolve_value(currency_code, rate_date)
                 if value is None:
                     continue
                 writer.writerow((currency_code, rate_date.isoformat(), value))
@@ -97,6 +122,32 @@ class ExportExchangeRatesCsv:
             mime_type="text/csv",
         )
         return ExportExchangeRatesResultDTO(rows_written=rows_written, file_id=file_id)
+
+    async def _bulk_fetch_values(
+        self, currency_code: str, start: date, end: date
+    ) -> dict[date, Decimal]:
+        """Fetch every already-stored value for *currency_code* in one query.
+
+        Monthly series (e.g. UTM) store one row per month, keyed by the 1st
+        -- widen the query's start to that month's 1st so the whole window
+        resolves from this single bulk map instead of falling through to
+        the slow per-date path for every day that isn't itself the 1st.
+        """
+        query_start = start
+        if currency_code.upper() in MONTHLY_EXCHANGE_RATE_CODES:
+            query_start = date(start.year, start.month, 1)
+        return await self._market_data_repository.list_exchange_rate_values(
+            currency_code, query_start, end
+        )
+
+    @staticmethod
+    def _lookup_cached_value(
+        currency_code: str, rate_date: date, cached_values: dict[date, Decimal]
+    ) -> str | None:
+        """Return the bulk-fetched value for this pair, or None if not cached."""
+        lookup_date = normalize_exchange_rate_lookup_date(currency_code, rate_date)
+        value = cached_values.get(lookup_date)
+        return str(value) if value is not None else None
 
     async def _list_exportable_currency_codes(self) -> list[str]:
         """Return every supported currency/index code except the base currency."""

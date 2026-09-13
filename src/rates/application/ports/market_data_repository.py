@@ -45,6 +45,17 @@ class MarketDataRepository(Protocol):
         """List stored exchange-rate dates for a currency within [start, end]."""
         ...
 
+    async def list_exchange_rate_values(
+        self, code: str, start: date, end: date
+    ) -> dict[date, Decimal]:
+        """Return a {rate_date: value_clp} map for a currency within [start, end].
+
+        One range query instead of one lookup per date -- used by bulk
+        consumers (e.g. CSV export) that would otherwise issue thousands of
+        sequential round-trips for a large window.
+        """
+        ...
+
     async def list_unconfirmed_rate_dates(
         self, code: str, start: date, end: date
     ) -> list[date]:

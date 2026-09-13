@@ -449,30 +449,57 @@ async def test_get_session_yields_async_session(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_list_exchange_rate_dates_returns_stored_dates(
-    db_session: AsyncSession,
+async def _seed_exchange_rate(
+    repo: SqlAlchemyMarketDataRepository,
+    currency_code: str,
+    rate_date: date,
+    value: Decimal,
 ) -> None:
-    """list_exchange_rate_dates returns only dates within [start, end]."""
+    """Upsert a single exchange-rate row via the repository under test."""
     from rates.application.dto import ExchangeRateWriteDTO
 
-    repo = SqlAlchemyMarketDataRepository(db_session)
     await repo.refresh_rates(
         RefreshRatesCommandDTO(
             exchange_rates=[
                 ExchangeRateWriteDTO(
-                    currency_code="USD",
-                    rate_date=date(2026, 3, 10),
-                    value_clp=Decimal("980.00"),
+                    currency_code=currency_code,
+                    rate_date=rate_date,
+                    value_clp=value,
                     source="test",
                 )
             ]
         )
     )
+
+
+@pytest.mark.asyncio
+async def test_list_exchange_rate_dates_returns_stored_dates(
+    db_session: AsyncSession,
+) -> None:
+    """list_exchange_rate_dates returns only dates within [start, end]."""
+    repo = SqlAlchemyMarketDataRepository(db_session)
+    await _seed_exchange_rate(repo, "USD", date(2026, 3, 10), Decimal("980.00"))
+
     stored = await repo.list_exchange_rate_dates(
         "USD", date(2026, 3, 1), date(2026, 3, 31)
     )
     assert date(2026, 3, 10) in stored
+
+
+@pytest.mark.asyncio
+async def test_list_exchange_rate_values_returns_stored_values(
+    db_session: AsyncSession,
+) -> None:
+    """list_exchange_rate_values returns a {date: value} map within [start, end]."""
+    repo = SqlAlchemyMarketDataRepository(db_session)
+    await _seed_exchange_rate(repo, "USD", date(2026, 3, 12), Decimal("980.00"))
+    await _seed_exchange_rate(repo, "USD", date(2026, 4, 2), Decimal("981.00"))
+
+    stored = await repo.list_exchange_rate_values(
+        "USD", date(2026, 3, 1), date(2026, 3, 31)
+    )
+    assert stored[date(2026, 3, 12)] == Decimal("980.00")
+    assert date(2026, 4, 2) not in stored
 
 
 @pytest.mark.asyncio
