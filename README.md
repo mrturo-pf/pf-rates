@@ -25,4 +25,6 @@ See [`docs/getting-started.md`](docs/getting-started.md) for installation, setup
 | [`docs/deployment.md`](docs/deployment.md) | CI/CD pipeline, Cloud Run deployment, production config |
 | [`docs/database.md`](docs/database.md) | Database connection, schema ownership, local setup |
 | [`docs/api.md`](docs/api.md) | Complete API reference with examples |
+| [`docs/csv-export-plan.md`](docs/csv-export-plan.md) | Planned: exchange-rates CSV export to Google Drive |
+| [`docs/google-drive-credentials-setup.md`](docs/google-drive-credentials-setup.md) | One-time Google OAuth setup for the CSV export script |
 | [`AGENTS.md`](AGENTS.md) | AI agent reference: architecture, code style, design principles |

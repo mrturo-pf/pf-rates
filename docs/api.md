@@ -198,6 +198,51 @@ curl -X POST -H "X-API-Key: your-key" \
   http://localhost:8001/exchange-rates/refresh
 ```
 
+#### Export exchange rates to Google Drive
+
+**POST /exchange-rates/export**
+
+Build a CSV of resolved exchange-rate values across a rolling date window
+and upload it to a pre-configured Google Drive folder. Every non-CLP
+currency/index (`USD`, `EUR`, `UF`, `UTM`) is resolved for every day in the
+window using the same fallback chain as `GET /exchange-rates/value`. Dates
+that cannot be resolved (mostly future dates for `USD`/`EUR`) are simply
+omitted from the CSV.
+
+See [`csv-export-plan.md`](csv-export-plan.md) for the full design and
+[`google-drive-credentials-setup.md`](google-drive-credentials-setup.md) for
+how to configure the required OAuth credentials.
+
+**Authentication:** Required
+
+**Request Body** (all fields optional):
+```json
+{
+  "lookback_days": 90,
+  "forward_days": 30
+}
+```
+
+**Response:**
+```json
+{
+  "rows_written": 412,
+  "file_id": "1AbCdEfGhIjKlMnOpQrStUvWxYz"
+}
+```
+
+**Errors:**
+- `503` if Google Drive export is not configured yet (missing OAuth
+  token or destination folder id).
+
+**Example:**
+```bash
+curl -X POST -H "X-API-Key: your-key" \
+  -H "Content-Type: application/json" \
+  -d '{}' \
+  http://localhost:8001/exchange-rates/export
+```
+
 ---
 
 ### Economic Indices

@@ -140,6 +140,8 @@ Configure the following secrets in the repository (Settings to Secrets and varia
 
 > **BCCH credentials** (`FINANCIAL_DATA_BCCH_API_USER` / `FINANCIAL_DATA_BCCH_API_PASSWORD`) are listed in the workflow header for reference. They are not currently injected into Cloud Run automatically - add `--set-secrets` entries in the deploy step if your environment requires them.
 
+> **Google Drive export** (`PF_RATES_GDRIVE_OAUTH_TOKEN_JSON` / `PF_RATES_GDRIVE_EXPORT_FOLDER_ID`) power `POST /exchange-rates/export` (see [`api.md`](api.md) and [`csv-export-plan.md`](csv-export-plan.md)). Both are wired into this deploy pipeline as Secret Manager entries, injected via `--set-secrets` conditionally on `repo_name == pf-rates` inside `pf-common`'s `deploy-reusable.yml` — see [`google-drive-credentials-setup.md`](google-drive-credentials-setup.md) for how the token was produced. This is an OAuth authorized-user token, not a service account key. GitHub Actions never needs to see the raw token value.
+
 ### Database options
 
 The pipeline supports two database configurations, controlled by the optional `GCP_CLOUD_SQL_INSTANCE` secret:
