@@ -66,10 +66,14 @@ def _make_session_override(
 
 @pytest.mark.asyncio
 async def test_health(http_client: AsyncClient) -> None:
-    """GET /health returns ok."""
+    """GET /health returns ok, service name, and a non-negative uptime."""
     response = await http_client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "service": "pf-rates"}
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["service"] == "pf-rates"
+    assert isinstance(body["uptime_seconds"], int | float)
+    assert body["uptime_seconds"] >= 0
 
 
 # ---------------------------------------------------------------------------

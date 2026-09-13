@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import time
 from contextlib import asynccontextmanager, suppress
 from urllib.parse import urlparse
 
@@ -32,6 +33,9 @@ from rates.interfaces.api.security import verify_api_key
 
 _root_router = APIRouter()
 
+# Captured once, at process start (module import time), to compute uptime.
+_START_TIME = time.monotonic()
+
 
 class CurrencyRead(BaseModel):
     """Represent Currency Read."""
@@ -42,10 +46,22 @@ class CurrencyRead(BaseModel):
     unit_kind: str
 
 
-@_root_router.get("/health", tags=["health"])
-async def health() -> dict[str, str]:
-    """Return service health status."""
-    return {"status": "ok", "service": "pf-rates"}
+class HealthRead(BaseModel):
+    """Represent Health Read."""
+
+    status: str
+    service: str
+    uptime_seconds: float
+
+
+@_root_router.get("/health", tags=["health"], response_model=HealthRead)
+async def health() -> HealthRead:
+    """Return service health status, including process uptime."""
+    return HealthRead(
+        status="ok",
+        service="pf-rates",
+        uptime_seconds=round(time.monotonic() - _START_TIME, 3),
+    )
 
 
 @_root_router.get(
