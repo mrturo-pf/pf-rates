@@ -6,15 +6,15 @@ from typing import Self
 
 import pytest
 
-import financial_data.interfaces.api.main as app_module
-from financial_data.application.dto import SyncRecentMarketDataResultDTO
-from financial_data.application.use_cases.refresh_income_tax_brackets import (
+import rates.interfaces.api.main as app_module
+from rates.application.dto import SyncRecentMarketDataResultDTO
+from rates.application.use_cases.refresh_income_tax_brackets import (
     RefreshIncomeTaxBrackets,
 )
-from financial_data.infrastructure.db.repositories.reference_data_repository import (
+from rates.infrastructure.db.repositories.reference_data_repository import (
     SqlAlchemyReferenceDataRepository,
 )
-from financial_data.interfaces.api.dependencies import (
+from rates.interfaces.api.dependencies import (
     get_refresh_income_tax_brackets_use_case,
 )
 
@@ -163,10 +163,10 @@ async def test_lifespan_skips_cancel_when_task_already_done(
 
 def test_get_fx_rate_provider_returns_chained_provider() -> None:
     """get_fx_rate_provider builds a ChainedFxProvider without error."""
-    from financial_data.infrastructure.rate_providers.chained_provider import (
+    from rates.infrastructure.rate_providers.chained_provider import (
         ChainedFxProvider,
     )
-    from financial_data.interfaces.api.dependencies import get_fx_rate_provider
+    from rates.interfaces.api.dependencies import get_fx_rate_provider
 
     provider = get_fx_rate_provider()
     assert isinstance(provider, ChainedFxProvider)
@@ -174,10 +174,10 @@ def test_get_fx_rate_provider_returns_chained_provider() -> None:
 
 def test_get_economic_index_provider_returns_chained_provider() -> None:
     """get_economic_index_provider builds a ChainedEconomicIndexProvider."""
-    from financial_data.infrastructure.rate_providers.chained_provider import (
+    from rates.infrastructure.rate_providers.chained_provider import (
         ChainedEconomicIndexProvider,
     )
-    from financial_data.interfaces.api.dependencies import get_economic_index_provider
+    from rates.interfaces.api.dependencies import get_economic_index_provider
 
     provider = get_economic_index_provider()
     assert isinstance(provider, ChainedEconomicIndexProvider)
@@ -185,10 +185,10 @@ def test_get_economic_index_provider_returns_chained_provider() -> None:
 
 def test_get_income_tax_bracket_provider_returns_sii_provider() -> None:
     """get_income_tax_bracket_provider builds a SiiIncomeTaxBracketProvider."""
-    from financial_data.infrastructure.rate_providers.official_providers import (
+    from rates.infrastructure.rate_providers.official_providers import (
         SiiIncomeTaxBracketProvider,
     )
-    from financial_data.interfaces.api.dependencies import (
+    from rates.interfaces.api.dependencies import (
         get_income_tax_bracket_provider,
     )
 
@@ -198,10 +198,10 @@ def test_get_income_tax_bracket_provider_returns_sii_provider() -> None:
 
 def test_build_sync_use_case_returns_use_case() -> None:
     """build_sync_use_case constructs a SyncRecentMarketData from any session."""
-    from financial_data.application.use_cases.sync_recent_market_data import (
+    from rates.application.use_cases.sync_recent_market_data import (
         SyncRecentMarketData,
     )
-    from financial_data.interfaces.api.dependencies import build_sync_use_case
+    from rates.interfaces.api.dependencies import build_sync_use_case
 
     class _FakeSession:
         pass
@@ -212,11 +212,11 @@ def test_build_sync_use_case_returns_use_case() -> None:
 
 def test_get_refresh_rates_use_case_builds_correctly() -> None:
     """get_refresh_rates_use_case assembles a RefreshRates with providers."""
-    from financial_data.application.use_cases.refresh_rates import RefreshRates
-    from financial_data.infrastructure.db.repositories.market_data_repository import (
+    from rates.application.use_cases.refresh_rates import RefreshRates
+    from rates.infrastructure.db.repositories.market_data_repository import (
         SqlAlchemyMarketDataRepository,
     )
-    from financial_data.interfaces.api.dependencies import get_refresh_rates_use_case
+    from rates.interfaces.api.dependencies import get_refresh_rates_use_case
 
     class _FakeSession:
         pass
@@ -241,10 +241,10 @@ def test_get_refresh_income_tax_brackets_use_case_builds_correctly() -> None:
 
 def test_get_sync_use_case_builds_use_case() -> None:
     """get_sync_use_case constructs a SyncRecentMarketData."""
-    from financial_data.application.use_cases.sync_recent_market_data import (
+    from rates.application.use_cases.sync_recent_market_data import (
         SyncRecentMarketData,
     )
-    from financial_data.interfaces.api.dependencies import get_sync_use_case
+    from rates.interfaces.api.dependencies import get_sync_use_case
 
     class _FakeSession:
         pass
@@ -255,10 +255,10 @@ def test_get_sync_use_case_builds_use_case() -> None:
 
 def test_get_market_data_repository_returns_sqla_repository() -> None:
     """get_market_data_repository wraps the session in the SQLAlchemy implementation."""
-    from financial_data.infrastructure.db.repositories.market_data_repository import (
+    from rates.infrastructure.db.repositories.market_data_repository import (
         SqlAlchemyMarketDataRepository,
     )
-    from financial_data.interfaces.api.dependencies import get_market_data_repository
+    from rates.interfaces.api.dependencies import get_market_data_repository
 
     class _FakeSession:
         pass
@@ -269,10 +269,10 @@ def test_get_market_data_repository_returns_sqla_repository() -> None:
 
 def test_get_reference_data_repository_returns_sqla_repository() -> None:
     """get_reference_data_repository returns the SQLAlchemy implementation."""
-    from financial_data.infrastructure.db.repositories.reference_data_repository import (  # noqa: E501
+    from rates.infrastructure.db.repositories.reference_data_repository import (  # noqa: E501
         SqlAlchemyReferenceDataRepository,
     )
-    from financial_data.interfaces.api.dependencies import get_reference_data_repository
+    from rates.interfaces.api.dependencies import get_reference_data_repository
 
     class _FakeSession:
         pass
@@ -286,7 +286,7 @@ async def test_get_session_yields_session_from_session_local(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """get_session yields the session produced by SessionLocal."""
-    import financial_data.interfaces.api.dependencies as deps_module
+    import rates.interfaces.api.dependencies as deps_module
 
     class _StubSession:
         async def __aenter__(self) -> Self:

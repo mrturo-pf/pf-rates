@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from financial_data.domain.quantizers import quantize_clp, quantize_utm
+from rates.domain.quantizers import quantize_clp, quantize_utm
 
 
 def test_quantize_clp_rounds_to_nearest_peso() -> None:

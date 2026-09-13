@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from financial_data.application.dto import (
+from rates.application.dto import (
     EconomicIndexWriteDTO,
     ExchangeRateWriteDTO,
     IncomeTaxBracketDTO,
@@ -15,7 +15,7 @@ from financial_data.application.dto import (
     RefreshRatesResultDTO,
     SyncRecentMarketDataResultDTO,
 )
-from financial_data.application.use_cases.sync_recent_market_data import (
+from rates.application.use_cases.sync_recent_market_data import (
     SyncRecentMarketData,
 )
 

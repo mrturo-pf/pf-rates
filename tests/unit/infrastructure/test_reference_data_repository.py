@@ -6,8 +6,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from financial_data.application.dto import CurrencyDTO, IncomeTaxBracketDTO
-from financial_data.infrastructure.db.repositories.reference_data_repository import (
+from rates.application.dto import CurrencyDTO, IncomeTaxBracketDTO
+from rates.infrastructure.db.repositories.reference_data_repository import (
     SqlAlchemyReferenceDataRepository,
 )
 

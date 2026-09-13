@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from financial_data.domain.economic_index import EconomicIndex
+from rates.domain.economic_index import EconomicIndex
 
 
 def test_economic_index_creation_valid() -> None:

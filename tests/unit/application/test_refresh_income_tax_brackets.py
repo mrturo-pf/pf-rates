@@ -5,12 +5,12 @@ from decimal import Decimal
 
 import pytest
 
-from financial_data.application.dto import (
+from rates.application.dto import (
     IncomeTaxBracketWriteDTO,
     RefreshIncomeTaxBracketsCommandDTO,
     RefreshIncomeTaxBracketsResultDTO,
 )
-from financial_data.application.use_cases.refresh_income_tax_brackets import (
+from rates.application.use_cases.refresh_income_tax_brackets import (
     RefreshIncomeTaxBrackets,
 )
 

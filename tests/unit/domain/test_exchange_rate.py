@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from financial_data.domain.exchange_rate import ExchangeRate
+from rates.domain.exchange_rate import ExchangeRate
 
 
 def test_exchange_rate_creation_valid() -> None:

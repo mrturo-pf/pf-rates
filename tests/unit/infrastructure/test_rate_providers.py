@@ -8,16 +8,16 @@ from urllib.error import URLError
 
 import pytest
 
-from financial_data.application.dto import (
+from rates.application.dto import (
     EconomicIndexWriteDTO,
     ExchangeRateWriteDTO,
     IncomeTaxBracketWriteDTO,
 )
-from financial_data.infrastructure.rate_providers.chained_provider import (
+from rates.infrastructure.rate_providers.chained_provider import (
     ChainedEconomicIndexProvider,
     ChainedFxProvider,
 )
-from financial_data.infrastructure.rate_providers.official_providers import (
+from rates.infrastructure.rate_providers.official_providers import (
     BcchSeriesProvider,
     MindicadorRateProvider,
     SiiIncomeTaxBracketProvider,

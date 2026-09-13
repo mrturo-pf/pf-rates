@@ -31,7 +31,7 @@ PF_DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/dbname
 All database access uses **async sessions** via `infrastructure/db/session.py`:
 
 ```python
-from financial_data.infrastructure.db.session import SessionLocal
+from rates.infrastructure.db.session import SessionLocal
 
 async with SessionLocal() as session:
     # Use session here
@@ -94,7 +94,7 @@ SQLAlchemy models live in `infrastructure/db/models/financial_data.py`:
 ```python
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
-from financial_data.infrastructure.db.models.base import Base
+from rates.infrastructure.db.models.base import Base
 
 class Currency(Base):
     __tablename__ = "RAT_CURRENCY"
@@ -127,8 +127,8 @@ Repositories implement **port Protocols** from `application/ports/` and live in 
 ### Example: MarketDataRepository
 
 ```python
-from financial_data.application.ports.market_data_repository import MarketDataRepository
-from financial_data.infrastructure.db.session import SessionLocal
+from rates.application.ports.market_data_repository import MarketDataRepository
+from rates.infrastructure.db.session import SessionLocal
 
 class SqlAlchemyMarketDataRepository:
     """Implementation of MarketDataRepository using SQLAlchemy."""

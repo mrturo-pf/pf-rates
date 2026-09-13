@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from financial_data.application.dto import (
+from rates.application.dto import (
     EconomicIndexWriteDTO,
     ExchangeRateWriteDTO,
     ProviderEconomicIndexRequestDTO,
@@ -13,7 +13,7 @@ from financial_data.application.dto import (
     RefreshRatesCommandDTO,
     RefreshRatesResultDTO,
 )
-from financial_data.application.use_cases.refresh_rates import RefreshRates
+from rates.application.use_cases.refresh_rates import RefreshRates
 
 
 class StubMarketDataRepository:

@@ -17,7 +17,7 @@ log() {
 
 venv_ready() {
   [[ -x "$VENV/bin/python" ]] && [[ -x "$VENV/bin/uvicorn" ]] && \
-    "$VENV/bin/python" -c "import financial_data, fastapi, asyncpg, pydantic_settings, sqlalchemy, uvicorn" >/dev/null 2>&1
+    "$VENV/bin/python" -c "import rates, fastapi, asyncpg, pydantic_settings, sqlalchemy, uvicorn" >/dev/null 2>&1
 }
 
 # Verify the shared pf-db container is running.
@@ -59,4 +59,4 @@ printf 'Docs : http://127.0.0.1:%s/docs\n' "$APP_PORT"
 printf 'Env  : %s\n' "$ENV_FILE"
 printf '\n'
 
-exec "$VENV/bin/uvicorn" financial_data.interfaces.api.main:app --reload --host 127.0.0.1 --port "$APP_PORT"
+exec "$VENV/bin/uvicorn" rates.interfaces.api.main:app --reload --host 127.0.0.1 --port "$APP_PORT"

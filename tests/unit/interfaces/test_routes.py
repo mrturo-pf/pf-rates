@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from financial_data.application.dto import (
+from rates.application.dto import (
     CurrencyDTO,
     EconomicIndexDTO,
     ExchangeRateDTO,
@@ -24,12 +24,12 @@ from financial_data.application.dto import (
     RefreshRatesResultDTO,
     SyncRecentMarketDataResultDTO,
 )
-from financial_data.application.errors import (
+from rates.application.errors import (
     ExchangeRateNotFoundError,
     FinancialDataDependencyError,
 )
-from financial_data.interfaces.api.main import app
-from financial_data.interfaces.api.dependencies import (
+from rates.interfaces.api.main import app
+from rates.interfaces.api.dependencies import (
     get_exchange_rate_value_use_case,
     get_market_data_repository,
     get_reference_data_repository,

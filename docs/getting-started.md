@@ -162,7 +162,7 @@ lsof -i :8001
 # Kill it
 kill -9 <PID>
 # Or use a different port
-uvicorn financial_data.interfaces.api.main:app --port 8002 --reload
+uvicorn rates.interfaces.api.main:app --port 8002 --reload
 ```
 
 ### API key not working

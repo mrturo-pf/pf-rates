@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from financial_data.domain.income_tax_bracket import IncomeTaxBracket
+from rates.domain.income_tax_bracket import IncomeTaxBracket
 
 
 def test_income_tax_bracket_creation_valid() -> None:

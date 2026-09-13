@@ -108,7 +108,7 @@ variants driven by the `require_approval` input.
    ```dockerfile
    # Final stage runs as non-root
    USER appuser
-   CMD ["uvicorn", "financial_data.interfaces.api.main:app", ...]
+   CMD ["uvicorn", "rates.interfaces.api.main:app", ...]
    ```
 
 7. **Multi-stage build** - final stage copies only the venv; do not add `COPY src ./src`

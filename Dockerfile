@@ -60,4 +60,4 @@ USER appuser
 # Uses shell form (via sh -c) to allow ${PORT:-8001} variable expansion
 # while properly forwarding OS signals via exec.
 ENTRYPOINT ["sh", "-c"]
-CMD ["exec uvicorn financial_data.interfaces.api.main:app --host 0.0.0.0 --port ${PORT:-8001}"]
+CMD ["exec uvicorn rates.interfaces.api.main:app --host 0.0.0.0 --port ${PORT:-8001}"]

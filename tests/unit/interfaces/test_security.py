@@ -3,7 +3,7 @@
 import pytest
 from fastapi import HTTPException
 
-from financial_data.interfaces.api.security import verify_api_key
+from rates.interfaces.api.security import verify_api_key
 
 
 def test_verify_api_key_accepts_correct_key() -> None:

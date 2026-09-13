@@ -1,6 +1,6 @@
 """Tests for Currency value object."""
 
-from financial_data.domain.currency import Currency
+from rates.domain.currency import Currency
 
 
 def test_currency_creation_fiat() -> None:

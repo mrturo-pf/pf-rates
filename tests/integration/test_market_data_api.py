@@ -13,21 +13,21 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from financial_data.application.dto import (
+from rates.application.dto import (
     IncomeTaxBracketWriteDTO,
     RefreshIncomeTaxBracketsCommandDTO,
     RefreshIncomeTaxBracketsResultDTO,
     RefreshRatesCommandDTO,
 )
-from financial_data.application.errors import FinancialDataDependencyError
-from financial_data.infrastructure.db.repositories.market_data_repository import (
+from rates.application.errors import FinancialDataDependencyError
+from rates.infrastructure.db.repositories.market_data_repository import (
     SqlAlchemyMarketDataRepository,
 )
-from financial_data.infrastructure.db.repositories.reference_data_repository import (
+from rates.infrastructure.db.repositories.reference_data_repository import (
     SqlAlchemyReferenceDataRepository,
 )
-from financial_data.interfaces.api.main import app
-from financial_data.interfaces.api.dependencies import (
+from rates.interfaces.api.main import app
+from rates.interfaces.api.dependencies import (
     get_refresh_income_tax_brackets_use_case,
     get_refresh_rates_use_case,
     get_session,
@@ -162,7 +162,7 @@ async def test_get_latest_exchange_rate_value_before(
     db_session: AsyncSession,
 ) -> None:
     """get_latest_exchange_rate_value_before returns the nearest prior stored rate."""
-    from financial_data.application.dto import (
+    from rates.application.dto import (
         ExchangeRateWriteDTO,
         RefreshRatesCommandDTO,
     )
@@ -420,7 +420,7 @@ async def test_get_session_yields_async_session(
     pg_url: str, monkeypatch: object
 ) -> None:
     """get_session yields a real AsyncSession when SessionLocal is configured."""
-    import financial_data.interfaces.api.dependencies as deps_module
+    import rates.interfaces.api.dependencies as deps_module
     from sqlalchemy.ext.asyncio import (
         AsyncSession as _AsyncSession,
         async_sessionmaker,
@@ -450,7 +450,7 @@ async def test_list_exchange_rate_dates_returns_stored_dates(
     db_session: AsyncSession,
 ) -> None:
     """list_exchange_rate_dates returns only dates within [start, end]."""
-    from financial_data.application.dto import ExchangeRateWriteDTO
+    from rates.application.dto import ExchangeRateWriteDTO
 
     repo = SqlAlchemyMarketDataRepository(db_session)
     await repo.refresh_rates(
@@ -478,9 +478,9 @@ async def test_list_unconfirmed_rate_dates_detects_same_day_rate(
     """list_unconfirmed_rate_dates returns dates where rate was fetched on rate_date."""
     from datetime import datetime
 
-    from financial_data.application.dto import ExchangeRateWriteDTO
+    from rates.application.dto import ExchangeRateWriteDTO
     from sqlalchemy import update
-    from financial_data.infrastructure.db.models.financial_data import ExchangeRateModel
+    from rates.infrastructure.db.models.financial_data import ExchangeRateModel
 
     repo = SqlAlchemyMarketDataRepository(db_session)
     target_date = date(2026, 5, 20)
@@ -522,9 +522,9 @@ async def test_list_unconfirmed_rate_dates_detects_pre_publication_fetch(
     """list_unconfirmed_rate_dates returns pre-publication fetches of future rates."""
     from datetime import datetime
 
-    from financial_data.application.dto import ExchangeRateWriteDTO
+    from rates.application.dto import ExchangeRateWriteDTO
     from sqlalchemy import update
-    from financial_data.infrastructure.db.models.financial_data import ExchangeRateModel
+    from rates.infrastructure.db.models.financial_data import ExchangeRateModel
 
     repo = SqlAlchemyMarketDataRepository(db_session)
     future_rate_date = date(2026, 5, 25)
@@ -565,7 +565,7 @@ async def test_list_unconfirmed_rate_dates_excludes_later_day_fetch(
     db_session: AsyncSession,
 ) -> None:
     """list_unconfirmed_rate_dates excludes rates fetched strictly after rate_date."""
-    from financial_data.application.dto import ExchangeRateWriteDTO
+    from rates.application.dto import ExchangeRateWriteDTO
 
     repo = SqlAlchemyMarketDataRepository(db_session)
     target_date = date(2026, 5, 19)
@@ -596,7 +596,7 @@ async def test_list_economic_index_periods_returns_stored_periods(
     db_session: AsyncSession,
 ) -> None:
     """list_economic_index_periods returns periods that exist in the DB."""
-    from financial_data.application.dto import EconomicIndexWriteDTO
+    from rates.application.dto import EconomicIndexWriteDTO
 
     repo = SqlAlchemyMarketDataRepository(db_session)
     await repo.refresh_rates(

@@ -6,13 +6,13 @@ from unittest.mock import patch
 
 import pytest
 
-from financial_data.application.dto import (
+from rates.application.dto import (
     ExchangeRateWriteDTO,
     RefreshRatesCommandDTO,
     RefreshRatesResultDTO,
 )
-from financial_data.application.errors import ExchangeRateNotFoundError
-from financial_data.application.use_cases.get_exchange_rate_value import (
+from rates.application.errors import ExchangeRateNotFoundError
+from rates.application.use_cases.get_exchange_rate_value import (
     GetExchangeRateValue,
 )
 
@@ -212,7 +212,7 @@ async def test_future_date_skips_fallback_and_raises_not_found() -> None:
     use_case = GetExchangeRateValue(repo, provider)
 
     with patch(
-        "financial_data.application.use_cases.get_exchange_rate_value.datetime"
+        "rates.application.use_cases.get_exchange_rate_value.datetime"
     ) as mock_dt:
         mock_dt.now.return_value.date.return_value = _PAST
         with pytest.raises(ExchangeRateNotFoundError):
