@@ -6,6 +6,7 @@ PF_DATABASE_URL="${PF_DATABASE_URL:-postgresql+asyncpg://pf_db:pf_db@localhost:5
 PF_RATES_API_KEY="${PF_RATES_API_KEY:-change-me-before-use}"
 CORPORATIVE_PIP_INDEX="${CORPORATIVE_PIP_INDEX:-}"
 CORPORATIVE_NPM_REGISTRY="${CORPORATIVE_NPM_REGISTRY:-}"
+CORPORATIVE_PROXY="${CORPORATIVE_PROXY:-}"
 
 {
   printf '# Database managed by pf-db (shared with pf-payroll)\n'
@@ -15,6 +16,7 @@ CORPORATIVE_NPM_REGISTRY="${CORPORATIVE_NPM_REGISTRY:-}"
   printf '\n# Tooling — corporate pip/npm registries (used by make install/check on VPN)\n'
   printf 'CORPORATIVE_PIP_INDEX=%s\n' "$CORPORATIVE_PIP_INDEX"
   printf 'CORPORATIVE_NPM_REGISTRY=%s\n' "$CORPORATIVE_NPM_REGISTRY"
+  printf 'CORPORATIVE_PROXY=%s\n' "$CORPORATIVE_PROXY"
 } > "$ENV_FILE"
 
 printf '%s\n' "$ENV_FILE"

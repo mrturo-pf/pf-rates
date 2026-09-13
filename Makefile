@@ -44,4 +44,5 @@ local-up: ## Start full local stack (DB verification, env, deps, API)
 		PF_RATES_API_KEY="$(PF_RATES_API_KEY)" \
 		CORPORATIVE_PIP_INDEX="$(CORPORATIVE_PIP_INDEX)" \
 		CORPORATIVE_NPM_REGISTRY="$(CORPORATIVE_NPM_REGISTRY)" \
+		CORPORATIVE_PROXY="$(CORPORATIVE_PROXY)" \
 		./scripts/local_stack.sh
