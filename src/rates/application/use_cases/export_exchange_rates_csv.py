@@ -119,14 +119,10 @@ class ExportExchangeRatesCsv:
     def _default_filename() -> str:
         """Return the stable default filename, always overwritten in place.
 
-        Deliberately NOT date-stamped: Google Drive Service Accounts have
-        no storage quota of their own, so they cannot *create* new files in
-        a human's personal Drive folder -- only *update* the content of a
-        file that already exists there (which spends the file owner's
-        quota, not the service account's). A stable name is what lets
-        every run after the first hit the update path instead of a
-        perpetually-failing create. See
-        docs/google-drive-credentials-setup.md for the one-time manual
-        step this requires.
+        Deliberately NOT date-stamped: a stable name lets every run update
+        the same file in place (via GoogleDriveFileExport, matching by
+        name) instead of accumulating one file per run, and lets the
+        export self-heal (recreate the file) if it's ever deleted by
+        accident -- no dependency on a specific prior run having succeeded.
         """
         return DEFAULT_FILENAME

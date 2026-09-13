@@ -209,9 +209,9 @@ window using the same fallback chain as `GET /exchange-rates/value`. Dates
 that cannot be resolved (mostly future dates for `USD`/`EUR`) are simply
 omitted from the CSV.
 
-See [`csv-export-plan.md`](csv-export-plan.md) for the full design and
-[`google-drive-credentials-setup.md`](google-drive-credentials-setup.md) for
-how to configure the required OAuth credentials.
+Requires `PF_RATES_GDRIVE_OAUTH_TOKEN_JSON(_PATH)` and
+`PF_RATES_GDRIVE_EXPORT_FOLDER_ID` to be configured (see `.env.example`
+for local dev, [`deployment.md`](deployment.md) for production secrets).
 
 **Authentication:** Required
 

@@ -2,8 +2,7 @@
 
 Authenticates as the Drive account's actual human owner via OAuth (not a
 service account) using a long-lived refresh token obtained once through
-`scripts/gdrive_oauth_setup.py` -- see
-`docs/google-drive-credentials-setup.md` for the full one-time setup.
+`scripts/gdrive_oauth_setup.py`.
 
 This deliberately does NOT use a service account: Google service accounts
 have no storage quota of their own in a personal (non-Workspace) Drive, so

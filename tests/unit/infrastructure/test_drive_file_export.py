@@ -30,16 +30,22 @@ def _build_export(mock_service: Mock) -> GoogleDriveFileExport:
     return instance
 
 
-@pytest.mark.asyncio
-async def test_upload_creates_new_file_when_none_exists() -> None:
-    """No existing file with that name -> files().create() is used."""
+def _service_with_no_existing_file(create_id: str = "new-id") -> Mock:
+    """Build a mock Drive service reporting no existing file, create() stubbed."""
     mock_service = Mock()
     mock_service.files.return_value.list.return_value.execute.return_value = {
         "files": []
     }
     mock_service.files.return_value.create.return_value.execute.return_value = {
-        "id": "new-id"
+        "id": create_id
     }
+    return mock_service
+
+
+@pytest.mark.asyncio
+async def test_upload_creates_new_file_when_none_exists() -> None:
+    """No existing file with that name -> files().create() is used."""
+    mock_service = _service_with_no_existing_file()
     export = _build_export(mock_service)
 
     file_id = await export.upload("rates.csv", b"a,b\n1,2", "text/csv")
@@ -88,13 +94,7 @@ async def test_upload_wraps_http_error_as_dependency_error() -> None:
 @pytest.mark.asyncio
 async def test_find_existing_file_id_escapes_single_quotes() -> None:
     """Filenames containing a single quote are escaped in the Drive query."""
-    mock_service = Mock()
-    mock_service.files.return_value.list.return_value.execute.return_value = {
-        "files": []
-    }
-    mock_service.files.return_value.create.return_value.execute.return_value = {
-        "id": "new-id"
-    }
+    mock_service = _service_with_no_existing_file()
     export = _build_export(mock_service)
 
     await export.upload("o'brien.csv", b"data", "text/csv")

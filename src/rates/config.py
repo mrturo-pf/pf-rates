@@ -38,7 +38,8 @@ class Settings(BaseSettings):
     # at the token file produced by scripts/gdrive_oauth_setup.py (see
     # ../secrets/pf-rates/ at the repo root). This is an OAuth authorized-
     # user token (refresh_token + client_id/secret), NOT a service account
-    # key -- see docs/google-drive-credentials-setup.md for why.
+    # key: Service Accounts have no storage quota in a personal (non-
+    # Workspace) Drive and cannot create new files there.
     gdrive_oauth_token_json: str | None = Field(
         default=None, validation_alias="pf_rates_gdrive_oauth_token_json"
     )

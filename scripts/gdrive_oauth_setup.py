@@ -15,10 +15,10 @@ expected and safe for a personal-use app you created yourself). The
 resulting token (with a long-lived refresh token) is saved to --output.
 
 Prerequisite: an OAuth Client ID of type "Desktop app" created in Google
-Cloud Console, downloaded as JSON -- see
-docs/google-drive-credentials-setup.md for the full walkthrough. That
-downloaded file is the --client-secret input here; it is NOT the same
-thing as the --output token file this script produces.
+Cloud Console (APIs & Services -> Credentials -> Create Credentials ->
+OAuth client ID), downloaded as JSON. That downloaded file is the
+--client-secret input here; it is NOT the same thing as the --output
+token file this script produces.
 
 This script is a one-time developer tool, not part of the running
 service -- that's why google-auth-oauthlib is a dev-only dependency
@@ -83,8 +83,7 @@ def main() -> int:
     print(
         "Next steps: point PF_RATES_GDRIVE_OAUTH_TOKEN_JSON_PATH at this file "
         "locally, or `gcloud secrets create PF_RATES_GDRIVE_OAUTH_TOKEN_JSON "
-        "--data-file=...` for production -- see "
-        "docs/google-drive-credentials-setup.md."
+        "--data-file=...` for production."
     )
     return 0
 

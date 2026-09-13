@@ -202,8 +202,7 @@ def get_file_export_port() -> FileExportPort:
             "PF_RATES_GDRIVE_OAUTH_TOKEN_JSON_PATH (local) or "
             "PF_RATES_GDRIVE_OAUTH_TOKEN_JSON (production), plus "
             "PF_RATES_GDRIVE_EXPORT_FOLDER_ID. Run scripts/gdrive_oauth_setup.py "
-            "once to produce the token file (see "
-            "docs/google-drive-credentials-setup.md)."
+            "once to produce the token file."
         )
     return GoogleDriveFileExport(oauth_token_json, settings.gdrive_export_folder_id)
 
