@@ -1,6 +1,12 @@
 """Shared financial constants."""
 
 DEFAULT_CURRENCY = "CLP"
+
+# Single source of truth for the largest lookback window any endpoint will
+# accept (/sync and /exchange-rates/export). 20 years comfortably covers
+# deliberate historical backfills (e.g. a one-off multi-year export) while
+# still rejecting obvious fat-finger values (millions of days).
+MAX_LOOKBACK_DAYS = 7300
 DAILY_MARKET_RATE_CODES = ("USD", "EUR", "UF")
 MONTHLY_MARKET_RATE_CODES = ("UTM",)
 MONTHLY_ECONOMIC_INDEX_CODES = ("IPC_CL",)

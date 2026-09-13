@@ -34,6 +34,7 @@ from rates.interfaces.api.routes._refresh_deps import (
     to_http_exception,
     RefreshRatesResponse,
 )
+from rates.shared.constants import MAX_LOOKBACK_DAYS
 
 router = APIRouter(prefix="/exchange-rates", tags=["exchange-rates"])
 
@@ -78,8 +79,14 @@ class ExportExchangeRatesRequest(BaseModel):
     lookback_days: int = Field(
         default=DEFAULT_LOOKBACK_DAYS,
         ge=1,
-        le=365,
-        description="Days in the past to include, relative to today (Chile time).",
+        le=MAX_LOOKBACK_DAYS,
+        description=(
+            "Days in the past to include, relative to today (Chile time). "
+            "For windows beyond the default 90 days, call POST /sync first "
+            "with the same lookback_days so Neon is warm -- otherwise this "
+            "endpoint resolves each (currency, date) pair one at a time and "
+            "can be slow for large, previously-uncached windows."
+        ),
     )
     forward_days: int = Field(
         default=DEFAULT_FORWARD_DAYS,

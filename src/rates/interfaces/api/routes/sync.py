@@ -7,6 +7,7 @@ from rates.application.use_cases.sync_recent_market_data import (
     SyncRecentMarketData,
 )
 from rates.interfaces.api.dependencies import get_sync_use_case
+from rates.shared.constants import MAX_LOOKBACK_DAYS
 
 router = APIRouter(tags=["sync"])
 
@@ -17,7 +18,7 @@ class SyncRequest(BaseModel):
     lookback_days: int | None = Field(
         default=None,
         ge=1,
-        le=3650,
+        le=MAX_LOOKBACK_DAYS,
         description="Rolling lookback window in days (default: 365).",
     )
     forward_days: int | None = Field(
