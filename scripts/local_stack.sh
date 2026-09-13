@@ -5,6 +5,9 @@ set -euo pipefail
 # The pf-db container must be running before this script is called.
 # Start it with: cd ../pf-db && make db-up
 
+DB_CONTAINER="${DB_CONTAINER:-pf-db-db-1}"
+PF_DATABASE_URL="${PF_DATABASE_URL:-postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db}"
+PF_RATES_API_KEY="${PF_RATES_API_KEY:-change-me-before-use}"
 APP_PORT="${APP_PORT:-8001}"
 VENV="${VENV:-.venv}"
 ENV_FILE="${ENV_FILE:-.env}"
@@ -21,10 +24,10 @@ venv_ready() {
 }
 
 # Verify the shared pf-db container is running.
-log "Checking shared pf-db container (pf-db-db-1)"
-if ! docker inspect --format '{{.State.Status}}' pf-db-db-1 2>/dev/null | grep -q "^running$"; then
+log "Checking shared pf-db container ($DB_CONTAINER)"
+if ! docker inspect --format '{{.State.Status}}' "$DB_CONTAINER" 2>/dev/null | grep -q "^running$"; then
   echo ""
-  echo "ERROR: pf-db container 'pf-db-db-1' is not running."
+  echo "ERROR: pf-db container '$DB_CONTAINER' is not running."
   echo ""
   echo "Start the shared database first:"
   echo "  cd ../pf-db && make db-up"
@@ -36,7 +39,9 @@ log "pf-db container is running"
 log "Writing environment file to $ENV_FILE"
 {
   printf '# Database managed by pf-db (shared with pf-payroll)\n'
-  printf 'PF_DATABASE_URL=postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db\n'
+  printf 'PF_DATABASE_URL=%s\n' "$PF_DATABASE_URL"
+  printf '\n# API key that clients must supply as X-API-Key header to access this service.\n'
+  printf 'PF_RATES_API_KEY=%s\n' "$PF_RATES_API_KEY"
   printf '\n# Tooling — corporate pip/npm registries (used by make install/check on VPN)\n'
   printf 'CORPORATIVE_PIP_INDEX=%s\n' "$CORPORATIVE_PIP_INDEX"
   printf 'CORPORATIVE_NPM_REGISTRY=%s\n' "$CORPORATIVE_NPM_REGISTRY"
