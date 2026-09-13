@@ -14,7 +14,7 @@ gets triggered from this repo and how to configure it.
 
 **Calls:** `pf-common/.github/workflows/deploy-reusable.yml` with `repo_name: pf-rates`.
 
-A 6-job pipeline (jobs 3–6 only run on push to `main`, not on PRs):
+A 7-job pipeline (jobs 3–7 only run on push to `main`, not on PRs):
 
 | # | Job | What it does |
 |---|---|---|
@@ -22,8 +22,9 @@ A 6-job pipeline (jobs 3–6 only run on push to `main`, not on PRs):
 | 2 | **Build & Scan** | Builds the Docker image, runs Trivy container scan (SARIF uploaded to GitHub Security), packages the release image as an artifact (push to `main` only) |
 | 3 | **Approval Gate** | Manual approval via the `production` GitHub environment (required reviewers). Two mutually-exclusive gate jobs handle the approve/bypass paths depending on `require_approval` |
 | 4 | **Deploy to Cloud Run** | Verifies Secret Manager secrets exist, verifies Artifact Registry vulnerability scanning is disabled (cost control), pushes the image, runs `gcloud run deploy` |
-| 5 | **Notify — Failure** | Emails on failure of Test & Lint / Build & Scan / Deploy (push to `main` only) |
-| 6 | **Notify — Success** | Emails on successful deploy (push to `main` only) |
+| 5 | **Smoke Test (Health Check)** | Curls the real, public `/health` endpoint and validates: `status == "ok"`, `service` matches this repo (catches a deploy-to-wrong-service mixup), and `uptime_seconds` is low (proves we're hitting the container that was *just* deployed, not a stale one) |
+| 6 | **Notify — Failure** | Emails on failure of Test & Lint / Build & Scan / Deploy / Smoke Test (push to `main` only) |
+| 7 | **Notify — Success** | Emails only after Deploy **and** Smoke Test both succeed (push to `main` only) |
 
 Migrations are **not** run by this pipeline — `pf-db` owns and applies them via its own
 Cloud Run Job before this service receives traffic.
