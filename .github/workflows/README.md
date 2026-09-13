@@ -1,98 +1,87 @@
 # GitHub Actions Workflows
 
-This directory contains CI/CD workflows for pf-rates.
+This directory contains CI/CD workflows for pf-rates. All three workflows are thin
+callers into the **reusable workflows** centralized in
+[`pf-common/.github/workflows/`](https://github.com/mrturo-pf/pf-common/tree/main/.github/workflows) —
+that's the single source of truth for job definitions. This file only documents what
+gets triggered from this repo and how to configure it.
 
 ## Workflows
 
-### test.yml - Quality Checks
+### `deploy.yml` — CI / Deploy to Cloud Run
 
-**Trigger:** Push to main, Pull Requests
+**Trigger:** push to `main`, pull requests targeting `main`.
 
-**What it does:**
-1. Clones pf-rates into subdirectory
-2. Clones pf-common (shared infrastructure) alongside
-3. Runs `make check` (all quality gates)
+**Calls:** `pf-common/.github/workflows/deploy-reusable.yml` with `repo_name: pf-rates`.
 
-**Steps:**
-- Lint (ruff)
-- Dead code detection (vulture)
-- Type checking (mypy)
-- Duplicate code detection (jscpd)
-- Tests (pytest)
-- Coverage (100% required)
-- Security scan (trivy)
+A 6-job pipeline (jobs 3–6 only run on push to `main`, not on PRs):
 
-## Directory Structure in CI
+| # | Job | What it does |
+|---|---|---|
+| 1 | **Test & Lint** | ruff (lint + format check), vulture (dead code), mypy, jscpd (duplicate code), `make test-cov` (pytest, 100% coverage), Trivy filesystem scan |
+| 2 | **Build & Scan** | Builds the Docker image, runs Trivy container scan (SARIF uploaded to GitHub Security), packages the release image as an artifact (push to `main` only) |
+| 3 | **Approval Gate** | Manual approval via the `production` GitHub environment (required reviewers). Two mutually-exclusive gate jobs handle the approve/bypass paths depending on `require_approval` |
+| 4 | **Deploy to Cloud Run** | Verifies Secret Manager secrets exist, verifies Artifact Registry vulnerability scanning is disabled (cost control), pushes the image, runs `gcloud run deploy` |
+| 5 | **Notify — Failure** | Emails on failure of Test & Lint / Build & Scan / Deploy (push to `main` only) |
+| 6 | **Notify — Success** | Emails on successful deploy (push to `main` only) |
 
-```
-/home/runner/work/pf-rates/pf-rates/
-├── pf-common/          <- Cloned from github.com/mrturo-pf/pf-common
-└── pf-rates/           <- This repository
-    └── Makefile        <- include ../pf-common/make/common.mk
-```
+Migrations are **not** run by this pipeline — `pf-db` owns and applies them via its own
+Cloud Run Job before this service receives traffic.
 
-This recreates the same structure as local development.
+### `gcp-setup.yml` — GCP Setup (one-time, manual)
 
-## Requirements
+**Trigger:** `workflow_dispatch` only — run manually from the Actions tab.
 
-- **pf-common repository** must exist at `github.com/mrturo-pf/pf-common`
-- If pf-common is private, configure `PF_COMMON_TOKEN` secret
+**Calls:** `pf-common/.github/workflows/gcp-setup-reusable.yml`.
 
-## Configuration
+Creates the Artifact Registry repository and placeholder Secret Manager secrets
+(`PF_DATABASE_URL`, `PF_RATES_API_KEY`). Run this once before the very first deploy;
+see the full manual setup checklist in the header comment of `deploy.yml`.
 
-### For Public pf-common
+### `debug.yml` — Debug CI (manual)
 
-No additional configuration needed.
+**Trigger:** `workflow_dispatch` only.
 
-### For Private pf-common
+**Calls:** `pf-common/.github/workflows/debug-reusable.yml`. Use this to poke at
+runner environment/connectivity issues without going through the full pipeline.
 
-1. Create Personal Access Token with `repo` scope
-2. Add as repository secret: `Settings > Secrets > Actions > New secret`
-   - Name: `PF_COMMON_TOKEN`
-   - Value: `<your-PAT>`
+## Required GitHub Secrets
 
-3. Uncomment in test.yml:
-```yaml
-- name: Checkout pf-common
-  uses: actions/checkout@v4
-  with:
-    repository: your-org/pf-common
-    path: pf-common
-    token: ${{ secrets.PF_COMMON_TOKEN }}  # <- Uncomment this line
-```
+Configured once at the repo (or org) level — see `deploy.yml`'s header comment for the
+full one-time `gcloud` setup script.
 
-## Local Testing
+| Secret | Purpose |
+|---|---|
+| `GCP_SA_KEY` | Service account JSON key used to authenticate to GCP |
+| `GCP_PROJECT_ID` | GCP project ID |
+| `GCP_CLOUD_SQL_INSTANCE` | (optional) Cloud SQL instance for the proxy sidecar |
+| `GH_PAT` | (optional) GitHub PAT, only needed if `pf-common`/`pf-db` become private |
+| `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_TO` | SMTP config for the Notify jobs |
 
-You can test the workflow locally using [act](https://github.com/nektos/act):
+Secret Manager secrets (`PF_DATABASE_URL`, `PF_RATES_API_KEY`) are injected
+automatically by the reusable deploy workflow — they are not GitHub secrets.
 
-```bash
-# Install act
-brew install act  # macOS
-# or: curl https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+## Manual Approval Setup (one-time, GitHub UI)
 
-# Run workflow
-act -j test
-```
+1. Settings → Environments → New environment → name it `production`.
+2. Enable "Required reviewers" and add yourself or your team.
+3. The **Approval Gate (Manual)** job pauses there; deploy only runs after approval.
 
 ## Troubleshooting
 
-### Workflow not running
-
-- Check file is at `.github/workflows/test.yml` (note the dot)
-- Verify workflow is enabled: Actions tab > Enable workflows
-
-### pf-common not found
-
-- Verify repository URL in test.yml
-- If private, ensure PF_COMMON_TOKEN secret is configured
-
-### make check fails
-
-- Run `make check` locally first
-- Check logs in Actions tab for specific error
+- **Workflow not triggering:** confirm the push/PR targets `main` and the workflow
+  file is enabled under Actions.
+- **`pf-common not found` / composite action errors:** verify
+  `github.com/mrturo-pf/pf-common` is reachable; if it ever goes private, set the
+  `GH_PAT` secret.
+- **`make check`-equivalent steps failing:** reproduce locally first with
+  `make lint && make dead-code && make typecheck && make duplicate-code && make test-cov`.
+- **Deploy job blocked on "Artifact Registry scanning is enabled":** run
+  `gcloud artifacts repositories update pf-rates --location=us-central1 --disable-vulnerability-scanning`
+  (kept disabled deliberately to avoid ~$5/month in scan fees; Trivy already covers this).
 
 ## See Also
 
-- [pf-common](https://github.com/mrturo-pf/pf-common) - Shared infrastructure
-- [Makefile](../Makefile) - Build targets
-- [Contributing Guide](../docs/CONTRIBUTING.md) - Development workflow
+- [`pf-common/.github/workflows/deploy-reusable.yml`](https://github.com/mrturo-pf/pf-common/blob/main/.github/workflows/deploy-reusable.yml) — the real pipeline definition
+- [`../../docs/deployment.md`](../../docs/deployment.md) — full deployment guide for this service
+- [`../../Makefile`](../../Makefile) — local equivalents of the CI quality gates
