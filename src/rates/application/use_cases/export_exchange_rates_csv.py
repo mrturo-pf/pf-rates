@@ -69,6 +69,17 @@ class ExportExchangeRatesCsv:
     mindicador.cl on 2026-09-13, a Sunday: the series already had a real
     entry for Monday 2026-09-14, with nothing for the Sat/Sun gap).
 
+    Never invented, though: a future date only ever gets a value if it
+    was an *exact* hit -- either already cached or an exact match from
+    the provider's own advance-published data (the Monday case above, or
+    UF/UTM for the rest of the current month). Nearest-prior carry-forward
+    (both the in-memory pass below and GetExchangeRateValue's DB-backed
+    equivalent) is restricted to `rate_date <= today`; it must never
+    stand in for a date that simply hasn't happened yet. A prior bug let
+    the in-memory pass carry a stale value onto real future dates
+    (reported in production: EUR/USD rows past today, and UF rows days
+    past SII's actual last-published date) -- fixed by adding that guard.
+
     Calls are made sequentially, not concurrently: `GetExchangeRateValue`
     is backed by a single SQLAlchemy AsyncSession, which is not safe for
     concurrent use across coroutines. Sequential calls are also naturally
@@ -82,10 +93,11 @@ class ExportExchangeRatesCsv:
     dates that miss an exact match, since Chile's FX market is closed
     those days -- resolve to the nearest prior cached value entirely in
     memory (mirroring `GetExchangeRateValue`'s own nearest-prior-date
-    step, just without the DB round-trip). Only dates that are still
-    unresolved after that in-memory pass fall through to
-    `GetExchangeRateValue`'s full DB/provider resolution chain -- expected
-    to be a small remainder once `POST /sync` has warmed the window.
+    step, just without the DB round-trip, and the same `rate_date <=
+    today` restriction). Only dates that are still unresolved after that
+    in-memory pass fall through to `GetExchangeRateValue`'s full
+    DB/provider resolution chain -- expected to be a small remainder once
+    `POST /sync` has warmed the window.
     Skipping this and resolving every date one at a time (exact DB match
     *and* nearest-prior DB lookup, per date) does not scale: a multi-year
     window times several currencies means tens of thousands of sequential
@@ -144,7 +156,8 @@ class ExportExchangeRatesCsv:
         whole time can go stale server-side (see RunExportJob).
         """
         currency_codes = await self._list_exportable_currency_codes()
-        rate_dates = self._build_date_range(lookback_days, forward_days)
+        today = datetime.now(tz=_CHILE_TZ).date()
+        rate_dates = self._build_date_range(today, lookback_days, forward_days)
         total_items = len(currency_codes) * len(rate_dates)
 
         buffer = io.StringIO(newline="")
@@ -172,7 +185,7 @@ class ExportExchangeRatesCsv:
                 value = self._lookup_cached_value(
                     currency_code, rate_date, cached_values
                 )
-                if value is None:
+                if value is None and rate_date <= today:
                     value = self._lookup_nearest_prior_cached_value(
                         currency_code, rate_date, cached_values
                     )
@@ -242,7 +255,14 @@ class ExportExchangeRatesCsv:
 
         Purely in-memory equivalent of `GetExchangeRateValue`'s DB-backed
         nearest-prior-date step -- resolves the common weekend/holiday gap
-        without an extra round-trip per date.
+        without an extra round-trip per date. Callers must only invoke this
+        for `rate_date <= today`: carrying a past value forward onto a
+        genuinely future date would mean publishing a rate that was never
+        actually calculated/published for that day -- exactly the
+        'inventing future rates' behavior GetExchangeRateValue's own
+        nearest-prior step already refuses to do (see its `rate_date <=
+        today` guard). This method itself has no notion of "today", so it
+        cannot enforce that guard on its own; the caller does.
         """
         lookup_date = normalize_exchange_rate_lookup_date(currency_code, rate_date)
         for days_back in range(1, MAX_PROVIDER_LOOKBACK_DAYS + 1):
@@ -271,9 +291,10 @@ class ExportExchangeRatesCsv:
         return str(value)
 
     @staticmethod
-    def _build_date_range(lookback_days: int, forward_days: int) -> list[date]:
+    def _build_date_range(
+        today: date, lookback_days: int, forward_days: int
+    ) -> list[date]:
         """Return the inclusive date list from today-lookback to today+forward."""
-        today = datetime.now(tz=_CHILE_TZ).date()
         start = today - timedelta(days=lookback_days)
         span_days = lookback_days + forward_days
         return [start + timedelta(days=offset) for offset in range(span_days + 1)]

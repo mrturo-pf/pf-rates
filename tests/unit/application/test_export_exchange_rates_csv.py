@@ -155,9 +155,11 @@ def _build_use_case(
 async def test_excludes_clp_and_omits_unresolved_dates() -> None:
     """CLP is never queried; dates with nothing to resolve from stay omitted."""
     # Window: lookback=10, forward=1 around _TODAY (2024-06-15) -> 06-05..06-16.
-    # Only 06-14 has a DB value: 06-15/06-16 carry it forward (within the
-    # in-memory nearest-prior probe window), while every date before 06-14
-    # has nothing earlier to carry forward from and stays unresolved.
+    # Only 06-14 has a DB value: 06-15 (today) carries it forward (within the
+    # in-memory nearest-prior probe window). 06-16 is in the future, so it
+    # must NOT carry anything forward -- it stays unresolved and omitted.
+    # Every date before 06-14 has nothing earlier to carry forward from and
+    # stays unresolved too.
     db_values = {date(2024, 6, 14): Decimal("980.50")}
     file_export = _StubFileExport()
     use_case = _build_use_case(
@@ -168,7 +170,7 @@ async def test_excludes_clp_and_omits_unresolved_dates() -> None:
         mock_dt.now.return_value.date.return_value = _TODAY
         result = await use_case.execute(lookback_days=10, forward_days=1)
 
-    assert result.rows_written == 3
+    assert result.rows_written == 2
     assert result.file_id == "drive-file-id"
     assert len(file_export.uploads) == 1
 
@@ -181,8 +183,39 @@ async def test_excludes_clp_and_omits_unresolved_dates() -> None:
     assert rows[1:] == [
         ["USD", "2024-06-14", "980.50"],
         ["USD", "2024-06-15", "980.50"],
-        ["USD", "2024-06-16", "980.50"],
     ]
+
+
+@pytest.mark.asyncio
+async def test_future_dates_never_carry_forward_a_past_cached_value() -> None:
+    """A future date is never filled from an older cached value.
+
+    Regression test for a production bug: the in-memory nearest-prior
+    lookup had no upper bound on how far it could look, so a future date
+    with no exact rate silently inherited the most recent past value --
+    e.g. a CSV exported today showing EUR/USD rates for next month, or a
+    UF value days past SII's actual last-published date. Weekend/holiday
+    gaps in the past (and today itself) legitimately carry forward; a
+    date that simply hasn't happened yet must not.
+    """
+    # today=2024-06-15, forward=5 -> window extends to 2024-06-20, all
+    # strictly in the future. The only cached value (06-15) sits well
+    # within MAX_PROVIDER_LOOKBACK_DAYS of every one of those future
+    # dates, so under the old bug every single one would have inherited it.
+    db_values = {date(2024, 6, 15): Decimal("980.50")}
+    file_export = _StubFileExport()
+    use_case = _build_use_case(
+        [_currency("CLP"), _currency("USD")], db_values, file_export
+    )
+
+    with patch(f"{_MODULE}.datetime") as mock_dt:
+        mock_dt.now.return_value.date.return_value = _TODAY
+        result = await use_case.execute(lookback_days=0, forward_days=5)
+
+    # Only today (06-15, an exact cache hit) resolves; 06-16..06-20 do not.
+    assert result.rows_written == 1
+    rows = _read_csv_rows(file_export.uploads[0][1])
+    assert rows[1:] == [["USD", "2024-06-15", "980.50"]]
 
 
 @pytest.mark.asyncio
