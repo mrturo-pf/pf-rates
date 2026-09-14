@@ -25,6 +25,9 @@ from rates.interfaces.api.errors import to_http_exception
 from rates.interfaces.api.routes.exchange_rates import (
     router as exchange_rates_router,
 )
+from rates.interfaces.api.routes.export_jobs import (
+    router as export_jobs_router,
+)
 from rates.interfaces.api.routes.economic_indices import (
     router as economic_indices_router,
 )
@@ -175,6 +178,7 @@ app = FastAPI(
 )
 app.include_router(_root_router)
 app.include_router(exchange_rates_router, dependencies=[Depends(verify_api_key)])
+app.include_router(export_jobs_router, dependencies=[Depends(verify_api_key)])
 app.include_router(economic_indices_router, dependencies=[Depends(verify_api_key)])
 app.include_router(income_tax_brackets_router, dependencies=[Depends(verify_api_key)])
 app.include_router(sync_router, dependencies=[Depends(verify_api_key)])

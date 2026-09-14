@@ -182,5 +182,17 @@ class ExportJobDTO:
     rows_written: int | None
     file_id: str | None
     error_message: str | None
+    cancel_requested_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ExportJobListQueryDTO:
+    """Represent the filters accepted by the export-job listing endpoint."""
+
+    status: str | None = None
+    created_from: datetime | None = None
+    created_to: datetime | None = None
+    limit: int = 100
+    offset: int = 0

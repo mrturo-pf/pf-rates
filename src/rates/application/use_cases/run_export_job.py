@@ -4,6 +4,7 @@ from collections.abc import Callable
 
 from rates.application.ports.export_job_repository import ExportJobRepository
 from rates.application.use_cases.export_exchange_rates_csv import (
+    ExportCancelledSignal,
     ExportExchangeRatesCsv,
 )
 from rates.infrastructure.logging.logger import logger
@@ -26,6 +27,15 @@ class RunExportJob:
     that failure must land inside the try/except below too -- otherwise a
     misconfigured dependency would leave the job stuck in 'pending'
     forever instead of recording a clear 'failed' status.
+
+    Cooperative cancellation: before doing any work, checks whether a
+    stop was already requested (covers the narrow window where a
+    'pending' job is cancelled before this task ever runs). Once running,
+    the cancellation flag is polled periodically inside
+    `ExportExchangeRatesCsv.execute` itself -- see
+    EXPORT_CANCELLATION_CHECK_INTERVAL -- and surfaces here as
+    `ExportCancelledSignal`, which is treated as a normal, expected
+    outcome (not a failure).
     """
 
     def __init__(
@@ -39,12 +49,23 @@ class RunExportJob:
 
     async def execute(self, job_id: int, lookback_days: int, forward_days: int) -> None:
         """Run the export for *job_id*, updating its status as it progresses."""
+        if await self._export_job_repository.is_cancel_requested(job_id):
+            await self._export_job_repository.mark_cancelled(job_id)
+            return
+
         await self._export_job_repository.mark_running(job_id)
         try:
             export_exchange_rates_csv = self._csv_export_factory()
+            job_repository = self._export_job_repository
             result = await export_exchange_rates_csv.execute(
-                lookback_days=lookback_days, forward_days=forward_days
+                lookback_days=lookback_days,
+                forward_days=forward_days,
+                cancellation_check=lambda: job_repository.is_cancel_requested(job_id),
             )
+        except ExportCancelledSignal:
+            logger.info("export_job_cancelled", job_id=job_id)
+            await self._export_job_repository.mark_cancelled(job_id)
+            return
         except Exception as exc:  # noqa: BLE001 -- top-level background job boundary
             logger.exception("export_job_failed", job_id=job_id)
             await self._export_job_repository.mark_failed(job_id, str(exc))

@@ -1,0 +1,182 @@
+"""Export-job management routes: list, status, and cooperative cancellation.
+
+Split out from exchange_rates.py (which keeps the CRUD + trigger
+endpoints) to keep each route module focused on one sub-resource --
+job lifecycle management is a distinct concern from rate data itself.
+"""
+
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
+
+from rates.application.dto import ExportJobDTO
+from rates.application.errors import (
+    ExportJobNotCancellableError,
+    ExportJobNotFoundError,
+    FinancialDataValidationError,
+)
+from rates.application.ports.export_job_repository import ExportJobRepository
+from rates.interfaces.api.dependencies import get_export_job_repository
+from rates.interfaces.api.errors import to_http_exception
+from rates.shared.constants import (
+    EXPORT_JOB_ACTIVE_STATUSES,
+    EXPORT_JOB_LIST_DEFAULT_LIMIT,
+    EXPORT_JOB_LIST_MAX_LIMIT,
+    EXPORT_JOB_STATUSES,
+)
+
+router = APIRouter(prefix="/exchange-rates/export/jobs", tags=["exchange-rates"])
+
+
+class ExportJobStatusResponse(BaseModel):
+    """Represent the current state of an async export job."""
+
+    job_id: int
+    status: str
+    lookback_days: int
+    forward_days: int
+    rows_written: int | None
+    file_id: str | None
+    error_message: str | None
+    cancel_requested_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ExportJobStopResponse(BaseModel):
+    """Represent the outcome of requesting cancellation for one job."""
+
+    job_id: int
+    status: str
+    cancel_requested_at: datetime | None
+
+
+class ExportJobBulkStopResponse(BaseModel):
+    """Represent the outcome of requesting cancellation for every active job."""
+
+    jobs: list[ExportJobStopResponse]
+
+
+def _to_status_response(job: ExportJobDTO) -> ExportJobStatusResponse:
+    """Map an ExportJobDTO to its API response shape."""
+    return ExportJobStatusResponse(
+        job_id=job.id,
+        status=job.status,
+        lookback_days=job.lookback_days,
+        forward_days=job.forward_days,
+        rows_written=job.rows_written,
+        file_id=job.file_id,
+        error_message=job.error_message,
+        cancel_requested_at=job.cancel_requested_at,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
+    )
+
+
+def _to_stop_response(job: ExportJobDTO) -> ExportJobStopResponse:
+    """Map an ExportJobDTO to the stop-endpoint response shape."""
+    return ExportJobStopResponse(
+        job_id=job.id, status=job.status, cancel_requested_at=job.cancel_requested_at
+    )
+
+
+@router.get("", response_model=list[ExportJobStatusResponse])
+async def list_export_jobs(
+    status: str | None = Query(
+        default=None,
+        description=f"Filter by status. One of: {', '.join(EXPORT_JOB_STATUSES)}.",
+    ),
+    created_from: datetime | None = Query(
+        default=None, description="Inclusive lower bound on created_at (ISO 8601)."
+    ),
+    created_to: datetime | None = Query(
+        default=None, description="Inclusive upper bound on created_at (ISO 8601)."
+    ),
+    limit: int = Query(
+        default=EXPORT_JOB_LIST_DEFAULT_LIMIT, ge=1, le=EXPORT_JOB_LIST_MAX_LIMIT
+    ),
+    offset: int = Query(default=0, ge=0),
+    export_job_repository: ExportJobRepository = Depends(get_export_job_repository),
+) -> list[ExportJobStatusResponse]:
+    """List export jobs, newest first, optionally filtered by status/date range."""
+    if status is not None and status not in EXPORT_JOB_STATUSES:
+        raise to_http_exception(
+            FinancialDataValidationError(
+                f"Invalid status '{status}'. Must be one of: "
+                f"{', '.join(EXPORT_JOB_STATUSES)}"
+            )
+        )
+    jobs = await export_job_repository.list_jobs(
+        status=status,
+        created_from=created_from,
+        created_to=created_to,
+        limit=limit,
+        offset=offset,
+    )
+    return [_to_status_response(job) for job in jobs]
+
+
+@router.get("/{job_id}", response_model=ExportJobStatusResponse)
+async def get_export_job(
+    job_id: int,
+    export_job_repository: ExportJobRepository = Depends(get_export_job_repository),
+) -> ExportJobStatusResponse:
+    """Return the current status of a previously-triggered async export job."""
+    job = await export_job_repository.get(job_id)
+    if job is None:
+        raise to_http_exception(
+            ExportJobNotFoundError(f"Export job {job_id} not found")
+        )
+    return _to_status_response(job)
+
+
+@router.post("/stop", response_model=ExportJobBulkStopResponse)
+async def stop_all_export_jobs(
+    export_job_repository: ExportJobRepository = Depends(get_export_job_repository),
+) -> ExportJobBulkStopResponse:
+    """Request cooperative cancellation of every pending/running job.
+
+    Best-effort: a job's own background loop only actually stops once it
+    polls the flag at its next checkpoint (see
+    EXPORT_CANCELLATION_CHECK_INTERVAL) -- this endpoint returns as soon
+    as the flag is set in the DB, not once every job has fully unwound.
+    Jobs that finish (succeed/fail) in the small window between listing
+    active ids and requesting cancellation are silently skipped from the
+    response rather than reported as stopped.
+    """
+    stopped = []
+    for job_id in await export_job_repository.list_active_ids():
+        job = await export_job_repository.request_cancel(job_id)
+        if job is not None and job.status in EXPORT_JOB_ACTIVE_STATUSES:
+            stopped.append(_to_stop_response(job))
+    return ExportJobBulkStopResponse(jobs=stopped)
+
+
+@router.post("/{job_id}/stop", response_model=ExportJobStopResponse)
+async def stop_export_job(
+    job_id: int,
+    export_job_repository: ExportJobRepository = Depends(get_export_job_repository),
+) -> ExportJobStopResponse:
+    """Request cooperative cancellation of a single pending/running job.
+
+    Returns 404 if the job does not exist, 409 if it is already in a
+    terminal state (succeeded/failed/cancelled -- nothing left to stop).
+    Otherwise sets the DB-side flag and returns immediately: the actual
+    export loop stops itself at its next checkpoint, it is not killed
+    synchronously by this call (see AGENTS.md / docs/api.md for why --
+    no message queue in front of pf-rates, by deliberate cost choice).
+    Calling this twice on the same job is safe (idempotent).
+    """
+    job = await export_job_repository.request_cancel(job_id)
+    if job is None:
+        raise to_http_exception(
+            ExportJobNotFoundError(f"Export job {job_id} not found")
+        )
+    if job.status not in EXPORT_JOB_ACTIVE_STATUSES:
+        raise to_http_exception(
+            ExportJobNotCancellableError(
+                f"Export job {job_id} is already '{job.status}' and cannot be stopped"
+            )
+        )
+    return _to_stop_response(job)

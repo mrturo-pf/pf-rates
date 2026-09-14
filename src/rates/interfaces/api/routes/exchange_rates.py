@@ -1,10 +1,10 @@
 """Exchange-rate routes."""
 
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from collections.abc import Callable
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from rates.application.errors import (
@@ -125,20 +125,6 @@ class ExportJobTriggeredResponse(BaseModel):
     job_id: int
     status: str
     monitor_url: str
-
-
-class ExportJobStatusResponse(BaseModel):
-    """Represent the current state of an async export job."""
-
-    job_id: int
-    status: str
-    lookback_days: int
-    forward_days: int
-    rows_written: int | None
-    file_id: str | None
-    error_message: str | None
-    created_at: datetime
-    updated_at: datetime
 
 
 @router.get("", response_model=list[ExchangeRateRead])
@@ -267,26 +253,4 @@ async def export_exchange_rates(
         raise to_http_exception(exc) from exc
     return ExportExchangeRatesResponse(
         rows_written=result.rows_written, file_id=result.file_id
-    )
-
-
-@router.get("/export/jobs/{job_id}")
-async def get_export_job(
-    job_id: int,
-    export_job_repository: ExportJobRepository = Depends(get_export_job_repository),
-) -> ExportJobStatusResponse:
-    """Return the current status of a previously-triggered async export job."""
-    job = await export_job_repository.get(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail=f"Export job {job_id} not found")
-    return ExportJobStatusResponse(
-        job_id=job.id,
-        status=job.status,
-        lookback_days=job.lookback_days,
-        forward_days=job.forward_days,
-        rows_written=job.rows_written,
-        file_id=job.file_id,
-        error_message=job.error_message,
-        created_at=job.created_at,
-        updated_at=job.updated_at,
     )

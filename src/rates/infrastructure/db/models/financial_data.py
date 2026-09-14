@@ -82,6 +82,9 @@ class ExportJobModel(Base):
     rows_written: Mapped[int | None] = mapped_column(nullable=True)
     file_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     error_message: Mapped[str | None] = mapped_column(nullable=True)
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

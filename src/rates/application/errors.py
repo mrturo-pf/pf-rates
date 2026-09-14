@@ -43,3 +43,13 @@ class IncomeTaxBracketNotFoundError(FinancialDataNotFoundError):
 
 class ExportJobNotFoundError(FinancialDataNotFoundError):
     """Raised when a requested export job id does not exist."""
+
+
+class ExportJobNotCancellableError(FinancialDataError):
+    """Raised when a stop is requested for a job already in a terminal state.
+
+    Terminal states are 'succeeded', 'failed', and 'cancelled' -- there is
+    nothing left to cooperatively stop.
+    """
+
+    status_code = 409

@@ -2,6 +2,7 @@
 
 import csv
 import io
+from collections.abc import Awaitable, Callable
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -18,6 +19,7 @@ from rates.application.use_cases.get_exchange_rate_value import (
 )
 from rates.domain.normalization import normalize_exchange_rate_lookup_date
 from rates.shared.constants import (
+    EXPORT_CANCELLATION_CHECK_INTERVAL,
     MAX_PROVIDER_LOOKBACK_DAYS,
     MONTHLY_EXCHANGE_RATE_CODES,
 )
@@ -30,6 +32,18 @@ DEFAULT_FILENAME = "exchange-rates.csv"
 
 _CSV_HEADER = ("currency_code", "rate_date", "value_clp")
 _BASE_CURRENCY_CODE = "CLP"
+
+CancellationCheck = Callable[[], Awaitable[bool]]
+
+
+class ExportCancelledSignal(Exception):
+    """Internal control-flow signal: the export was stopped cooperatively.
+
+    Deliberately does not subclass FinancialDataError -- it must never be
+    translated into an HTTP response. It is raised and caught entirely
+    within the background-job boundary (this use case and RunExportJob),
+    never escaping to a request/response cycle.
+    """
 
 
 class ExportExchangeRatesCsv:
@@ -96,11 +110,19 @@ class ExportExchangeRatesCsv:
         lookback_days: int = DEFAULT_LOOKBACK_DAYS,
         forward_days: int = DEFAULT_FORWARD_DAYS,
         filename: str | None = None,
+        cancellation_check: CancellationCheck | None = None,
     ) -> ExportExchangeRatesResultDTO:
         """Build the CSV for the configured window and upload it.
 
         Returns the number of rows written and the storage identifier
         returned by the file-export port.
+
+        If cancellation_check is given, it is polled periodically (see
+        EXPORT_CANCELLATION_CHECK_INTERVAL) and raises ExportCancelledSignal
+        as soon as it returns True. The CSV is never uploaded in that case
+        -- DEFAULT_FILENAME is a stable name that overwrites the last good
+        export in place, so uploading a partial file on cancellation would
+        silently corrupt it.
         """
         currency_codes = await self._list_exportable_currency_codes()
         rate_dates = self._build_date_range(lookback_days, forward_days)
@@ -109,12 +131,17 @@ class ExportExchangeRatesCsv:
         writer = csv.writer(buffer)
         writer.writerow(_CSV_HEADER)
         rows_written = 0
+        dates_checked = 0
 
         for currency_code in currency_codes:
+            await self._raise_if_cancelled(cancellation_check)
             cached_values = await self._bulk_fetch_values(
                 currency_code, rate_dates[0], rate_dates[-1]
             )
             for rate_date in rate_dates:
+                dates_checked += 1
+                if dates_checked % EXPORT_CANCELLATION_CHECK_INTERVAL == 0:
+                    await self._raise_if_cancelled(cancellation_check)
                 value = self._lookup_cached_value(
                     currency_code, rate_date, cached_values
                 )
@@ -129,12 +156,19 @@ class ExportExchangeRatesCsv:
                 writer.writerow((currency_code, rate_date.isoformat(), value))
                 rows_written += 1
 
+        await self._raise_if_cancelled(cancellation_check)
         file_id = await self._file_export.upload(
             filename=filename or self._default_filename(),
             content=buffer.getvalue().encode("utf-8"),
             mime_type="text/csv",
         )
         return ExportExchangeRatesResultDTO(rows_written=rows_written, file_id=file_id)
+
+    @staticmethod
+    async def _raise_if_cancelled(cancellation_check: CancellationCheck | None) -> None:
+        """Raise ExportCancelledSignal if a cancellation has been requested."""
+        if cancellation_check is not None and await cancellation_check():
+            raise ExportCancelledSignal
 
     async def _bulk_fetch_values(
         self, currency_code: str, start: date, end: date

@@ -33,3 +33,28 @@ EXPORT_JOB_STATUS_PENDING = "pending"
 EXPORT_JOB_STATUS_RUNNING = "running"
 EXPORT_JOB_STATUS_SUCCEEDED = "succeeded"
 EXPORT_JOB_STATUS_FAILED = "failed"
+EXPORT_JOB_STATUS_CANCELLED = "cancelled"
+
+EXPORT_JOB_STATUSES = (
+    EXPORT_JOB_STATUS_PENDING,
+    EXPORT_JOB_STATUS_RUNNING,
+    EXPORT_JOB_STATUS_SUCCEEDED,
+    EXPORT_JOB_STATUS_FAILED,
+    EXPORT_JOB_STATUS_CANCELLED,
+)
+
+# Statuses a stop request may still act on -- anything else is terminal.
+EXPORT_JOB_ACTIVE_STATUSES = (EXPORT_JOB_STATUS_PENDING, EXPORT_JOB_STATUS_RUNNING)
+
+# GET /exchange-rates/export/jobs pagination guardrails. A hard cap (not
+# just a default) prevents an unbounded SELECT as job history grows --
+# cheap to enforce, and this is an internal operational endpoint, not a
+# user-facing paginated list that needs a larger page size.
+EXPORT_JOB_LIST_DEFAULT_LIMIT = 100
+EXPORT_JOB_LIST_MAX_LIMIT = 500
+
+# How often (in resolved dates) the CSV export loop polls the DB for a
+# cancellation request. Small enough that a stop takes effect within a
+# few seconds even on a large multi-year window; large enough that it
+# doesn't add a meaningful number of extra DB round-trips.
+EXPORT_CANCELLATION_CHECK_INTERVAL = 50

@@ -273,7 +273,7 @@ curl -X POST -H "X-API-Key: your-key" \
 **GET /exchange-rates/export/jobs/{job_id}**
 
 Return the current state of a previously-triggered async export job.
-Status is one of pending, running, succeeded, failed. Job state is
+Status is one of pending, running, succeeded, failed, cancelled. Job state is
 persisted in Postgres (RAT_EXPORT_JOB), not in process memory, so it
 survives Cloud Run scaling to zero or routing the poll to a different
 instance than the one that ran the job.
@@ -302,6 +302,97 @@ instance than the one that ran the job.
 ```bash
 curl -H "X-API-Key: your-key" \
   http://localhost:8001/exchange-rates/export/jobs/42
+```
+
+---
+
+### Export job management
+
+#### List export jobs
+
+**GET /exchange-rates/export/jobs**
+
+List export jobs, newest first, optionally filtered by status and/or a
+`created_at` date range. Backed by the same `RAT_EXPORT_JOB` table.
+
+**Authentication:** Required
+
+**Query parameters** (all optional):
+| Param | Type | Notes |
+|---|---|---|
+| `status` | string | One of `pending`, `running`, `succeeded`, `failed`, `cancelled`. `400` if anything else. |
+| `created_from` | ISO 8601 datetime | Inclusive lower bound on `created_at`. |
+| `created_to` | ISO 8601 datetime | Inclusive upper bound on `created_at`. |
+| `limit` | int | Default 100, max 500. |
+| `offset` | int | Default 0. |
+
+**Example:**
+```bash
+curl -H "X-API-Key: your-key" \
+  "http://localhost:8001/exchange-rates/export/jobs?status=failed&limit=20"
+```
+
+#### Stop a running/pending export job
+
+**POST /exchange-rates/export/jobs/{job_id}/stop**
+
+Request cooperative cancellation of a single job. pf-rates has no message
+queue in front of it (Cloud Run + BackgroundTasks only, by deliberate cost
+choice -- see [`AGENTS.md`](../AGENTS.md)), so this does not kill the job
+synchronously: it sets a DB-side flag (`cancel_requested_at`) that the
+running export loop polls periodically and stops on at its next
+checkpoint (typically within a few seconds, never mid-CSV-upload -- a
+partial file is never uploaded, since the export filename is stable and
+would otherwise silently overwrite the last good export). Calling this
+twice on the same job is safe (idempotent).
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "job_id": 42,
+  "status": "running",
+  "cancel_requested_at": "2026-09-14T18:05:00Z"
+}
+```
+
+**Errors:**
+- `404` if no job exists with that id.
+- `409` if the job is already in a terminal state (`succeeded`, `failed`,
+  or `cancelled`) -- nothing left to stop.
+
+**Example:**
+```bash
+curl -X POST -H "X-API-Key: your-key" \
+  http://localhost:8001/exchange-rates/export/jobs/42/stop
+```
+
+#### Stop every running/pending export job
+
+**POST /exchange-rates/export/jobs/stop**
+
+Same cooperative-cancellation semantics as above, applied in bulk to
+every job currently `pending` or `running`. Jobs that finish in the small
+window between listing active jobs and flagging them are silently
+omitted from the response rather than reported as stopped.
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "jobs": [
+    {"job_id": 42, "status": "running", "cancel_requested_at": "2026-09-14T18:05:00Z"},
+    {"job_id": 43, "status": "pending", "cancel_requested_at": "2026-09-14T18:05:00Z"}
+  ]
+}
+```
+
+**Example:**
+```bash
+curl -X POST -H "X-API-Key: your-key" \
+  http://localhost:8001/exchange-rates/export/jobs/stop
 ```
 
 ---

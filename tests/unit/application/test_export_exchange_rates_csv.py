@@ -15,6 +15,7 @@ from rates.application.dto import (
     RefreshRatesResultDTO,
 )
 from rates.application.use_cases.export_exchange_rates_csv import (
+    ExportCancelledSignal,
     ExportExchangeRatesCsv,
 )
 from rates.application.use_cases.get_exchange_rate_value import (
@@ -269,3 +270,57 @@ async def test_explicit_filename_overrides_default() -> None:
         )
 
     assert file_export.uploads[0][0] == "custom-name.csv"
+
+
+@pytest.mark.asyncio
+async def test_cancellation_check_stops_before_any_work() -> None:
+    """A cancellation flagged before the loop starts skips the CSV upload."""
+    file_export = _StubFileExport()
+    use_case = _build_use_case([_currency("CLP"), _currency("USD")], {}, file_export)
+
+    async def _always_cancelled() -> bool:
+        return True
+
+    with patch(f"{_MODULE}.datetime") as mock_dt:
+        mock_dt.now.return_value.date.return_value = _TODAY
+        with pytest.raises(ExportCancelledSignal):
+            await use_case.execute(
+                lookback_days=0, forward_days=0, cancellation_check=_always_cancelled
+            )
+
+    assert file_export.uploads == []
+
+
+@pytest.mark.asyncio
+async def test_cancellation_check_stops_mid_loop_without_uploading() -> None:
+    """A cancellation flagged mid-window stops before the CSV is uploaded.
+
+    DEFAULT_FILENAME overwrites the last good export in place, so an
+    upload must never happen once cancellation is observed -- otherwise a
+    good file could be silently clobbered by an incomplete one.
+    """
+    file_export = _StubFileExport()
+    use_case = _build_use_case(
+        [_currency("CLP"), _currency("USD"), _currency("EUR")], {}, file_export
+    )
+
+    calls = {"count": 0}
+
+    async def _cancel_after_one_check() -> bool:
+        calls["count"] += 1
+        return calls["count"] > 1
+
+    with (
+        patch(f"{_MODULE}.datetime") as mock_dt,
+        patch(f"{_MODULE}.EXPORT_CANCELLATION_CHECK_INTERVAL", 1),
+    ):
+        mock_dt.now.return_value.date.return_value = _TODAY
+        with pytest.raises(ExportCancelledSignal):
+            await use_case.execute(
+                lookback_days=5,
+                forward_days=5,
+                cancellation_check=_cancel_after_one_check,
+            )
+
+    assert file_export.uploads == []
+    assert calls["count"] >= 2
