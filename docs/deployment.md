@@ -73,9 +73,14 @@ variants driven by the `require_approval` input.
 
 **Never violate these rules:**
 
-1. **Migrations before traffic** - the `pf-db` Cloud Run Job must apply all pending migrations before either service receives traffic. pf-rates ships no migration tooling.
+1. **Cost first, always** - any new cloud resource, scaling setting, or paid feature must
+   default to the cheapest viable option (scale-to-zero, free tooling over paid add-ons,
+   external DB over Cloud SQL when viable, on-demand over always-on). Every rule below
+   this one is, in practice, a concrete instance of this principle.
 
-2. **DB URL via `--set-secrets` only** - never `--set-env-vars`
+2. **Migrations before traffic** - the `pf-db` Cloud Run Job must apply all pending migrations before either service receives traffic. pf-rates ships no migration tooling.
+
+3. **DB URL via `--set-secrets` only** - never `--set-env-vars`
    ```bash
    # Correct
    --set-secrets=PF_DATABASE_URL=pf-db-url:latest
@@ -84,17 +89,17 @@ variants driven by the `require_approval` input.
    --set-env-vars=PF_DATABASE_URL=postgresql://...
    ```
 
-3. **AR scanning stays disabled** - pipeline uses Trivy (approximately $5/month if enabled)
+4. **AR scanning stays disabled** - pipeline uses Trivy (approximately $5/month if enabled)
    ```bash
    # Artifact Registry scanning is intentionally disabled
    # Trivy runs in the pipeline instead (free, faster)
    ```
 
-4. **`--min-instances=0`** - intentional scale-to-zero; do not change without approval
+5. **`--min-instances=0`** - intentional scale-to-zero; do not change without approval
    - Zero compute cost when idle
    - Cold starts acceptable for this use case
 
-5. **Image tagged with both `github.sha` and `latest`** - deploy references SHA, not `latest`
+6. **Image tagged with both `github.sha` and `latest`** - deploy references SHA, not `latest`
    ```bash
    # Both tags are pushed
    us-central1-docker.pkg.dev/PROJECT/pf-rates/app:abc123def
@@ -104,14 +109,14 @@ variants driven by the `require_approval` input.
    --image=us-central1-docker.pkg.dev/PROJECT/pf-rates/app:abc123def
    ```
 
-6. **Non-root container** - Dockerfile switches to `appuser` in final stage
+7. **Non-root container** - Dockerfile switches to `appuser` in final stage
    ```dockerfile
    # Final stage runs as non-root
    USER appuser
    CMD ["uvicorn", "rates.interfaces.api.main:app", ...]
    ```
 
-7. **Multi-stage build** - final stage copies only the venv; do not add `COPY src ./src`
+8. **Multi-stage build** - final stage copies only the venv; do not add `COPY src ./src`
    ```dockerfile
    # Correct (only venv)
    COPY --from=builder /app/.venv /app/.venv

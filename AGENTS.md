@@ -45,6 +45,10 @@ shared/          # Cross-cutting constants
 - Orchestration logic belongs in use cases, not routes
 - Never `assert` for production validation; raise from `application/errors.py`
 - No silent fallbacks
+- **Cloud cost is always the priority in cloud decisions**: cheapest viable option first
+  (scale-to-zero, free tooling over paid add-ons, no over-provisioning). See
+  [`docs/deployment.md`](docs/deployment.md#pipeline-invariants) for the concrete rules
+  this drives (`--min-instances=0`, Trivy instead of paid AR scanning, external DB option).
 
 ## Development commands
 
