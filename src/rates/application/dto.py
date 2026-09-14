@@ -1,7 +1,7 @@
 """Application DTOs for financial reference data."""
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 
@@ -169,3 +169,18 @@ class ExportExchangeRatesResultDTO:
 
     rows_written: int
     file_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class ExportJobDTO:
+    """Represent the persisted state of an async CSV export job."""
+
+    id: int
+    status: str
+    lookback_days: int
+    forward_days: int
+    rows_written: int | None
+    file_id: str | None
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime

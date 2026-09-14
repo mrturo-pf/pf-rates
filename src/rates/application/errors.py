@@ -39,3 +39,7 @@ class EconomicIndexNotFoundError(FinancialDataNotFoundError):
 
 class IncomeTaxBracketNotFoundError(FinancialDataNotFoundError):
     """Raised when no income tax bracket matches the requested period/base."""
+
+
+class ExportJobNotFoundError(FinancialDataNotFoundError):
+    """Raised when a requested export job id does not exist."""

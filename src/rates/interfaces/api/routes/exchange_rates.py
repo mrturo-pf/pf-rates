@@ -1,10 +1,11 @@
 """Exchange-rate routes."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
+from collections.abc import Callable
 
-from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
+from pydantic import BaseModel, ConfigDict, Field
 
 from rates.application.errors import (
     FinancialDataError,
@@ -14,6 +15,7 @@ from rates.application.dto import (
     ProviderExchangeRateRequestDTO,
     RefreshRatesCommandDTO,
 )
+from rates.application.ports.export_job_repository import ExportJobRepository
 from rates.application.use_cases.export_exchange_rates_csv import (
     DEFAULT_FORWARD_DAYS,
     DEFAULT_LOOKBACK_DAYS,
@@ -25,6 +27,8 @@ from rates.application.use_cases.get_exchange_rate_value import (
 from rates.interfaces.api.dependencies import (
     get_exchange_rate_value_use_case,
     get_export_exchange_rates_csv_use_case,
+    get_export_job_background_runner,
+    get_export_job_repository,
 )
 from rates.interfaces.api.routes._refresh_deps import (
     MarketDataRepository,
@@ -34,7 +38,7 @@ from rates.interfaces.api.routes._refresh_deps import (
     to_http_exception,
     RefreshRatesResponse,
 )
-from rates.shared.constants import MAX_LOOKBACK_DAYS
+from rates.shared.constants import EXPORT_JOB_STATUS_PENDING, MAX_LOOKBACK_DAYS
 
 router = APIRouter(prefix="/exchange-rates", tags=["exchange-rates"])
 
@@ -76,6 +80,8 @@ class ExchangeRateRefreshRequest(BaseModel):
 class ExportExchangeRatesRequest(BaseModel):
     """Represent Export Exchange Rates Request."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     lookback_days: int = Field(
         default=DEFAULT_LOOKBACK_DAYS,
         ge=1,
@@ -94,6 +100,16 @@ class ExportExchangeRatesRequest(BaseModel):
         le=365,
         description="Days in the future to include, relative to today (Chile time).",
     )
+    async_execution: bool = Field(
+        default=False,
+        alias="async",
+        description=(
+            "If true, create the export job and return immediately with a "
+            "job_id instead of waiting for completion -- poll "
+            "GET /exchange-rates/export/jobs/{job_id} for its status. "
+            "Defaults to false (synchronous, waits for the CSV upload)."
+        ),
+    )
 
 
 class ExportExchangeRatesResponse(BaseModel):
@@ -101,6 +117,28 @@ class ExportExchangeRatesResponse(BaseModel):
 
     rows_written: int
     file_id: str
+
+
+class ExportJobTriggeredResponse(BaseModel):
+    """Represent the response for an asynchronously triggered export job."""
+
+    job_id: int
+    status: str
+    monitor_url: str
+
+
+class ExportJobStatusResponse(BaseModel):
+    """Represent the current state of an async export job."""
+
+    job_id: int
+    status: str
+    lookback_days: int
+    forward_days: int
+    rows_written: int | None
+    file_id: str | None
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 @router.get("", response_model=list[ExchangeRateRead])
@@ -173,11 +211,17 @@ async def refresh_exchange_rates(
     )
 
 
-@router.post("/export", response_model=ExportExchangeRatesResponse)
+@router.post("/export")
 async def export_exchange_rates(
+    background_tasks: BackgroundTasks,
+    response: Response,
     payload: ExportExchangeRatesRequest = ExportExchangeRatesRequest(),
     use_case: ExportExchangeRatesCsv = Depends(get_export_exchange_rates_csv_use_case),
-) -> ExportExchangeRatesResponse:
+    export_job_repository: ExportJobRepository = Depends(get_export_job_repository),
+    run_job_in_background: Callable[[int, int, int], object] = Depends(
+        get_export_job_background_runner
+    ),
+) -> ExportExchangeRatesResponse | ExportJobTriggeredResponse:
     """Build a CSV of resolved exchange-rate values and upload it to Drive.
 
     Iterates every non-CLP currency across the requested rolling window
@@ -186,8 +230,34 @@ async def export_exchange_rates(
     cannot be resolved (e.g. most future dates for USD/EUR) are omitted
     from the CSV rather than erroring out the whole export.
 
-    Returns 503 if Google Drive export is not configured yet.
+    Set async_execution (JSON key: async) to true to trigger the export in
+    the background instead of waiting for it: returns 202 Accepted with a
+    job_id right away, and the actual export runs after the response is
+    sent. Poll GET /exchange-rates/export/jobs/{job_id} for its status.
+    Recommended for large windows (e.g. a multi-year historical backfill)
+    where a synchronous call risks the request timing out before the CSV
+    finishes uploading, even with a warm cache.
+
+    Returns 503 immediately if Google Drive export is not configured yet --
+    including in async mode, before any job row is created, since a job
+    would otherwise be guaranteed to fail as soon as it ran in the background.
     """
+    if payload.async_execution:
+        job_id = await export_job_repository.create(
+            payload.lookback_days, payload.forward_days
+        )
+        background_tasks.add_task(
+            run_job_in_background,
+            job_id,
+            payload.lookback_days,
+            payload.forward_days,
+        )
+        response.status_code = 202
+        return ExportJobTriggeredResponse(
+            job_id=job_id,
+            status=EXPORT_JOB_STATUS_PENDING,
+            monitor_url=f"/exchange-rates/export/jobs/{job_id}",
+        )
     try:
         result = await use_case.execute(
             lookback_days=payload.lookback_days,
@@ -197,4 +267,26 @@ async def export_exchange_rates(
         raise to_http_exception(exc) from exc
     return ExportExchangeRatesResponse(
         rows_written=result.rows_written, file_id=result.file_id
+    )
+
+
+@router.get("/export/jobs/{job_id}")
+async def get_export_job(
+    job_id: int,
+    export_job_repository: ExportJobRepository = Depends(get_export_job_repository),
+) -> ExportJobStatusResponse:
+    """Return the current status of a previously-triggered async export job."""
+    job = await export_job_repository.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Export job {job_id} not found")
+    return ExportJobStatusResponse(
+        job_id=job.id,
+        status=job.status,
+        lookback_days=job.lookback_days,
+        forward_days=job.forward_days,
+        rows_written=job.rows_written,
+        file_id=job.file_id,
+        error_message=job.error_message,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
     )

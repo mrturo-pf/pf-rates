@@ -23,3 +23,13 @@ FORWARD_DAILY_RATE_CODES = ("UF",)
 # Chile's FX market is closed on weekends and holidays, so a rate requested for
 # e.g. a Sunday resolves to the preceding Friday's value within this window.
 MAX_PROVIDER_LOOKBACK_DAYS = 7
+
+# Status values for RAT_EXPORT_JOB.status (async CSV export tracking).
+# Kept as plain strings (not an enum) since they cross the DB boundary as-is
+# and the DB CHECK constraint (pf-db migration 0004) is the actual source of
+# truth for which values are valid -- this tuple just avoids repeating the
+# same 4 string literals across the use case, repository, and routes.
+EXPORT_JOB_STATUS_PENDING = "pending"
+EXPORT_JOB_STATUS_RUNNING = "running"
+EXPORT_JOB_STATUS_SUCCEEDED = "succeeded"
+EXPORT_JOB_STATUS_FAILED = "failed"

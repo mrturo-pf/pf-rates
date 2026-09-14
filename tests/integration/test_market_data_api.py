@@ -821,3 +821,187 @@ async def test_health_endpoint_is_public() -> None:
     ) as client:
         response = await client.get("/health")
     assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Async export jobs
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_export_job_repository_lifecycle(db_session: AsyncSession) -> None:
+    """Create -> mark_running -> mark_succeeded round-trips through real SQL."""
+    from rates.infrastructure.db.repositories.export_job_repository import (
+        SqlAlchemyExportJobRepository,
+    )
+
+    repo = SqlAlchemyExportJobRepository(db_session)
+    job_id = await repo.create(lookback_days=6100, forward_days=30)
+
+    pending = await repo.get(job_id)
+    assert pending is not None
+    assert pending.status == "pending"
+    assert pending.lookback_days == 6100
+    assert pending.rows_written is None
+
+    await repo.mark_running(job_id)
+    running = await repo.get(job_id)
+    assert running is not None
+    assert running.status == "running"
+
+    await repo.mark_succeeded(job_id, rows_written=13429, file_id="drive-xyz")
+    succeeded = await repo.get(job_id)
+    assert succeeded is not None
+    assert succeeded.status == "succeeded"
+    assert succeeded.rows_written == 13429
+    assert succeeded.file_id == "drive-xyz"
+    assert succeeded.updated_at >= succeeded.created_at
+
+
+@pytest.mark.asyncio
+async def test_export_job_repository_mark_failed(db_session: AsyncSession) -> None:
+    """mark_failed records the error message and status."""
+    from rates.infrastructure.db.repositories.export_job_repository import (
+        SqlAlchemyExportJobRepository,
+    )
+
+    repo = SqlAlchemyExportJobRepository(db_session)
+    job_id = await repo.create(lookback_days=90, forward_days=30)
+
+    await repo.mark_failed(job_id, "Google Drive export is not configured.")
+
+    failed = await repo.get(job_id)
+    assert failed is not None
+    assert failed.status == "failed"
+    assert failed.error_message == "Google Drive export is not configured."
+
+
+@pytest.mark.asyncio
+async def test_export_job_repository_get_missing_returns_none(
+    db_session: AsyncSession,
+) -> None:
+    """get() returns None for a job id that was never created."""
+    from rates.infrastructure.db.repositories.export_job_repository import (
+        SqlAlchemyExportJobRepository,
+    )
+
+    repo = SqlAlchemyExportJobRepository(db_session)
+    assert await repo.get(999999) is None
+
+
+@pytest.mark.asyncio
+async def test_export_async_trigger_fails_fast_when_drive_not_configured(
+    http_client: AsyncClient, monkeypatch: object
+) -> None:
+    """The async trigger fails fast (503) instead of creating a doomed job.
+
+    Google Drive configuration is validated while FastAPI resolves the
+    route's Depends() parameters, before the handler body even looks at
+    payload.async_execution. There is no point creating a job row that is
+    guaranteed to fail as soon as the background task runs -- failing the
+    trigger itself, exactly like the synchronous path already does, is the
+    correct behavior and requires no special-casing in the route.
+
+    get_file_export_port is monkeypatched to fail deterministically instead
+    of relying on Drive being not-configured ambiently, which would make
+    this test depend on whatever OAuth credentials happen to exist on the
+    machine running it (and could reach a real Drive API / network call).
+    """
+    import rates.interfaces.api.dependencies as deps_module
+    from rates.application.errors import FinancialDataDependencyConfigurationError
+
+    def _raise_not_configured() -> None:
+        raise FinancialDataDependencyConfigurationError(
+            "Google Drive export is not configured for this test."
+        )
+
+    monkeypatch.setattr(deps_module, "get_file_export_port", _raise_not_configured)
+
+    payload: dict[str, object] = {"lookback_days": 10, "forward_days": 5}
+    payload["async"] = True
+    trigger = await http_client.post("/exchange-rates/export", json=payload)
+    assert trigger.status_code == 503
+    assert "job_id" not in trigger.json()
+
+
+@pytest.mark.asyncio
+async def test_export_job_monitor_returns_404_for_unknown_job(
+    http_client: AsyncClient,
+) -> None:
+    """The job status endpoint returns 404 for a job id that was never created."""
+    response = await http_client.get("/exchange-rates/export/jobs/999999")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_run_export_job_in_background_persists_success(
+    pg_url: str, monkeypatch: object
+) -> None:
+    """run_export_job_in_background covers the full real background-task path.
+
+    Every currency is pre-seeded for the single exported day, so
+    ExportExchangeRatesCsv resolves everything from the DB with no
+    provider/network fallback -- get_fx_rate_provider() is still
+    constructed (it is part of the wiring), but never actually invoked.
+    SessionLocal and get_file_export_port are monkeypatched so this stays
+    fully offline, exactly like the fail-fast test above. This directly
+    exercises the module-level run_export_job_in_background function
+    (rather than going through the HTTP + BackgroundTasks machinery),
+    covering its own session-management code path plus the lazy
+    ExportExchangeRatesCsv factory inside build_run_export_job_use_case.
+    """
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import rates.interfaces.api.dependencies as deps_module
+    from rates.application.dto import ExchangeRateWriteDTO, RefreshRatesCommandDTO
+    from rates.domain.normalization import normalize_exchange_rate_lookup_date
+    from rates.infrastructure.db.repositories.export_job_repository import (
+        SqlAlchemyExportJobRepository,
+    )
+    from tests.conftest import _TC_ENGINE_KWARGS
+
+    engine = create_async_engine(pg_url, **_TC_ENGINE_KWARGS)
+    test_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+    monkeypatch.setattr(deps_module, "SessionLocal", test_factory)
+
+    class _StubFileExport:
+        async def upload(self, filename: str, content: bytes, mime_type: str) -> str:
+            """Return a fixed fake storage id without touching any network."""
+            return "drive-stub-id"
+
+    monkeypatch.setattr(deps_module, "get_file_export_port", lambda: _StubFileExport())
+
+    today = datetime.now(tz=ZoneInfo("America/Santiago")).date()
+    async with test_factory() as seed_session:
+        repo = SqlAlchemyMarketDataRepository(seed_session)
+        await repo.refresh_rates(
+            RefreshRatesCommandDTO(
+                exchange_rates=[
+                    ExchangeRateWriteDTO(
+                        currency_code=code,
+                        rate_date=normalize_exchange_rate_lookup_date(code, today),
+                        value_clp=Decimal("1000.00"),
+                        source="test",
+                    )
+                    for code in ("USD", "EUR", "UF", "UTM")
+                ]
+            )
+        )
+
+        job_repository = SqlAlchemyExportJobRepository(seed_session)
+        job_id = await job_repository.create(lookback_days=0, forward_days=0)
+
+    await deps_module.run_export_job_in_background(
+        job_id, lookback_days=0, forward_days=0
+    )
+
+    async with test_factory() as check_session:
+        job = await SqlAlchemyExportJobRepository(check_session).get(job_id)
+    assert job is not None
+    assert job.status == "succeeded"
+    assert job.file_id == "drive-stub-id"
+    assert job.rows_written == 4
+    await engine.dispose()

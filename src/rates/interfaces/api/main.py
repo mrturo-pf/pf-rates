@@ -6,9 +6,11 @@ import time
 from contextlib import asynccontextmanager, suppress
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import APIRouter, Depends, FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from rates.application.errors import FinancialDataError
 from rates.application.ports.reference_data_repository import (
     ReferenceDataRepository,
 )
@@ -19,6 +21,7 @@ from rates.interfaces.api.dependencies import (
     build_sync_use_case,
     get_reference_data_repository,
 )
+from rates.interfaces.api.errors import to_http_exception
 from rates.interfaces.api.routes.exchange_rates import (
     router as exchange_rates_router,
 )
@@ -175,3 +178,24 @@ app.include_router(exchange_rates_router, dependencies=[Depends(verify_api_key)]
 app.include_router(economic_indices_router, dependencies=[Depends(verify_api_key)])
 app.include_router(income_tax_brackets_router, dependencies=[Depends(verify_api_key)])
 app.include_router(sync_router, dependencies=[Depends(verify_api_key)])
+
+
+@app.exception_handler(FinancialDataError)
+async def _handle_financial_data_error(
+    request: Request, exc: FinancialDataError
+) -> JSONResponse:
+    """Convert any FinancialDataError into its mapped HTTP response.
+
+    Most routes already catch FinancialDataError locally and call
+    to_http_exception() themselves. This handler is a safety net for the
+    cases that can't be caught by a route's own try/except -- most notably
+    a FastAPI dependency (Depends) that raises while being resolved, which
+    happens before the route body ever runs (e.g. a use-case dependency
+    calling get_file_export_port() when Google Drive isn't configured).
+    Without this, such errors would surface as a bare 500 instead of the
+    correct 503/400/404/502.
+    """
+    http_exc = to_http_exception(exc)
+    return JSONResponse(
+        status_code=http_exc.status_code, content={"detail": http_exc.detail}
+    )

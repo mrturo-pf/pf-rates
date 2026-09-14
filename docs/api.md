@@ -219,11 +219,17 @@ for local dev, [`deployment.md`](deployment.md) for production secrets).
 ```json
 {
   "lookback_days": 90,
-  "forward_days": 30
+  "forward_days": 30,
+  "async": false
 }
 ```
 
-**Response:**
+Set the async field to true to trigger the export in the background
+instead of waiting for it (see below) -- recommended for large windows
+(e.g. a multi-year historical backfill), where a synchronous call risks
+the request timing out before the CSV finishes uploading.
+
+**Response (synchronous, default):**
 ```json
 {
   "rows_written": 412,
@@ -231,16 +237,71 @@ for local dev, [`deployment.md`](deployment.md) for production secrets).
 }
 ```
 
+**Response (async mode -- 202 Accepted):**
+```json
+{
+  "job_id": 42,
+  "status": "pending",
+  "monitor_url": "/exchange-rates/export/jobs/42"
+}
+```
+
 **Errors:**
 - `503` if Google Drive export is not configured yet (missing OAuth
-  token or destination folder id).
+  token or destination folder id). Returned immediately even in async
+  mode, before any job row is created -- a job would otherwise be
+  guaranteed to fail as soon as it ran in the background.
 
-**Example:**
+**Example (synchronous):**
 ```bash
 curl -X POST -H "X-API-Key: your-key" \
   -H "Content-Type: application/json" \
   -d '{}' \
   http://localhost:8001/exchange-rates/export
+```
+
+**Example (async, large historical backfill):**
+```bash
+curl -X POST -H "X-API-Key: your-key" \
+  -H "Content-Type: application/json" \
+  -d '{"lookback_days": 6100, "forward_days": 30, "async": true}' \
+  http://localhost:8001/exchange-rates/export
+```
+
+#### Check an async export job status
+
+**GET /exchange-rates/export/jobs/{job_id}**
+
+Return the current state of a previously-triggered async export job.
+Status is one of pending, running, succeeded, failed. Job state is
+persisted in Postgres (RAT_EXPORT_JOB), not in process memory, so it
+survives Cloud Run scaling to zero or routing the poll to a different
+instance than the one that ran the job.
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "job_id": 42,
+  "status": "succeeded",
+  "lookback_days": 6100,
+  "forward_days": 30,
+  "rows_written": 13429,
+  "file_id": "1AbCdEfGhIjKlMnOpQrStUvWxYz",
+  "error_message": null,
+  "created_at": "2026-09-13T18:00:00Z",
+  "updated_at": "2026-09-13T18:04:12Z"
+}
+```
+
+**Errors:**
+- `404` if no job exists with that id.
+
+**Example:**
+```bash
+curl -H "X-API-Key: your-key" \
+  http://localhost:8001/exchange-rates/export/jobs/42
 ```
 
 ---

@@ -1,12 +1,13 @@
 """FastAPI dependency wiring."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rates.application.errors import FinancialDataDependencyConfigurationError
+from rates.application.ports.export_job_repository import ExportJobRepository
 from rates.application.ports.file_export_port import FileExportPort
 from rates.application.ports.market_data_repository import MarketDataRepository
 from rates.application.ports.reference_data_repository import (
@@ -22,10 +23,14 @@ from rates.application.use_cases.refresh_rates import RefreshRates
 from rates.application.use_cases.refresh_income_tax_brackets import (
     RefreshIncomeTaxBrackets,
 )
+from rates.application.use_cases.run_export_job import RunExportJob
 from rates.application.use_cases.sync_recent_market_data import (
     SyncRecentMarketData,
 )
 from rates.config import settings
+from rates.infrastructure.db.repositories.export_job_repository import (
+    SqlAlchemyExportJobRepository,
+)
 from rates.infrastructure.db.repositories.market_data_repository import (
     SqlAlchemyMarketDataRepository,
 )
@@ -207,6 +212,13 @@ def get_file_export_port() -> FileExportPort:
     return GoogleDriveFileExport(oauth_token_json, settings.gdrive_export_folder_id)
 
 
+def get_export_job_repository(
+    session: AsyncSession = Depends(get_session),
+) -> ExportJobRepository:
+    """Get export job repository."""
+    return SqlAlchemyExportJobRepository(session)
+
+
 def get_export_exchange_rates_csv_use_case(
     reference_data_repository: ReferenceDataRepository = Depends(
         get_reference_data_repository
@@ -223,3 +235,49 @@ def get_export_exchange_rates_csv_use_case(
         exchange_rate_value_use_case,
         get_file_export_port(),
     )
+
+
+def build_run_export_job_use_case(session: AsyncSession) -> RunExportJob:
+    """Build the RunExportJob use case directly from a session.
+
+    Used by the background task scheduled from an async export trigger,
+    which runs *after* the triggering request's own session (and its
+    Depends-injected use case instances) has already been closed -- it
+    needs a fresh session of its own, exactly like build_sync_use_case
+    does for the same reason.
+    """
+    return RunExportJob(
+        SqlAlchemyExportJobRepository(session),
+        lambda: ExportExchangeRatesCsv(
+            SqlAlchemyReferenceDataRepository(session),
+            SqlAlchemyMarketDataRepository(session),
+            GetExchangeRateValue(
+                SqlAlchemyMarketDataRepository(session), get_fx_rate_provider()
+            ),
+            get_file_export_port(),
+        ),
+    )
+
+
+async def run_export_job_in_background(
+    job_id: int, lookback_days: int, forward_days: int
+) -> None:
+    """Run a triggered export job to completion in its own DB session.
+
+    Scheduled via FastAPI's BackgroundTasks, which only start executing
+    after the HTTP response has been sent -- by then the request-scoped
+    session is gone, so this opens a new one for the lifetime of the job.
+    """
+    async with SessionLocal() as session:
+        use_case = build_run_export_job_use_case(session)
+        await use_case.execute(job_id, lookback_days, forward_days)
+
+
+def get_export_job_background_runner() -> Callable[[int, int, int], Awaitable[None]]:
+    """Return the callable that runs a triggered export job in the background.
+
+    Exposed as a Depends() indirection (instead of the route importing and
+    calling run_export_job_in_background directly) so tests can substitute
+    a stub that never touches a real database session.
+    """
+    return run_export_job_in_background

@@ -68,3 +68,23 @@ class IncomeTaxBracketModel(Base):
     )
     marginal_rate: Mapped[Decimal] = mapped_column(Numeric(8, 6))
     rebate_utm: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal(0))
+
+
+class ExportJobModel(Base):
+    """Represent Export Job Model (async CSV export tracking)."""
+
+    __tablename__ = "RAT_EXPORT_JOB"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    lookback_days: Mapped[int] = mapped_column()
+    forward_days: Mapped[int] = mapped_column()
+    rows_written: Mapped[int | None] = mapped_column(nullable=True)
+    file_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

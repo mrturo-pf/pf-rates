@@ -1,14 +1,17 @@
 """Unit tests for the POST /exchange-rates/export route."""
 
+from datetime import UTC, datetime as dt
 from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from rates.application.dto import ExportExchangeRatesResultDTO
+from rates.application.dto import ExportExchangeRatesResultDTO, ExportJobDTO
 from rates.application.errors import FinancialDataDependencyConfigurationError
 from rates.interfaces.api.dependencies import (
     get_export_exchange_rates_csv_use_case,
+    get_export_job_background_runner,
+    get_export_job_repository,
     get_sync_use_case,
 )
 from rates.interfaces.api.main import app
@@ -49,6 +52,55 @@ class _StubExportExchangeRatesCsv:
             raise self._error
         assert self._result is not None
         return self._result
+
+
+class _StubExportJobRepository:
+    """In-memory stand-in for ExportJobRepository, keyed by an incrementing id."""
+
+    def __init__(self) -> None:
+        self._next_id = 1
+        self.jobs: dict[int, ExportJobDTO] = {}
+        self.create_calls: list[tuple[int, int]] = []
+
+    async def create(self, lookback_days: int, forward_days: int) -> int:
+        """Insert a fake pending job and return its id."""
+        self.create_calls.append((lookback_days, forward_days))
+        job_id = self._next_id
+        self._next_id += 1
+        now = dt.now(UTC)
+        self.jobs[job_id] = ExportJobDTO(
+            id=job_id,
+            status="pending",
+            lookback_days=lookback_days,
+            forward_days=forward_days,
+            rows_written=None,
+            file_id=None,
+            error_message=None,
+            created_at=now,
+            updated_at=now,
+        )
+        return job_id
+
+    async def mark_running(self, job_id: int) -> None:
+        """Unused by these route tests -- the stub runner never calls it."""
+
+    async def mark_succeeded(
+        self, job_id: int, rows_written: int, file_id: str
+    ) -> None:
+        """Unused by these route tests -- the stub runner never calls it."""
+
+    async def mark_failed(self, job_id: int, error_message: str) -> None:
+        """Unused by these route tests -- the stub runner never calls it."""
+
+    async def get(self, job_id: int) -> ExportJobDTO | None:
+        """Return the fake job DTO, or None if it was never created."""
+        return self.jobs.get(job_id)
+
+
+async def _noop_background_runner(
+    job_id: int, lookback_days: int, forward_days: int
+) -> None:
+    """Stub background runner that never touches a real database session."""
 
 
 @pytest.mark.asyncio
@@ -104,5 +156,94 @@ async def test_export_exchange_rates_returns_503_when_drive_not_configured() -> 
         async with AsyncClient(**_AUTHED) as client:
             response = await client.post("/exchange-rates/export", json={})
         assert response.status_code == 503
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_export_exchange_rates_async_returns_202_with_job_id() -> None:
+    """Setting the async flag returns 202 with a job_id, skipping the sync path."""
+    sync_stub = _StubExportExchangeRatesCsv()
+    job_repository = _StubExportJobRepository()
+    app.dependency_overrides[get_export_exchange_rates_csv_use_case] = lambda: sync_stub
+    app.dependency_overrides[get_export_job_repository] = lambda: job_repository
+    app.dependency_overrides[get_export_job_background_runner] = lambda: (
+        _noop_background_runner
+    )
+    app.dependency_overrides[get_sync_use_case] = lambda: _StubSyncUseCase()
+    try:
+        payload = {"lookback_days": 6100, "forward_days": 30}
+        payload["async"] = True
+        async with AsyncClient(**_AUTHED) as client:
+            response = await client.post("/exchange-rates/export", json=payload)
+        assert response.status_code == 202
+        body = response.json()
+        assert body["status"] == "pending"
+        assert body["monitor_url"] == f"/exchange-rates/export/jobs/{body['job_id']}"
+        assert job_repository.create_calls == [(6100, 30)]
+        # The synchronous use case must never be invoked in the async path.
+        assert sync_stub.calls == []
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_export_exchange_rates_defaults_to_sync_without_async_flag() -> None:
+    """Omitting the async flag keeps the existing synchronous behavior."""
+    stub = _StubExportExchangeRatesCsv(
+        result=ExportExchangeRatesResultDTO(rows_written=7, file_id="drive-def")
+    )
+    app.dependency_overrides[get_export_exchange_rates_csv_use_case] = lambda: stub
+    app.dependency_overrides[get_sync_use_case] = lambda: _StubSyncUseCase()
+    try:
+        async with AsyncClient(**_AUTHED) as client:
+            response = await client.post("/exchange-rates/export", json={})
+        assert response.status_code == 200
+        assert response.json() == {"rows_written": 7, "file_id": "drive-def"}
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_get_export_job_returns_current_status() -> None:
+    """GET /exchange-rates/export/jobs/{id} returns the job's stored state."""
+    job_repository = _StubExportJobRepository()
+    app.dependency_overrides[get_export_job_repository] = lambda: job_repository
+    app.dependency_overrides[get_sync_use_case] = lambda: _StubSyncUseCase()
+    try:
+        job_id = await job_repository.create(90, 30)
+        stored = job_repository.jobs[job_id]
+        job_repository.jobs[job_id] = ExportJobDTO(
+            id=stored.id,
+            status="succeeded",
+            lookback_days=stored.lookback_days,
+            forward_days=stored.forward_days,
+            rows_written=500,
+            file_id="drive-999",
+            error_message=None,
+            created_at=stored.created_at,
+            updated_at=stored.updated_at,
+        )
+        async with AsyncClient(**_AUTHED) as client:
+            response = await client.get(f"/exchange-rates/export/jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "succeeded"
+        assert body["rows_written"] == 500
+        assert body["file_id"] == "drive-999"
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_get_export_job_returns_404_when_missing() -> None:
+    """GET /exchange-rates/export/jobs/{id} returns 404 for an unknown job."""
+    job_repository = _StubExportJobRepository()
+    app.dependency_overrides[get_export_job_repository] = lambda: job_repository
+    app.dependency_overrides[get_sync_use_case] = lambda: _StubSyncUseCase()
+    try:
+        async with AsyncClient(**_AUTHED) as client:
+            response = await client.get("/exchange-rates/export/jobs/999999")
+        assert response.status_code == 404
     finally:
         app.dependency_overrides.clear()
