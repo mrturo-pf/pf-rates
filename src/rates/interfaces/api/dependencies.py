@@ -1,7 +1,9 @@
 """FastAPI dependency wiring."""
 
-from collections.abc import AsyncIterator, Awaitable, Callable
+import time
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from pathlib import Path
+from typing import Protocol
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,6 +52,7 @@ from rates.infrastructure.rate_providers.official_providers import (
     SiiIndicatorsProvider,
     make_fetcher,
 )
+from rates.shared.constants import EXPORT_SESSION_REFRESH_INTERVAL_SECONDS
 
 _fetcher = make_fetcher(settings.http_proxy)
 
@@ -237,7 +240,64 @@ def get_export_exchange_rates_csv_use_case(
     )
 
 
-def build_run_export_job_use_case(session: AsyncSession) -> RunExportJob:
+class _SessionRebindable(Protocol):
+    """Structural protocol for a repository that can swap its session."""
+
+    def rebind(self, session: AsyncSession) -> None:
+        """Replace the underlying session used for future calls."""
+        ...
+
+
+class ExportJobSessionSwapper:
+    """Own the DB session for a running export job, refreshing it periodically.
+
+    A large export can run for many minutes. Holding one DB session open
+    the whole time defeats pool_pre_ping/pool_recycle (session.py) --
+    both only act when a connection is checked back into the pool, which
+    never happens for a single session held continuously by one
+    background task. That mismatch surfaced in production as a job
+    failing partway through with a DB-side error after several minutes
+    of otherwise-successful progress.
+
+    refresh_if_due() is wired as RunExportJob's session_refresh callback,
+    so it runs at the same checkpoints already used for cancellation
+    polling and progress reporting -- no extra loop iterations, just one
+    more cheap monotonic-clock check piggybacked on checkpoints that
+    already exist. It only actually replaces the session once
+    EXPORT_SESSION_REFRESH_INTERVAL_SECONDS have elapsed, closing the
+    stale one and rebinding every repository that shares it to the fresh
+    one in a single step, so they never disagree about which session is
+    current.
+    """
+
+    def __init__(
+        self, session: AsyncSession, rebindables: Sequence[_SessionRebindable]
+    ) -> None:
+        """Initialize the instance with the job's starting session."""
+        self._session = session
+        self._rebindables = rebindables
+        self._last_refresh = time.monotonic()
+
+    async def refresh_if_due(self) -> None:
+        """Replace the session if the refresh interval has elapsed."""
+        elapsed = time.monotonic() - self._last_refresh
+        if elapsed < EXPORT_SESSION_REFRESH_INTERVAL_SECONDS:
+            return
+        stale_session = self._session
+        self._session = SessionLocal()
+        for rebindable in self._rebindables:
+            rebindable.rebind(self._session)
+        await stale_session.close()
+        self._last_refresh = time.monotonic()
+
+    async def close(self) -> None:
+        """Close whichever session is currently active."""
+        await self._session.close()
+
+
+def build_run_export_job_use_case(
+    session: AsyncSession,
+) -> tuple[RunExportJob, ExportJobSessionSwapper]:
     """Build the RunExportJob use case directly from a session.
 
     Used by the background task scheduled from an async export trigger,
@@ -245,17 +305,32 @@ def build_run_export_job_use_case(session: AsyncSession) -> RunExportJob:
     Depends-injected use case instances) has already been closed -- it
     needs a fresh session of its own, exactly like build_sync_use_case
     does for the same reason.
+
+    Also returns the ExportJobSessionSwapper wrapping that session: the
+    caller must call `.close()` on it once RunExportJob.execute()
+    returns, since the swapper -- not this function -- owns whichever
+    session ends up being the active one by the time the job finishes
+    (it may have replaced the original one or more times along the way).
     """
-    return RunExportJob(
-        SqlAlchemyExportJobRepository(session),
-        lambda: ExportExchangeRatesCsv(
-            SqlAlchemyReferenceDataRepository(session),
-            SqlAlchemyMarketDataRepository(session),
-            GetExchangeRateValue(
-                SqlAlchemyMarketDataRepository(session), get_fx_rate_provider()
+    market_data_repository = SqlAlchemyMarketDataRepository(session)
+    reference_data_repository = SqlAlchemyReferenceDataRepository(session)
+    export_job_repository = SqlAlchemyExportJobRepository(session)
+    swapper = ExportJobSessionSwapper(
+        session,
+        (market_data_repository, reference_data_repository, export_job_repository),
+    )
+    return (
+        RunExportJob(
+            export_job_repository,
+            lambda: ExportExchangeRatesCsv(
+                reference_data_repository,
+                market_data_repository,
+                GetExchangeRateValue(market_data_repository, get_fx_rate_provider()),
+                get_file_export_port(),
             ),
-            get_file_export_port(),
+            session_refresh=swapper.refresh_if_due,
         ),
+        swapper,
     )
 
 
@@ -267,10 +342,19 @@ async def run_export_job_in_background(
     Scheduled via FastAPI's BackgroundTasks, which only start executing
     after the HTTP response has been sent -- by then the request-scoped
     session is gone, so this opens a new one for the lifetime of the job.
+
+    That session is not necessarily the one still open by the time the
+    job finishes: ExportJobSessionSwapper may have replaced it one or
+    more times along the way for a long-running export (see its
+    docstring). `swapper.close()` always closes whichever one is
+    currently active, so no connection is leaked either way.
     """
-    async with SessionLocal() as session:
-        use_case = build_run_export_job_use_case(session)
+    session = SessionLocal()
+    use_case, swapper = build_run_export_job_use_case(session)
+    try:
         await use_case.execute(job_id, lookback_days, forward_days)
+    finally:
+        await swapper.close()
 
 
 def get_export_job_background_runner() -> Callable[[int, int, int], Awaitable[None]]:

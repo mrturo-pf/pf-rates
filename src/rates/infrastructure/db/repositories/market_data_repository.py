@@ -6,7 +6,6 @@ from decimal import Decimal
 
 from sqlalchemy import Date, func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from rates.application.dto import (
     EconomicIndexDTO,
@@ -23,14 +22,13 @@ from rates.infrastructure.db.models.financial_data import (
     EconomicIndexModel,
     ExchangeRateModel,
 )
+from rates.infrastructure.db.repositories._session_bound import (
+    SessionBoundRepositoryMixin,
+)
 
 
-class SqlAlchemyMarketDataRepository:
+class SqlAlchemyMarketDataRepository(SessionBoundRepositoryMixin):
     """SQLAlchemy-backed market data repository."""
-
-    def __init__(self, session: AsyncSession) -> None:
-        """Initialize the instance."""
-        self._session = session
 
     def _map_exchange_rate_rows(
         self, rows: Sequence[ExchangeRateModel]

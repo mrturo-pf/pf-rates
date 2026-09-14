@@ -394,3 +394,36 @@ async def test_progress_report_is_optional() -> None:
 
     assert result.rows_written == 0
     assert len(file_export.uploads) == 1
+
+
+@pytest.mark.asyncio
+async def test_session_refresh_is_called_at_each_checkpoint() -> None:
+    """session_refresh fires at the same checkpoints as cancellation/progress.
+
+    Purely a plumbing test from this use case's side -- it has no idea
+    session_refresh does anything DB-related, it just calls it. The
+    actual session-swapping behavior lives in ExportJobSessionSwapper
+    (dependencies.py) and is covered by its own tests.
+    """
+    file_export = _StubFileExport()
+    use_case = _build_use_case(
+        [_currency("CLP"), _currency("USD"), _currency("EUR")], {}, file_export
+    )
+    refresh_calls = 0
+
+    async def _session_refresh() -> None:
+        nonlocal refresh_calls
+        refresh_calls += 1
+
+    with (
+        patch(f"{_MODULE}.datetime") as mock_dt,
+        patch(f"{_MODULE}.EXPORT_CANCELLATION_CHECK_INTERVAL", 2),
+    ):
+        mock_dt.now.return_value.date.return_value = _TODAY
+        # lookback=3, forward=0 -> 4 dates * 2 non-CLP currencies = 8 items,
+        # checkpoint every 2 -> 4 checkpoints.
+        await use_case.execute(
+            lookback_days=3, forward_days=0, session_refresh=_session_refresh
+        )
+
+    assert refresh_calls == 4

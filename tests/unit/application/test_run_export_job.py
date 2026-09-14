@@ -60,11 +60,13 @@ class _StubExportExchangeRatesCsv:
         error: Exception | None = None,
         cancel: bool = False,
         progress_updates: list[tuple[int, int]] | None = None,
+        session_refresh_calls: int = 0,
     ) -> None:
         self._result = result
         self._error = error
         self._cancel = cancel
         self._progress_updates = progress_updates or []
+        self._session_refresh_calls = session_refresh_calls
 
     async def execute(
         self,
@@ -72,6 +74,7 @@ class _StubExportExchangeRatesCsv:
         forward_days: int,
         cancellation_check: object = None,
         progress_report: object = None,
+        session_refresh: object = None,
     ) -> ExportExchangeRatesResultDTO:
         """Return the stub result, raise the stub error, or signal cancellation.
 
@@ -79,10 +82,14 @@ class _StubExportExchangeRatesCsv:
         mirroring how the real use case calls it mid-execution -- lets
         RunExportJob tests verify the callback is correctly wired through
         to the repository without re-testing ExportExchangeRatesCsv itself.
+        Same idea for session_refresh_calls/session_refresh.
         """
         if progress_report is not None:
             for processed_items, total_items in self._progress_updates:
                 await progress_report(processed_items, total_items)
+        if session_refresh is not None:
+            for _ in range(self._session_refresh_calls):
+                await session_refresh()
         if self._cancel:
             raise ExportCancelledSignal
         if self._error is not None:
@@ -227,3 +234,32 @@ async def test_run_export_job_forwards_progress_updates_to_repository() -> None:
         ("update_progress", (7, 40, 40)),
         ("mark_succeeded", (7, 10, "drive-p")),
     ]
+
+
+@pytest.mark.asyncio
+async def test_run_export_job_forwards_session_refresh_to_execute() -> None:
+    """The constructor's session_refresh callback reaches execute() unchanged.
+
+    RunExportJob has no idea what session_refresh does -- it is an opaque
+    maintenance hook owned entirely by dependencies.py
+    (ExportJobSessionSwapper). This only verifies the plumbing: the exact
+    same callable passed to __init__ is the one execute() ends up calling.
+    """
+    repository = _StubExportJobRepository()
+    refresh_calls = 0
+
+    async def _session_refresh() -> None:
+        nonlocal refresh_calls
+        refresh_calls += 1
+
+    csv_export = _StubExportExchangeRatesCsv(
+        result=ExportExchangeRatesResultDTO(rows_written=1, file_id="drive-r"),
+        session_refresh_calls=3,
+    )
+    use_case = RunExportJob(
+        repository, lambda: csv_export, session_refresh=_session_refresh
+    )
+
+    await use_case.execute(job_id=8, lookback_days=1, forward_days=0)
+
+    assert refresh_calls == 3

@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -18,6 +18,7 @@ from rates.application.use_cases.get_exchange_rate_value import (
     GetExchangeRateValue,
 )
 from rates.interfaces.api.dependencies import (
+    ExportJobSessionSwapper,
     get_export_exchange_rates_csv_use_case,
     get_file_export_port,
 )
@@ -91,3 +92,67 @@ def test_get_export_exchange_rates_csv_use_case_wires_dependencies() -> None:
         )
 
     assert isinstance(use_case, ExportExchangeRatesCsv)
+
+
+def _fake_session(name: str) -> Mock:
+    """Build a Mock standing in for an AsyncSession, with an async close()."""
+    session = Mock(name=name)
+    session.close = AsyncMock()
+    return session
+
+
+@pytest.mark.asyncio
+async def test_session_swapper_does_not_refresh_before_interval_elapses() -> None:
+    """No session replacement (and no rebind calls) before the interval elapses."""
+    original_session = _fake_session("original")
+    rebindable = Mock()
+
+    with patch(f"{_MODULE}.time") as mock_time:
+        mock_time.monotonic.side_effect = [0.0, 1.0]  # constructor, then check
+        swapper = ExportJobSessionSwapper(original_session, [rebindable])
+        await swapper.refresh_if_due()
+
+    rebindable.rebind.assert_not_called()
+    original_session.close.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_session_swapper_refreshes_and_rebinds_after_interval_elapses() -> None:
+    """Past the interval: closes the stale session and rebinds every repository."""
+    original_session = _fake_session("original")
+    fresh_session = _fake_session("fresh")
+    first_rebindable = Mock()
+    second_rebindable = Mock()
+
+    with (
+        patch(f"{_MODULE}.time") as mock_time,
+        patch(f"{_MODULE}.SessionLocal", return_value=fresh_session),
+    ):
+        mock_time.monotonic.side_effect = [0.0, 999.0, 999.0]
+        swapper = ExportJobSessionSwapper(
+            original_session, [first_rebindable, second_rebindable]
+        )
+        await swapper.refresh_if_due()
+
+    first_rebindable.rebind.assert_called_once_with(fresh_session)
+    second_rebindable.rebind.assert_called_once_with(fresh_session)
+    original_session.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_session_swapper_close_closes_whichever_session_is_current() -> None:
+    """close() closes the currently-active session, even after a refresh."""
+    original_session = _fake_session("original")
+    fresh_session = _fake_session("fresh")
+
+    with (
+        patch(f"{_MODULE}.time") as mock_time,
+        patch(f"{_MODULE}.SessionLocal", return_value=fresh_session),
+    ):
+        mock_time.monotonic.side_effect = [0.0, 999.0, 999.0]
+        swapper = ExportJobSessionSwapper(original_session, [])
+        await swapper.refresh_if_due()
+        await swapper.close()
+
+    fresh_session.close.assert_awaited_once()
+    original_session.close.assert_awaited_once()

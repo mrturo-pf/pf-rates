@@ -4,10 +4,12 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from rates.application.dto import ExportJobDTO
 from rates.infrastructure.db.models.financial_data import ExportJobModel
+from rates.infrastructure.db.repositories._session_bound import (
+    SessionBoundRepositoryMixin,
+)
 from rates.shared.constants import (
     EXPORT_JOB_ACTIVE_STATUSES,
     EXPORT_JOB_STATUS_CANCELLED,
@@ -17,12 +19,8 @@ from rates.shared.constants import (
 )
 
 
-class SqlAlchemyExportJobRepository:
+class SqlAlchemyExportJobRepository(SessionBoundRepositoryMixin):
     """SQLAlchemy-backed implementation of ExportJobRepository."""
-
-    def __init__(self, session: AsyncSession) -> None:
-        """Initialize the instance."""
-        self._session = session
 
     async def create(self, lookback_days: int, forward_days: int) -> int:
         """Insert a new job row in 'pending' status and return its id."""

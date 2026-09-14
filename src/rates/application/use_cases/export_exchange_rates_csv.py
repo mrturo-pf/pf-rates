@@ -35,6 +35,7 @@ _BASE_CURRENCY_CODE = "CLP"
 
 CancellationCheck = Callable[[], Awaitable[bool]]
 ProgressReport = Callable[[int, int], Awaitable[None]]
+SessionRefresh = Callable[[], Awaitable[None]]
 
 
 class ExportCancelledSignal(Exception):
@@ -113,6 +114,7 @@ class ExportExchangeRatesCsv:
         filename: str | None = None,
         cancellation_check: CancellationCheck | None = None,
         progress_report: ProgressReport | None = None,
+        session_refresh: SessionRefresh | None = None,
     ) -> ExportExchangeRatesResultDTO:
         """Build the CSV for the configured window and upload it.
 
@@ -132,6 +134,14 @@ class ExportExchangeRatesCsv:
         the same checkpoints as cancellation_check. `total_items` is the
         number of (currency, date) pairs this run will visit, i.e.
         `len(currency_codes) * len(rate_dates)`.
+
+        If session_refresh is given, it is called at the same checkpoints
+        as cancellation_check and progress_report -- purely an opaque
+        maintenance hook from this use case's point of view (it has no
+        idea a DB session is involved). The caller decides whether a
+        refresh is actually due; for a large window this loop can run for
+        many minutes, long enough that a DB connection held open the
+        whole time can go stale server-side (see RunExportJob).
         """
         currency_codes = await self._list_exportable_currency_codes()
         rate_dates = self._build_date_range(lookback_days, forward_days)
@@ -157,6 +167,8 @@ class ExportExchangeRatesCsv:
                     await self._report_progress(
                         progress_report, dates_checked, total_items
                     )
+                    if session_refresh is not None:
+                        await session_refresh()
                 value = self._lookup_cached_value(
                     currency_code, rate_date, cached_values
                 )

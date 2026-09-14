@@ -33,6 +33,42 @@ async def test_repository_mark_cancelled(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
+async def test_repository_rebind_swaps_to_a_real_new_session(
+    pg_url: str, db_session: AsyncSession
+) -> None:
+    """rebind() to a second, independent real session keeps working correctly.
+
+    Mirrors what ExportJobSessionSwapper does mid-export: replace a
+    (possibly stale) session with a fresh one on an already-constructed
+    repository. Uses a genuinely separate SQLAlchemy session/connection
+    from the same DB (not just the same db_session fixture) so this
+    exercises the real rebind path, not merely a Python attribute swap.
+    """
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from tests.conftest import _TC_ENGINE_KWARGS
+
+    repo = SqlAlchemyExportJobRepository(db_session)
+    job_id = await repo.create(lookback_days=1, forward_days=0)
+
+    engine = create_async_engine(pg_url, **_TC_ENGINE_KWARGS)
+    other_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with other_factory() as other_session:
+        repo.rebind(other_session)
+        await repo.mark_running(job_id)
+        await repo.update_progress(job_id, processed_items=5, total_items=10)
+
+        job = await repo.get(job_id)
+        assert job is not None
+        assert job.status == "running"
+        assert job.processed_items == 5
+        assert job.total_items == 10
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_repository_update_progress(db_session: AsyncSession) -> None:
     """update_progress persists processed_items/total_items on the row."""
     repo = SqlAlchemyExportJobRepository(db_session)
@@ -299,3 +335,97 @@ async def test_run_export_job_in_background_stops_when_cancelled_upfront(
     assert job.status == "cancelled"
     assert job.file_id is None
     await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_run_export_job_in_background_survives_a_forced_session_refresh(
+    pg_url: str, monkeypatch: object
+) -> None:
+    """A mid-run DB session swap doesn't break the job -- it still completes.
+
+    Forces ExportJobSessionSwapper to refresh at every single checkpoint
+    (interval=0, always due) instead of the real 120s, and forces a
+    checkpoint on every processed item (EXPORT_CANCELLATION_CHECK_INTERVAL=1)
+    so several real session swaps happen mid-loop against a real Postgres --
+    this is the actual reliability fix for the production failure where a
+    single long-held session went stale partway through a large export.
+    """
+    from datetime import datetime
+    from decimal import Decimal
+    from zoneinfo import ZoneInfo
+
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    import rates.application.use_cases.export_exchange_rates_csv as csv_module
+    import rates.interfaces.api.dependencies as deps_module
+    from rates.application.dto import ExchangeRateWriteDTO, RefreshRatesCommandDTO
+    from rates.domain.normalization import normalize_exchange_rate_lookup_date
+    from rates.infrastructure.db.repositories.market_data_repository import (
+        SqlAlchemyMarketDataRepository,
+    )
+    from tests.conftest import _TC_ENGINE_KWARGS
+
+    monkeypatch.setattr(deps_module, "EXPORT_SESSION_REFRESH_INTERVAL_SECONDS", 0)
+    monkeypatch.setattr(csv_module, "EXPORT_CANCELLATION_CHECK_INTERVAL", 1)
+
+    engine = create_async_engine(pg_url, **_TC_ENGINE_KWARGS)
+    test_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+    monkeypatch.setattr(deps_module, "SessionLocal", test_factory)
+
+    class _StubFileExport:
+        async def upload(self, filename: str, content: bytes, mime_type: str) -> str:
+            """Return a fixed fake storage id without touching any network."""
+            return "drive-refresh-stub"
+
+    monkeypatch.setattr(deps_module, "get_file_export_port", lambda: _StubFileExport())
+
+    seeded_codes = ("USD", "EUR", "UF", "UTM")
+    today = datetime.now(tz=ZoneInfo("America/Santiago")).date()
+    try:
+        async with test_factory() as seed_session:
+            repo = SqlAlchemyMarketDataRepository(seed_session)
+            await repo.refresh_rates(
+                RefreshRatesCommandDTO(
+                    exchange_rates=[
+                        ExchangeRateWriteDTO(
+                            currency_code=code,
+                            rate_date=normalize_exchange_rate_lookup_date(code, today),
+                            value_clp=Decimal("1000.00"),
+                            source="test",
+                        )
+                        for code in seeded_codes
+                    ]
+                )
+            )
+
+            job_repository = SqlAlchemyExportJobRepository(seed_session)
+            # 3-day window x 4 currencies = 12 items -> 12 forced checkpoints,
+            # each one triggering a real session close + fresh session open.
+            job_id = await job_repository.create(lookback_days=2, forward_days=0)
+
+        await deps_module.run_export_job_in_background(
+            job_id, lookback_days=2, forward_days=0
+        )
+
+        async with test_factory() as check_session:
+            job = await SqlAlchemyExportJobRepository(check_session).get(job_id)
+        assert job is not None
+        assert job.status == "succeeded"
+        assert job.file_id == "drive-refresh-stub"
+        assert job.processed_items == job.total_items
+    finally:
+        # This module's tests share one DB/table across the whole test
+        # session (see the list_active_ids comment above) -- clean up the
+        # rows this test seeded so other integration test files (which
+        # assert exact exchange-rate contents, e.g. test_market_data_api.py)
+        # never see them, regardless of file/test execution order.
+        async with test_factory() as cleanup_session:
+            await cleanup_session.execute(
+                text('DELETE FROM "RAT_EXCH_RATE" WHERE currency_code = ANY(:codes)'),
+                {"codes": list(seeded_codes)},
+            )
+            await cleanup_session.commit()
+        await engine.dispose()

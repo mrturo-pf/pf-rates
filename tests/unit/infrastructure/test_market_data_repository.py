@@ -137,3 +137,18 @@ def test_map_economic_index_rows_multiple(
     assert len(result) == 2
     assert result[0].code == "UF"
     assert result[1].code == "UTM"
+
+
+def test_rebind_swaps_the_underlying_session(
+    repository: SqlAlchemyMarketDataRepository,
+) -> None:
+    """rebind() replaces the session used by every subsequent call.
+
+    Used by ExportJobSessionSwapper to periodically refresh a long-running
+    export's DB connection without reconstructing this repository.
+    """
+    new_session = Mock()
+
+    repository.rebind(new_session)
+
+    assert repository._session is new_session

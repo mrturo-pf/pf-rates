@@ -129,3 +129,18 @@ def test_map_income_tax_bracket_rows_multiple(
     assert len(result) == 2
     assert result[0].lower_bound_utm == Decimal("0")
     assert result[1].lower_bound_utm == Decimal("13.5")
+
+
+def test_rebind_swaps_the_underlying_session(
+    repository: SqlAlchemyReferenceDataRepository,
+) -> None:
+    """rebind() replaces the session used by every subsequent call.
+
+    Used by ExportJobSessionSwapper to periodically refresh a long-running
+    export's DB connection without reconstructing this repository.
+    """
+    new_session = Mock()
+
+    repository.rebind(new_session)
+
+    assert repository._session is new_session

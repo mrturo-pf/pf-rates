@@ -1,6 +1,6 @@
 """Use case for running a triggered async CSV export job to completion."""
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from rates.application.ports.export_job_repository import ExportJobRepository
 from rates.application.use_cases.export_exchange_rates_csv import (
@@ -44,16 +44,28 @@ class RunExportJob:
     and a callback that itself fails would be indistinguishable from any
     other mid-run error (caught by the broad except below like everything
     else in this method).
+
+    Session refresh: `session_refresh`, if given, is also wired through
+    to `execute()` at the same checkpoints. This use case has no idea
+    what it does -- the actual DB-session-swapping logic lives in
+    dependencies.py, which is the only layer that owns the session's
+    lifecycle. Exists because a large export can run for many minutes,
+    long enough for a single held-open DB connection to go stale on a
+    managed Postgres provider that recycles idle/long-lived connections
+    (Neon, in production) -- without this, the job fails with a DB error
+    partway through instead of completing.
     """
 
     def __init__(
         self,
         export_job_repository: ExportJobRepository,
         csv_export_factory: Callable[[], ExportExchangeRatesCsv],
+        session_refresh: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         """Initialize the instance."""
         self._export_job_repository = export_job_repository
         self._csv_export_factory = csv_export_factory
+        self._session_refresh = session_refresh
 
     async def execute(self, job_id: int, lookback_days: int, forward_days: int) -> None:
         """Run the export for *job_id*, updating its status as it progresses."""
@@ -76,6 +88,7 @@ class RunExportJob:
                 forward_days=forward_days,
                 cancellation_check=lambda: job_repository.is_cancel_requested(job_id),
                 progress_report=_report_progress,
+                session_refresh=self._session_refresh,
             )
         except ExportCancelledSignal:
             logger.info("export_job_cancelled", job_id=job_id)

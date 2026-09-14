@@ -6,7 +6,6 @@ from decimal import Decimal
 
 from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from rates.application.dto import (
     CurrencyDTO,
@@ -17,14 +16,13 @@ from rates.infrastructure.db.models.financial_data import (
     CurrencyModel,
     IncomeTaxBracketModel,
 )
+from rates.infrastructure.db.repositories._session_bound import (
+    SessionBoundRepositoryMixin,
+)
 
 
-class SqlAlchemyReferenceDataRepository:
+class SqlAlchemyReferenceDataRepository(SessionBoundRepositoryMixin):
     """SQLAlchemy-backed reference data repository."""
-
-    def __init__(self, session: AsyncSession) -> None:
-        """Initialize the instance."""
-        self._session = session
 
     def _map_currency_rows(self, rows: Sequence[CurrencyModel]) -> list[CurrencyDTO]:
         """Map database rows to CurrencyDTO objects."""

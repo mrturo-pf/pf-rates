@@ -58,3 +58,14 @@ EXPORT_JOB_LIST_MAX_LIMIT = 500
 # few seconds even on a large multi-year window; large enough that it
 # doesn't add a meaningful number of extra DB round-trips.
 EXPORT_CANCELLATION_CHECK_INTERVAL = 50
+
+# Minimum wall-clock time (seconds) between DB session refreshes during a
+# running export. A large lookback window (thousands of dates x several
+# currencies) can run for many minutes; holding a single DB session/
+# connection open that whole time defeats pool_pre_ping and pool_recycle
+# (session.py) -- both only act when a connection is checked back into
+# the pool, which never happens for one long-lived session. 120s is
+# comfortably under Neon's ~5 min idle-connection window (see session.py)
+# while not adding meaningful overhead: at most a handful of extra
+# connection round-trips even for a job running an hour.
+EXPORT_SESSION_REFRESH_INTERVAL_SECONDS = 120
