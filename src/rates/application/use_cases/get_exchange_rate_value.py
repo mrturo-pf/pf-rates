@@ -8,12 +8,9 @@ from rates.application.dto import RefreshRatesCommandDTO
 from rates.application.errors import ExchangeRateNotFoundError
 from rates.application.ports.market_data_repository import MarketDataRepository
 from rates.application.ports.rate_provider import FxRateProvider
+from rates.shared.constants import MAX_PROVIDER_LOOKBACK_DAYS
 
 _CHILE_TZ = ZoneInfo("America/Santiago")
-
-# Maximum number of prior calendar days to probe the provider when neither the
-# exact date nor any prior date exists in the database.
-_MAX_PROVIDER_LOOKBACK_DAYS = 7
 
 
 class GetExchangeRateValue:
@@ -23,7 +20,7 @@ class GetExchangeRateValue:
     1. Exact date in the database.
     2. Exact date from the external provider chain (result is persisted).
     3. Nearest prior date available in the database (not persisted).
-    4. Provider probed for each of the preceding _MAX_PROVIDER_LOOKBACK_DAYS days
+    4. Provider probed for each of the preceding MAX_PROVIDER_LOOKBACK_DAYS days
        (first hit is persisted under the found date and returned).
     5. Not found → ExchangeRateNotFoundError.
     """
@@ -64,7 +61,7 @@ class GetExchangeRateValue:
         if rate_date <= today:
             # 3. Nearest prior date in the database within the lookback window
             #    (returned as-is, not persisted).
-            window_start = rate_date - timedelta(days=_MAX_PROVIDER_LOOKBACK_DAYS)
+            window_start = rate_date - timedelta(days=MAX_PROVIDER_LOOKBACK_DAYS)
             fallback = await self._repository.get_latest_exchange_rate_value_before(
                 currency_code, rate_date, on_or_after=window_start
             )
@@ -74,7 +71,7 @@ class GetExchangeRateValue:
             # 4. Provider probed for each prior day up to the lookback limit.
             #    Each iteration uses an exact-published value (no carry-forward),
             #    so saving under the found date is safe.
-            for days_back in range(1, _MAX_PROVIDER_LOOKBACK_DAYS + 1):
+            for days_back in range(1, MAX_PROVIDER_LOOKBACK_DAYS + 1):
                 prior_date = rate_date - timedelta(days=days_back)
                 prior_entry = await self._provider.fetch_rate_entry(
                     currency_code, prior_date

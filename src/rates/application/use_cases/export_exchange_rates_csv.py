@@ -17,7 +17,10 @@ from rates.application.use_cases.get_exchange_rate_value import (
     GetExchangeRateValue,
 )
 from rates.domain.normalization import normalize_exchange_rate_lookup_date
-from rates.shared.constants import MONTHLY_EXCHANGE_RATE_CODES
+from rates.shared.constants import (
+    MAX_PROVIDER_LOOKBACK_DAYS,
+    MONTHLY_EXCHANGE_RATE_CODES,
+)
 
 _CHILE_TZ = ZoneInfo("America/Santiago")
 
@@ -59,14 +62,20 @@ class ExportExchangeRatesCsv:
     Performance note: for each currency, one bulk range query fetches
     every already-stored value for the whole window up front (via
     `MarketDataRepository.list_exchange_rate_values`) instead of hitting
-    the DB once per date. `GetExchangeRateValue`'s slower, per-date
-    resolution chain (DB hit -> provider fetch -> nearest-prior fallback)
-    is only used for the dates that bulk fetch didn't cover -- expected to
-    be a small remainder once `POST /sync` has warmed the window. Skipping
-    this and resolving every date one at a time does not scale: a
-    multi-year window times several currencies means tens of thousands of
-    sequential round-trips, comfortably enough to blow through both
-    Cloud Run's request timeout and any corporate proxy in front of it.
+    the DB once per date. Weekend/holiday gaps -- the vast majority of
+    dates that miss an exact match, since Chile's FX market is closed
+    those days -- resolve to the nearest prior cached value entirely in
+    memory (mirroring `GetExchangeRateValue`'s own nearest-prior-date
+    step, just without the DB round-trip). Only dates that are still
+    unresolved after that in-memory pass fall through to
+    `GetExchangeRateValue`'s full DB/provider resolution chain -- expected
+    to be a small remainder once `POST /sync` has warmed the window.
+    Skipping this and resolving every date one at a time (exact DB match
+    *and* nearest-prior DB lookup, per date) does not scale: a multi-year
+    window times several currencies means tens of thousands of sequential
+    round-trips, comfortably enough to blow through both Cloud Run's
+    request timeout and any corporate proxy in front of it -- confirmed in
+    production even after the bulk-fetch-only version of this fix.
     """
 
     def __init__(
@@ -110,6 +119,10 @@ class ExportExchangeRatesCsv:
                     currency_code, rate_date, cached_values
                 )
                 if value is None:
+                    value = self._lookup_nearest_prior_cached_value(
+                        currency_code, rate_date, cached_values
+                    )
+                if value is None:
                     value = await self._resolve_value(currency_code, rate_date)
                 if value is None:
                     continue
@@ -148,6 +161,23 @@ class ExportExchangeRatesCsv:
         lookup_date = normalize_exchange_rate_lookup_date(currency_code, rate_date)
         value = cached_values.get(lookup_date)
         return str(value) if value is not None else None
+
+    @staticmethod
+    def _lookup_nearest_prior_cached_value(
+        currency_code: str, rate_date: date, cached_values: dict[date, Decimal]
+    ) -> str | None:
+        """Probe up to MAX_PROVIDER_LOOKBACK_DAYS back within the cached map.
+
+        Purely in-memory equivalent of `GetExchangeRateValue`'s DB-backed
+        nearest-prior-date step -- resolves the common weekend/holiday gap
+        without an extra round-trip per date.
+        """
+        lookup_date = normalize_exchange_rate_lookup_date(currency_code, rate_date)
+        for days_back in range(1, MAX_PROVIDER_LOOKBACK_DAYS + 1):
+            value = cached_values.get(lookup_date - timedelta(days=days_back))
+            if value is not None:
+                return str(value)
+        return None
 
     async def _list_exportable_currency_codes(self) -> list[str]:
         """Return every supported currency/index code except the base currency."""

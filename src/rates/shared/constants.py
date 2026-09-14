@@ -17,3 +17,9 @@ MONTHLY_EXCHANGE_RATE_CODES = frozenset(MONTHLY_MARKET_RATE_CODES)
 # in the calendar.  Overshooting is benign — unpublished future dates simply return
 # nothing from the provider.
 FORWARD_DAILY_RATE_CODES = ("UF",)
+
+# Maximum number of prior calendar days to probe for a fallback value (DB or
+# provider) when neither the exact date nor any later prior date is stored.
+# Chile's FX market is closed on weekends and holidays, so a rate requested for
+# e.g. a Sunday resolves to the preceding Friday's value within this window.
+MAX_PROVIDER_LOOKBACK_DAYS = 7

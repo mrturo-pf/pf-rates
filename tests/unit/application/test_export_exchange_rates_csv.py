@@ -152,9 +152,11 @@ def _build_use_case(
 
 @pytest.mark.asyncio
 async def test_excludes_clp_and_omits_unresolved_dates() -> None:
-    """CLP is never queried; only resolvable (currency, date) pairs become rows."""
-    # Window: lookback=2, forward=1 around _TODAY -> 06-13, 06-14, 06-15, 06-16.
-    # Only 06-14 has a DB value; the rest miss every resolution step.
+    """CLP is never queried; dates with nothing to resolve from stay omitted."""
+    # Window: lookback=10, forward=1 around _TODAY (2024-06-15) -> 06-05..06-16.
+    # Only 06-14 has a DB value: 06-15/06-16 carry it forward (within the
+    # in-memory nearest-prior probe window), while every date before 06-14
+    # has nothing earlier to carry forward from and stays unresolved.
     db_values = {date(2024, 6, 14): Decimal("980.50")}
     file_export = _StubFileExport()
     use_case = _build_use_case(
@@ -163,9 +165,9 @@ async def test_excludes_clp_and_omits_unresolved_dates() -> None:
 
     with patch(f"{_MODULE}.datetime") as mock_dt:
         mock_dt.now.return_value.date.return_value = _TODAY
-        result = await use_case.execute(lookback_days=2, forward_days=1)
+        result = await use_case.execute(lookback_days=10, forward_days=1)
 
-    assert result.rows_written == 1
+    assert result.rows_written == 3
     assert result.file_id == "drive-file-id"
     assert len(file_export.uploads) == 1
 
@@ -175,7 +177,11 @@ async def test_excludes_clp_and_omits_unresolved_dates() -> None:
 
     rows = _read_csv_rows(content)
     assert rows[0] == ["currency_code", "rate_date", "value_clp"]
-    assert rows[1:] == [["USD", "2024-06-14", "980.50"]]
+    assert rows[1:] == [
+        ["USD", "2024-06-14", "980.50"],
+        ["USD", "2024-06-15", "980.50"],
+        ["USD", "2024-06-16", "980.50"],
+    ]
 
 
 @pytest.mark.asyncio
