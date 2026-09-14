@@ -45,6 +45,23 @@ class ExportJobRepository(Protocol):
         """
         ...
 
+    async def update_progress(
+        self, job_id: int, processed_items: int, total_items: int
+    ) -> None:
+        """Record how far a running job has gotten.
+
+        Called periodically by the export loop itself (see
+        EXPORT_CANCELLATION_CHECK_INTERVAL, whose cadence this reuses --
+        no extra DB round-trips beyond what cancellation polling already
+        costs), plus once up front as soon as the total is known. Does
+        not change `status` -- purely additive detail for a job already
+        'running'. `total_items` is passed on every call rather than set
+        once separately: it never changes mid-run, so re-sending it costs
+        nothing and avoids a second method for what is, from the caller's
+        side, one atomic "here's my progress" update.
+        """
+        ...
+
     async def get(self, job_id: int) -> ExportJobDTO | None:
         """Return the job's current state, or None if it does not exist."""
         ...

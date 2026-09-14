@@ -36,6 +36,12 @@ class _StubExportJobRepository:
         """Record the transition to 'cancelled'."""
         self.calls.append(("mark_cancelled", (job_id,)))
 
+    async def update_progress(
+        self, job_id: int, processed_items: int, total_items: int
+    ) -> None:
+        """Record a progress update."""
+        self.calls.append(("update_progress", (job_id, processed_items, total_items)))
+
     async def is_cancel_requested(self, job_id: int) -> bool:
         """Return the preconfigured cancellation flag."""
         return self._cancel_requested
@@ -53,18 +59,30 @@ class _StubExportExchangeRatesCsv:
         result: ExportExchangeRatesResultDTO | None = None,
         error: Exception | None = None,
         cancel: bool = False,
+        progress_updates: list[tuple[int, int]] | None = None,
     ) -> None:
         self._result = result
         self._error = error
         self._cancel = cancel
+        self._progress_updates = progress_updates or []
 
     async def execute(
         self,
         lookback_days: int,
         forward_days: int,
         cancellation_check: object = None,
+        progress_report: object = None,
     ) -> ExportExchangeRatesResultDTO:
-        """Return the stub result, raise the stub error, or signal cancellation."""
+        """Return the stub result, raise the stub error, or signal cancellation.
+
+        Replays any preconfigured progress_updates through progress_report,
+        mirroring how the real use case calls it mid-execution -- lets
+        RunExportJob tests verify the callback is correctly wired through
+        to the repository without re-testing ExportExchangeRatesCsv itself.
+        """
+        if progress_report is not None:
+            for processed_items, total_items in self._progress_updates:
+                await progress_report(processed_items, total_items)
         if self._cancel:
             raise ExportCancelledSignal
         if self._error is not None:
@@ -183,4 +201,29 @@ async def test_run_export_job_marks_cancelled_when_signal_raised_mid_run() -> No
     assert repository.calls == [
         ("mark_running", (6,)),
         ("mark_cancelled", (6,)),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_export_job_forwards_progress_updates_to_repository() -> None:
+    """Every progress_report(...) call from the export loop reaches the repo.
+
+    RunExportJob's callback must inject job_id -- the use case underneath
+    only knows (processed_items, total_items), not which job it's running.
+    """
+    repository = _StubExportJobRepository()
+    csv_export = _StubExportExchangeRatesCsv(
+        result=ExportExchangeRatesResultDTO(rows_written=10, file_id="drive-p"),
+        progress_updates=[(0, 40), (20, 40), (40, 40)],
+    )
+    use_case = RunExportJob(repository, lambda: csv_export)
+
+    await use_case.execute(job_id=7, lookback_days=10, forward_days=0)
+
+    assert repository.calls == [
+        ("mark_running", (7,)),
+        ("update_progress", (7, 0, 40)),
+        ("update_progress", (7, 20, 40)),
+        ("update_progress", (7, 40, 40)),
+        ("mark_succeeded", (7, 10, "drive-p")),
     ]

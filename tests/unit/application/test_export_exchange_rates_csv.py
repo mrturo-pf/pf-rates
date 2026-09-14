@@ -324,3 +324,73 @@ async def test_cancellation_check_stops_mid_loop_without_uploading() -> None:
 
     assert file_export.uploads == []
     assert calls["count"] >= 2
+
+
+@pytest.mark.asyncio
+async def test_progress_report_receives_total_items_up_front() -> None:
+    """progress_report is called with (0, total) before any date is resolved.
+
+    total_items = non-CLP currencies * dates in the window, known as soon
+    as the currency list and date range are resolved -- before any actual
+    value-lookup work happens.
+    """
+    file_export = _StubFileExport()
+    use_case = _build_use_case(
+        [_currency("CLP"), _currency("USD"), _currency("EUR")], {}, file_export
+    )
+    updates: list[tuple[int, int]] = []
+
+    async def _record_progress(processed_items: int, total_items: int) -> None:
+        updates.append((processed_items, total_items))
+
+    with patch(f"{_MODULE}.datetime") as mock_dt:
+        mock_dt.now.return_value.date.return_value = _TODAY
+        # lookback=4, forward=0 -> 5 dates * 2 non-CLP currencies = 10 items.
+        await use_case.execute(
+            lookback_days=4, forward_days=0, progress_report=_record_progress
+        )
+
+    assert updates[0] == (0, 10)
+
+
+@pytest.mark.asyncio
+async def test_progress_report_advances_and_reaches_full_total() -> None:
+    """progress_report fires at each checkpoint and ends at (total, total)."""
+    file_export = _StubFileExport()
+    use_case = _build_use_case(
+        [_currency("CLP"), _currency("USD"), _currency("EUR")], {}, file_export
+    )
+    updates: list[tuple[int, int]] = []
+
+    async def _record_progress(processed_items: int, total_items: int) -> None:
+        updates.append((processed_items, total_items))
+
+    with (
+        patch(f"{_MODULE}.datetime") as mock_dt,
+        patch(f"{_MODULE}.EXPORT_CANCELLATION_CHECK_INTERVAL", 2),
+    ):
+        mock_dt.now.return_value.date.return_value = _TODAY
+        # lookback=3, forward=0 -> 4 dates * 2 non-CLP currencies = 8 items.
+        await use_case.execute(
+            lookback_days=3, forward_days=0, progress_report=_record_progress
+        )
+
+    assert updates[0] == (0, 8)
+    assert updates[-1] == (8, 8)
+    # Strictly non-decreasing processed_items across every reported update.
+    processed_sequence = [processed for processed, _ in updates]
+    assert processed_sequence == sorted(processed_sequence)
+
+
+@pytest.mark.asyncio
+async def test_progress_report_is_optional() -> None:
+    """execute() works exactly as before when progress_report is omitted."""
+    file_export = _StubFileExport()
+    use_case = _build_use_case([_currency("CLP"), _currency("USD")], {}, file_export)
+
+    with patch(f"{_MODULE}.datetime") as mock_dt:
+        mock_dt.now.return_value.date.return_value = _TODAY
+        result = await use_case.execute(lookback_days=0, forward_days=0)
+
+    assert result.rows_written == 0
+    assert len(file_export.uploads) == 1

@@ -43,6 +43,11 @@ class _StubExportJobRepository:
     async def mark_cancelled(self, job_id: int) -> None:
         """Unused by these route tests -- RunExportJob owns this transition."""
 
+    async def update_progress(
+        self, job_id: int, processed_items: int, total_items: int
+    ) -> None:
+        """Unused by these route tests -- RunExportJob owns progress updates."""
+
     async def get(self, job_id: int) -> ExportJobDTO | None:
         """Return the seeded job, or None if it doesn't exist."""
         return self.jobs.get(job_id)
@@ -83,6 +88,8 @@ class _StubExportJobRepository:
             file_id=job.file_id,
             error_message=job.error_message,
             cancel_requested_at=dt.now(UTC),
+            total_items=job.total_items,
+            processed_items=job.processed_items,
             created_at=job.created_at,
             updated_at=dt.now(UTC),
         )
@@ -108,6 +115,8 @@ def _job(
     status: str,
     created_at: dt | None = None,
     cancel_requested_at: dt | None = None,
+    total_items: int | None = None,
+    processed_items: int = 0,
 ) -> ExportJobDTO:
     """Build a minimal ExportJobDTO for seeding the stub repository."""
     now = created_at or dt.now(UTC)
@@ -120,6 +129,8 @@ def _job(
         file_id="drive-x" if status == "succeeded" else None,
         error_message="boom" if status == "failed" else None,
         cancel_requested_at=cancel_requested_at,
+        total_items=total_items,
+        processed_items=processed_items,
         created_at=now,
         updated_at=now,
     )
@@ -146,6 +157,42 @@ async def test_get_export_job_returns_current_status() -> None:
         assert body["rows_written"] == 500
         assert body["file_id"] == "drive-x"
         assert body["cancel_requested_at"] is None
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_get_export_job_reports_progress_percent_while_running() -> None:
+    """A running job with known totals exposes a derived progress_percent."""
+    job_repository = _StubExportJobRepository()
+    job_repository.seed(_job(1, "running", total_items=200, processed_items=50))
+    _override(job_repository)
+    try:
+        async with AsyncClient(**AUTHED) as client:
+            response = await client.get("/exchange-rates/export/jobs/1")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total_items"] == 200
+        assert body["processed_items"] == 50
+        assert body["progress_percent"] == 25.0
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_get_export_job_progress_percent_is_null_before_total_is_known() -> None:
+    """A pending job (total_items not yet resolved) reports no percentage."""
+    job_repository = _StubExportJobRepository()
+    job_repository.seed(_job(1, "pending"))
+    _override(job_repository)
+    try:
+        async with AsyncClient(**AUTHED) as client:
+            response = await client.get("/exchange-rates/export/jobs/1")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total_items"] is None
+        assert body["processed_items"] == 0
+        assert body["progress_percent"] is None
     finally:
         app.dependency_overrides.clear()
 

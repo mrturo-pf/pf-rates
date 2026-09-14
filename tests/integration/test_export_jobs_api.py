@@ -33,6 +33,20 @@ async def test_repository_mark_cancelled(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
+async def test_repository_update_progress(db_session: AsyncSession) -> None:
+    """update_progress persists processed_items/total_items on the row."""
+    repo = SqlAlchemyExportJobRepository(db_session)
+    job_id = await repo.create(lookback_days=1, forward_days=0)
+
+    await repo.update_progress(job_id, processed_items=5, total_items=20)
+
+    job = await repo.get(job_id)
+    assert job is not None
+    assert job.processed_items == 5
+    assert job.total_items == 20
+
+
+@pytest.mark.asyncio
 async def test_repository_list_jobs_filters_by_status(
     db_session: AsyncSession,
 ) -> None:
@@ -148,6 +162,26 @@ async def test_repository_list_active_ids(db_session: AsyncSession) -> None:
     # actually matters: a succeeded job must never show up as "active".
     assert {pending_id, running_id} <= active_ids
     assert succeeded_id not in active_ids
+
+
+@pytest.mark.asyncio
+async def test_get_export_job_endpoint_reports_progress_percent(
+    http_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """GET /exchange-rates/export/jobs/{id} derives progress_percent from the DB row."""
+    repo = SqlAlchemyExportJobRepository(db_session)
+    job_id = await repo.create(lookback_days=1, forward_days=0)
+    await repo.mark_running(job_id)
+    await repo.update_progress(job_id, processed_items=3, total_items=12)
+    await db_session.commit()
+
+    response = await http_client.get(f"/exchange-rates/export/jobs/{job_id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_items"] == 12
+    assert body["processed_items"] == 3
+    assert body["progress_percent"] == 25.0
 
 
 @pytest.mark.asyncio

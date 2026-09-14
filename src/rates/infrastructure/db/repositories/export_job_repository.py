@@ -57,6 +57,14 @@ class SqlAlchemyExportJobRepository:
         """Transition the job to 'cancelled'."""
         await self._update(job_id, status=EXPORT_JOB_STATUS_CANCELLED)
 
+    async def update_progress(
+        self, job_id: int, processed_items: int, total_items: int
+    ) -> None:
+        """Record how far a running job has gotten."""
+        await self._update(
+            job_id, processed_items=processed_items, total_items=total_items
+        )
+
     async def get(self, job_id: int) -> ExportJobDTO | None:
         """Return the job's current state, or None if it does not exist."""
         job = await self._session.get(ExportJobModel, job_id)
@@ -138,6 +146,8 @@ class SqlAlchemyExportJobRepository:
             file_id=job.file_id,
             error_message=job.error_message,
             cancel_requested_at=job.cancel_requested_at,
+            total_items=job.total_items,
+            processed_items=job.processed_items,
             created_at=job.created_at,
             updated_at=job.updated_at,
         )

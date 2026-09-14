@@ -278,6 +278,14 @@ persisted in Postgres (RAT_EXPORT_JOB), not in process memory, so it
 survives Cloud Run scaling to zero or routing the poll to a different
 instance than the one that ran the job.
 
+While a job is running, `processed_items`/`total_items`/`progress_percent`
+report how far the export loop has gotten. `total_items` is the number of
+(currency, date) pairs the run will visit, resolved once at the start of
+execution; `progress_percent` is derived from the two counts on every
+response rather than stored directly, so it can never drift out of sync
+with them. Both item counts are `null`/`0` before a job starts running and
+hold their final value once a job reaches a terminal status.
+
 **Authentication:** Required
 
 **Response:**
@@ -290,8 +298,31 @@ instance than the one that ran the job.
   "rows_written": 13429,
   "file_id": "1AbCdEfGhIjKlMnOpQrStUvWxYz",
   "error_message": null,
+  "cancel_requested_at": null,
+  "total_items": 24404,
+  "processed_items": 24404,
+  "progress_percent": 100.0,
   "created_at": "2026-09-13T18:00:00Z",
   "updated_at": "2026-09-13T18:04:12Z"
+}
+```
+
+While it is still running, the same shape looks like this instead:
+```json
+{
+  "job_id": 42,
+  "status": "running",
+  "lookback_days": 6100,
+  "forward_days": 30,
+  "rows_written": null,
+  "file_id": null,
+  "error_message": null,
+  "cancel_requested_at": null,
+  "total_items": 24404,
+  "processed_items": 9750,
+  "progress_percent": 40.0,
+  "created_at": "2026-09-13T18:00:00Z",
+  "updated_at": "2026-09-13T18:02:31Z"
 }
 ```
 
@@ -313,7 +344,10 @@ curl -H "X-API-Key: your-key" \
 **GET /exchange-rates/export/jobs**
 
 List export jobs, newest first, optionally filtered by status and/or a
-`created_at` date range. Backed by the same `RAT_EXPORT_JOB` table.
+`created_at` date range. Backed by the same `RAT_EXPORT_JOB` table. Each
+entry has the same shape as the single-job GET above, including
+`processed_items`/`total_items`/`progress_percent` for whichever jobs are
+currently `running`.
 
 **Authentication:** Required
 

@@ -63,6 +63,8 @@ class _StubExportJobRepository:
             file_id=None,
             error_message=None,
             cancel_requested_at=None,
+            total_items=None,
+            processed_items=0,
             created_at=now,
             updated_at=now,
         )

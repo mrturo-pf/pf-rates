@@ -183,6 +183,8 @@ class ExportJobDTO:
     file_id: str | None
     error_message: str | None
     cancel_requested_at: datetime | None
+    total_items: int | None
+    processed_items: int
     created_at: datetime
     updated_at: datetime
 

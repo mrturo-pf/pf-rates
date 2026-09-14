@@ -36,6 +36,14 @@ class RunExportJob:
     EXPORT_CANCELLATION_CHECK_INTERVAL -- and surfaces here as
     `ExportCancelledSignal`, which is treated as a normal, expected
     outcome (not a failure).
+
+    Progress reporting: wires a `progress_report` callback into the same
+    `execute()` call, persisting (processed_items, total_items) on the
+    job row at the same checkpoints as cancellation polling. Purely
+    additive detail on a job already 'running' -- never changes `status`,
+    and a callback that itself fails would be indistinguishable from any
+    other mid-run error (caught by the broad except below like everything
+    else in this method).
     """
 
     def __init__(
@@ -57,10 +65,17 @@ class RunExportJob:
         try:
             export_exchange_rates_csv = self._csv_export_factory()
             job_repository = self._export_job_repository
+
+            async def _report_progress(processed_items: int, total_items: int) -> None:
+                await job_repository.update_progress(
+                    job_id, processed_items, total_items
+                )
+
             result = await export_exchange_rates_csv.execute(
                 lookback_days=lookback_days,
                 forward_days=forward_days,
                 cancellation_check=lambda: job_repository.is_cancel_requested(job_id),
+                progress_report=_report_progress,
             )
         except ExportCancelledSignal:
             logger.info("export_job_cancelled", job_id=job_id)

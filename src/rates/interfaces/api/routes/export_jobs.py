@@ -40,6 +40,9 @@ class ExportJobStatusResponse(BaseModel):
     file_id: str | None
     error_message: str | None
     cancel_requested_at: datetime | None
+    total_items: int | None
+    processed_items: int
+    progress_percent: float | None
     created_at: datetime
     updated_at: datetime
 
@@ -58,6 +61,20 @@ class ExportJobBulkStopResponse(BaseModel):
     jobs: list[ExportJobStopResponse]
 
 
+def _progress_percent(job: ExportJobDTO) -> float | None:
+    """Derive a 0-100 progress percentage from the job's raw item counts.
+
+    Returns None when there is nothing meaningful to report yet -- a
+    'pending' job has no total_items resolved, and a zero-item run (an
+    empty currency list) has nothing to divide by. Rounded to one decimal
+    place: enough precision to see movement on a large window without
+    implying false accuracy.
+    """
+    if job.total_items is None or job.total_items == 0:
+        return None
+    return round(job.processed_items / job.total_items * 100, 1)
+
+
 def _to_status_response(job: ExportJobDTO) -> ExportJobStatusResponse:
     """Map an ExportJobDTO to its API response shape."""
     return ExportJobStatusResponse(
@@ -69,6 +86,9 @@ def _to_status_response(job: ExportJobDTO) -> ExportJobStatusResponse:
         file_id=job.file_id,
         error_message=job.error_message,
         cancel_requested_at=job.cancel_requested_at,
+        total_items=job.total_items,
+        processed_items=job.processed_items,
+        progress_percent=_progress_percent(job),
         created_at=job.created_at,
         updated_at=job.updated_at,
     )

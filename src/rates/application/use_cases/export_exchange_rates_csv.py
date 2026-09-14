@@ -34,6 +34,7 @@ _CSV_HEADER = ("currency_code", "rate_date", "value_clp")
 _BASE_CURRENCY_CODE = "CLP"
 
 CancellationCheck = Callable[[], Awaitable[bool]]
+ProgressReport = Callable[[int, int], Awaitable[None]]
 
 
 class ExportCancelledSignal(Exception):
@@ -111,6 +112,7 @@ class ExportExchangeRatesCsv:
         forward_days: int = DEFAULT_FORWARD_DAYS,
         filename: str | None = None,
         cancellation_check: CancellationCheck | None = None,
+        progress_report: ProgressReport | None = None,
     ) -> ExportExchangeRatesResultDTO:
         """Build the CSV for the configured window and upload it.
 
@@ -123,15 +125,25 @@ class ExportExchangeRatesCsv:
         -- DEFAULT_FILENAME is a stable name that overwrites the last good
         export in place, so uploading a partial file on cancellation would
         silently corrupt it.
+
+        If progress_report is given, it is called with
+        (processed_items, total_items) once up front -- as soon as the
+        total is known, before any resolution work happens -- and again at
+        the same checkpoints as cancellation_check. `total_items` is the
+        number of (currency, date) pairs this run will visit, i.e.
+        `len(currency_codes) * len(rate_dates)`.
         """
         currency_codes = await self._list_exportable_currency_codes()
         rate_dates = self._build_date_range(lookback_days, forward_days)
+        total_items = len(currency_codes) * len(rate_dates)
 
         buffer = io.StringIO(newline="")
         writer = csv.writer(buffer)
         writer.writerow(_CSV_HEADER)
         rows_written = 0
         dates_checked = 0
+
+        await self._report_progress(progress_report, dates_checked, total_items)
 
         for currency_code in currency_codes:
             await self._raise_if_cancelled(cancellation_check)
@@ -142,6 +154,9 @@ class ExportExchangeRatesCsv:
                 dates_checked += 1
                 if dates_checked % EXPORT_CANCELLATION_CHECK_INTERVAL == 0:
                     await self._raise_if_cancelled(cancellation_check)
+                    await self._report_progress(
+                        progress_report, dates_checked, total_items
+                    )
                 value = self._lookup_cached_value(
                     currency_code, rate_date, cached_values
                 )
@@ -157,6 +172,7 @@ class ExportExchangeRatesCsv:
                 rows_written += 1
 
         await self._raise_if_cancelled(cancellation_check)
+        await self._report_progress(progress_report, dates_checked, total_items)
         file_id = await self._file_export.upload(
             filename=filename or self._default_filename(),
             content=buffer.getvalue().encode("utf-8"),
@@ -169,6 +185,16 @@ class ExportExchangeRatesCsv:
         """Raise ExportCancelledSignal if a cancellation has been requested."""
         if cancellation_check is not None and await cancellation_check():
             raise ExportCancelledSignal
+
+    @staticmethod
+    async def _report_progress(
+        progress_report: ProgressReport | None,
+        processed_items: int,
+        total_items: int,
+    ) -> None:
+        """Invoke progress_report(processed_items, total_items) if given."""
+        if progress_report is not None:
+            await progress_report(processed_items, total_items)
 
     async def _bulk_fetch_values(
         self, currency_code: str, start: date, end: date
