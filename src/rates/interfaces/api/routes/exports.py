@@ -91,15 +91,16 @@ async def export_financial_data(
     RAT_ECON_INDEX (`series_type=ECONOMIC_INDEX`) data across the same
     rolling window. Economic indices are monthly in storage but expanded
     to one row per calendar day in the window, repeating that month's
-    value -- the same behavior `POST /exchange-rates/export` already uses
-    for UTM. Does not replace `POST /exchange-rates/export`, which keeps
-    producing its own currency-only CSV unchanged for existing consumers.
+    value -- the same expansion pattern used for UTM within the exchange-
+    rate resolution chain this reuses (see ExportExchangeRatesCsv).
 
-    Same async_execution / job-monitoring contract as
-    `POST /exchange-rates/export` -- see its docstring. Job status,
-    progress, and cooperative-cancellation endpoints
-    (`GET/POST /exports/jobs/...`) are shared across both
-    export kinds; only creation and background dispatch differ.
+    This is the only CSV-export trigger endpoint pf-rates exposes --
+    the original exchange-rates-only `POST /exchange-rates/export` was
+    removed once `pf-sheets` fully migrated to this combined export.
+
+    Job status, progress, and cooperative-cancellation endpoints
+    (`GET/POST /exports/jobs/...`) are shared infrastructure, generic
+    across every export kind.
     """
     if payload.async_execution:
         return await trigger_async_export_job(

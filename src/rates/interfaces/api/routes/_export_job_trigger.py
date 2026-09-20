@@ -1,11 +1,15 @@
 """Shared "create + dispatch an async export job" flow.
 
-Both `exchange_rates.py` (`POST /exchange-rates/export`) and `exports.py`
-(`POST /exports/financial-data`) offer the exact same `async_execution`
-contract: create a job row, schedule the background task, and return a
-202-style response with a `job_id` and `monitor_url`. Only the
-`export_kind` they pass differs. Extracted here so that identical flow
-(and its response model) exists in exactly one place.
+Used by `exports.py` (`POST /exports/financial-data`) to offer the
+`async_execution` contract: create a job row, schedule the background
+task, and return a 202-style response with a `job_id` and `monitor_url`.
+
+Extracted into its own module (rather than living inline in exports.py)
+because it previously had a second caller -- the now-removed
+`POST /exchange-rates/export` -- and job-trigger logic is exactly the
+kind of thing that tends to grow a second consumer again as new export
+kinds get added; keeping it isolated and independently testable costs
+nothing today and avoids re-extracting it later.
 """
 
 from collections.abc import Callable

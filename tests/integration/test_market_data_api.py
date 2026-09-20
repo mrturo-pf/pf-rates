@@ -895,6 +895,11 @@ async def test_export_async_trigger_fails_fast_when_drive_not_configured(
 ) -> None:
     """The async trigger fails fast (503) instead of creating a doomed job.
 
+    Exercised against POST /exports/financial-data -- the sibling
+    POST /exchange-rates/export endpoint was removed once pf-sheets fully
+    migrated to the combined export, but the fail-fast behavior itself is
+    shared route logic worth covering at the integration level.
+
     Google Drive configuration is validated while FastAPI resolves the
     route's Depends() parameters, before the handler body even looks at
     payload.async_execution. There is no point creating a job row that is
@@ -919,7 +924,7 @@ async def test_export_async_trigger_fails_fast_when_drive_not_configured(
 
     payload: dict[str, object] = {"lookback_days": 10, "forward_days": 5}
     payload["async"] = True
-    trigger = await http_client.post("/exchange-rates/export", json=payload)
+    trigger = await http_client.post("/exports/financial-data", json=payload)
     assert trigger.status_code == 503
     assert "job_id" not in trigger.json()
 

@@ -8,8 +8,11 @@ Lives under `/exports/jobs` (not nested under `/exchange-rates`) because
 it is shared infrastructure across every export kind -- these routes read
 `RAT_EXPORT_JOB` by id/status alone, agnostic to whether the job is an
 `exchange_rates` or `combined` export (see `export_kind` on the response).
-Both `POST /exchange-rates/export` and `POST /exports/financial-data`
-point their async `monitor_url` here.
+`POST /exports/financial-data` points its async `monitor_url` here.
+Historical jobs with `export_kind="exchange_rates"` (from the now-removed
+`POST /exchange-rates/export` trigger) still show up correctly here too --
+only job *creation* for that kind was removed, not the ability to read
+back jobs that already exist.
 """
 
 from datetime import datetime

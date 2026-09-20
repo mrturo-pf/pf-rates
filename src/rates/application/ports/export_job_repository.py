@@ -10,7 +10,7 @@ from rates.shared.constants import EXPORT_KIND_EXCHANGE_RATES
 class ExportJobRepository(Protocol):
     """Persistence port for RAT_EXPORT_JOB rows.
 
-    Backs the `POST /exchange-rates/export {"async": true}` flow, plus the
+    Backs the `POST /exports/financial-data {"async": true}` flow, plus the
     cooperative-cancellation flow (`POST .../jobs/{id}/stop` and the bulk
     `POST .../jobs/stop`) and the `GET .../jobs` listing endpoint. State
     lives in the DB (not in-process memory) because Cloud Run can run

@@ -198,22 +198,40 @@ curl -X POST -H "X-API-Key: your-key" \
   http://localhost:8001/exchange-rates/refresh
 ```
 
-#### Export exchange rates to Google Drive
+#### Export combined exchange-rate + economic-index data to Google Drive
 
-**POST /exchange-rates/export**
+**POST /exports/financial-data**
 
-Build a CSV of resolved exchange-rate values across a rolling date window
-and upload it to a pre-configured Google Drive folder. Every non-CLP
-currency/index (`USD`, `EUR`, `UF`, `UTM`) is resolved for every day in the
-window using the same fallback chain as `GET /exchange-rates/value`. Dates
-that cannot be resolved (mostly future dates for `USD`/`EUR`) are simply
-omitted from the CSV.
+Build a single CSV covering both exchange rates (RAT_EXCH_RATE) and
+economic indices (RAT_ECON_INDEX) and upload it to a pre-configured
+Google Drive folder. This is the only CSV-export trigger endpoint
+pf-rates exposes -- the original exchange-rates-only
+`POST /exchange-rates/export` was removed once `pf-sheets` fully
+migrated to this combined export.
 
 Requires `PF_RATES_GDRIVE_OAUTH_TOKEN_JSON(_PATH)` and
 `PF_RATES_GDRIVE_EXPORT_FOLDER_ID` to be configured (see `.env.example`
 for local dev, [`deployment.md`](deployment.md) for production secrets).
 
 **Authentication:** Required
+
+CSV shape (uniform across both series types):
+```
+series_type,code,period_date,value
+EXCHANGE_RATE,USD,2024-06-14,950.12
+ECONOMIC_INDEX,IPC_CL,2024-06-14,125.50
+```
+
+`series_type` is `EXCHANGE_RATE` or `ECONOMIC_INDEX`. Exchange-rate rows
+are resolved for every non-CLP currency/index (`USD`, `EUR`, `UF`, `UTM`)
+across the requested rolling window, using the same fallback chain as
+`GET /exchange-rates/value`; dates that cannot be resolved (mostly future
+dates for `USD`/`EUR`) are simply omitted from the CSV. Economic-index
+rows are expanded from RAT_ECON_INDEX's monthly storage to one row per
+calendar day in the window -- the same pattern used for `UTM` --
+repeating that month's value for every day in it. A month with nothing
+stored simply has its days omitted from the CSV, same "omit what can't
+be resolved" behavior exchange rates already use.
 
 **Request Body** (all fields optional):
 ```json
@@ -227,7 +245,9 @@ for local dev, [`deployment.md`](deployment.md) for production secrets).
 Set the async field to true to trigger the export in the background
 instead of waiting for it (see below) -- recommended for large windows
 (e.g. a multi-year historical backfill), where a synchronous call risks
-the request timing out before the CSV finishes uploading.
+the request timing out before the CSV finishes uploading. Async jobs
+from this endpoint are monitored through the `GET/POST /exports/jobs/...`
+endpoints, tagged with `export_kind: "combined"`.
 
 **Response (synchronous, default):**
 ```json
@@ -257,7 +277,7 @@ the request timing out before the CSV finishes uploading.
 curl -X POST -H "X-API-Key: your-key" \
   -H "Content-Type: application/json" \
   -d '{}' \
-  http://localhost:8001/exchange-rates/export
+  http://localhost:8001/exports/financial-data
 ```
 
 **Example (async, large historical backfill):**
@@ -265,48 +285,6 @@ curl -X POST -H "X-API-Key: your-key" \
 curl -X POST -H "X-API-Key: your-key" \
   -H "Content-Type: application/json" \
   -d '{"lookback_days": 6100, "forward_days": 30, "async": true}' \
-  http://localhost:8001/exchange-rates/export
-```
-
-#### Export combined exchange-rate + economic-index data to Google Drive
-
-**POST /exports/financial-data**
-
-Build a single CSV covering both exchange rates (RAT_EXCH_RATE) and
-economic indices (RAT_ECON_INDEX) and upload it to the same Google Drive
-folder as `POST /exchange-rates/export`. Does not replace that endpoint --
-both exist side by side, producing different files, for different
-consumers (`pf-sheets`' combined tab vs. its original exchange-rates-only
-tab).
-
-CSV shape (uniform across both series types):
-```
-series_type,code,period_date,value
-EXCHANGE_RATE,USD,2024-06-14,950.12
-ECONOMIC_INDEX,IPC_CL,2024-06-14,125.50
-```
-
-`series_type` is `EXCHANGE_RATE` or `ECONOMIC_INDEX`. Exchange-rate rows
-use the exact same resolution chain and rolling window as
-`POST /exchange-rates/export` (see above). Economic-index rows are
-expanded from RAT_ECON_INDEX's monthly storage to one row per calendar day
-in the window -- the same behavior `POST /exchange-rates/export` already
-uses for `UTM` -- repeating that month's value for every day in it. A
-month with nothing stored simply has its days omitted from the CSV, same
-"omit what can't be resolved" behavior exchange rates already use.
-
-Same configuration requirements, request body shape
-(`lookback_days`/`forward_days`/`async`), synchronous/async response
-shapes, and `503` error as `POST /exchange-rates/export` -- see that
-section above for details. Async jobs from this endpoint are monitored
-through the exact same `GET/POST /exports/jobs/...`
-endpoints, tagged with `export_kind: "combined"`.
-
-**Example (synchronous):**
-```bash
-curl -X POST -H "X-API-Key: your-key" \
-  -H "Content-Type: application/json" \
-  -d '{}' \
   http://localhost:8001/exports/financial-data
 ```
 
@@ -319,10 +297,12 @@ Status is one of pending, running, succeeded, failed, cancelled. Job state is
 persisted in Postgres (RAT_EXPORT_JOB), not in process memory, so it
 survives Cloud Run scaling to zero or routing the poll to a different
 instance than the one that ran the job. `export_kind` distinguishes which
-kind of export the job is: `exchange_rates` (triggered by
-`POST /exchange-rates/export`) or `combined` (triggered by
-`POST /exports/financial-data`) -- job status/progress/cancellation are
-shared infrastructure across both kinds.
+kind of export the job is: `combined` (triggered by
+`POST /exports/financial-data`, the only export-trigger endpoint pf-rates
+exposes today) or `exchange_rates` (historical jobs created before the
+now-removed `POST /exchange-rates/export` trigger was retired -- still
+readable here, just no longer creatable) -- job status/progress/
+cancellation are shared infrastructure across both kinds.
 
 While a job is running, `processed_items`/`total_items`/`progress_percent`
 report how far the export loop has gotten. `total_items` is the number of

@@ -1,11 +1,13 @@
 """Shared test doubles for the export-job routes.
 
-`POST /exchange-rates/export` and `POST /exports/financial-data` share
-the exact same async-job contract (create, poll, cancel), so their route
-tests need the exact same fakes for `ExportJobRepository`, the background
-runner, and "a use case that records calls and returns/raises a
-preconfigured result" -- centralized here instead of copy-pasted per
-route test module, which is what triggered jscpd's duplicate-code gate.
+`POST /exports/financial-data` and the generic `/exports/jobs/...`
+status/list/stop routes share the same `ExportJobRepository`/background-
+runner/`CsvExportUseCase` shapes -- centralized here instead of
+copy-pasted per route test module, which is what triggered jscpd's
+duplicate-code gate. (The sibling `POST /exchange-rates/export` endpoint
+that originally motivated this extraction was removed once `pf-sheets`
+fully migrated to the combined export; the shared fakes stayed useful on
+their own merits.)
 """
 
 from datetime import UTC, datetime as dt

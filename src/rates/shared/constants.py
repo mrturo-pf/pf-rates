@@ -3,7 +3,7 @@
 DEFAULT_CURRENCY = "CLP"
 
 # Single source of truth for the largest lookback window any endpoint will
-# accept (/sync and /exchange-rates/export). 20 years comfortably covers
+# accept (/sync and /exports/financial-data). 20 years comfortably covers
 # deliberate historical backfills (e.g. a one-off multi-year export) while
 # still rejecting obvious fat-finger values (millions of days).
 MAX_LOOKBACK_DAYS = 7300
@@ -48,10 +48,14 @@ EXPORT_JOB_ACTIVE_STATUSES = (EXPORT_JOB_STATUS_PENDING, EXPORT_JOB_STATUS_RUNNI
 
 # RAT_EXPORT_JOB.export_kind values (pf-db migration 0007). Distinguishes
 # which CSV-export use case a job's background runner must build --
-# "exchange_rates" for ExportExchangeRatesCsv (POST /exchange-rates/export),
-# "combined" for ExportCombinedFinancialDataCsv (POST /exports/financial-data).
-# Job status/progress/cancellation endpoints are shared across both kinds;
-# only job creation and background dispatch need to know which is which.
+# "exchange_rates" identifies historical jobs created by the now-removed
+# POST /exchange-rates/export trigger (kept so GET /exports/jobs can still
+# read back rows created before that route was removed; ExportExchangeRatesCsv
+# itself lives on as an internal building block of ExportCombinedFinancialDataCsv),
+# "combined" for ExportCombinedFinancialDataCsv (POST /exports/financial-data,
+# the only export-trigger endpoint left). Job status/progress/cancellation
+# endpoints are shared across both kinds; only job creation and background
+# dispatch need to know which is which.
 EXPORT_KIND_EXCHANGE_RATES = "exchange_rates"
 EXPORT_KIND_COMBINED = "combined"
 EXPORT_KINDS = (EXPORT_KIND_EXCHANGE_RATES, EXPORT_KIND_COMBINED)
