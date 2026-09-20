@@ -1,15 +1,21 @@
 """Google Drive adapter for the FileExportPort.
 
-Authenticates as the Drive account's actual human owner via OAuth (not a
-service account) using a long-lived refresh token obtained once through
-`scripts/gdrive_oauth_setup.py`.
+Authenticates via Application Default Credentials (ADC): Cloud Run's
+attached service account (`pf-rates@<PROJECT>.iam.gserviceaccount.com`) in
+production, or whatever `gcloud auth application-default login` configured
+locally. No token is stored, refreshed, or managed by this service at all
+-- ADC resolution is entirely `google-auth`'s job.
 
-This deliberately does NOT use a service account: Google service accounts
-have no storage quota of their own in a personal (non-Workspace) Drive, so
-they cannot create files, only update pre-existing ones. Authenticating as
-the real account owner uses that account's own quota, so this adapter can
-freely create the destination file on first run and self-heal if someone
-deletes it later -- no manual "seed file" step required.
+Trade-off accepted deliberately -- full write-up in
+docs/google-drive-credentials-setup.md: a Google service account has no
+storage quota of its own in a personal (non-Workspace) Drive, so it cannot
+`create()` a brand-new file, only `update()` a pre-existing one that has
+been shared with it as Editor. This adapter already prefers `update()`
+whenever a file with the target name exists (see `_find_existing_file_id`),
+which is every normal run once the destination file exists once. Creating
+that file the very first time (or recreating it if someone deletes it) is a
+rare, manual, one-off step using a real Google account's OAuth credentials
+-- see `scripts/gdrive_oauth_setup.py`.
 
 The `googleapiclient`/`google-auth` libraries are synchronous; every call
 is wrapped in `asyncio.to_thread` to avoid blocking the event loop, matching
@@ -20,10 +26,9 @@ from __future__ import annotations
 
 import asyncio
 import io
-import json
 
 import structlog
-from google.oauth2.credentials import Credentials
+from google.auth import default as google_auth_default
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseUpload
@@ -33,7 +38,7 @@ from rates.application.errors import FinancialDataDependencyError
 # Full Drive access, not the narrower "drive.file" scope: this adapter must
 # be able to find a pre-existing file across the whole configured folder
 # (in case it was created by hand or by a prior, differently-scoped run),
-# not just files this exact OAuth client already touched.
+# not just files this exact identity already touched.
 _DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
 _DRIVE_API_NAME = "drive"
 _DRIVE_API_VERSION = "v3"
@@ -46,17 +51,15 @@ class GoogleDriveFileExport:
 
     A file with the same *filename* is updated in place on repeated
     exports rather than duplicated, so the folder always converges on one
-    current CSV per distinct filename. Because this authenticates as the
-    real account owner (see module docstring), the very first run may
-    legitimately *create* the file -- there is no dependency on a
-    manually pre-created placeholder.
+    current CSV per distinct filename. `update()` needs no storage quota
+    of its own, so this works fine under a bare service account identity
+    even though `create()` (first-run only) would not -- see the module
+    docstring for the accepted trade-off and the manual recovery path.
     """
 
-    def __init__(self, oauth_token_json: str, folder_id: str) -> None:
-        """Build the Drive client from a saved OAuth authorized-user JSON."""
-        credentials = Credentials.from_authorized_user_info(
-            json.loads(oauth_token_json), scopes=_DRIVE_SCOPES
-        )
+    def __init__(self, folder_id: str) -> None:
+        """Build the Drive client using Application Default Credentials."""
+        credentials, _project_id = google_auth_default(scopes=_DRIVE_SCOPES)
         self._service = build(
             _DRIVE_API_NAME, _DRIVE_API_VERSION, credentials=credentials
         )

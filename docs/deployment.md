@@ -145,7 +145,7 @@ Configure the following secrets in the repository (Settings to Secrets and varia
 
 > **BCCH credentials** (`FINANCIAL_DATA_BCCH_API_USER` / `FINANCIAL_DATA_BCCH_API_PASSWORD`) are listed in the workflow header for reference. They are not currently injected into Cloud Run automatically - add `--set-secrets` entries in the deploy step if your environment requires them.
 
-> **Google Drive export** (`PF_RATES_GDRIVE_OAUTH_TOKEN_JSON` / `PF_RATES_GDRIVE_EXPORT_FOLDER_ID`) power `POST /exports/financial-data` (see [`api.md`](api.md)). Both are wired into this deploy pipeline as Secret Manager entries, injected via `--set-secrets` conditionally on `repo_name == pf-rates` inside `pf-common`'s `deploy-reusable.yml`. This is an OAuth authorized-user token (produced once via `scripts/gdrive_oauth_setup.py`), not a service account key. GitHub Actions never needs to see the raw token value.
+> **Google Drive export** (`PF_RATES_GDRIVE_EXPORT_FOLDER_ID`) powers `POST /exports/financial-data` (see [`api.md`](api.md)). It's the only Drive-related secret left -- authentication uses Cloud Run's attached service account (`pf-rates@<PROJECT>.iam.gserviceaccount.com`, already listed below) via Application Default Credentials, not a stored OAuth token. See [`google-drive-credentials-setup.md`](google-drive-credentials-setup.md) for the full setup, including the accepted trade-off (that service account can update an existing Drive file but not create a brand-new one).
 
 ### Database options
 

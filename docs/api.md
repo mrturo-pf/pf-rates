@@ -209,9 +209,11 @@ pf-rates exposes -- the original exchange-rates-only
 `POST /exchange-rates/export` was removed once `pf-sheets` fully
 migrated to this combined export.
 
-Requires `PF_RATES_GDRIVE_OAUTH_TOKEN_JSON(_PATH)` and
-`PF_RATES_GDRIVE_EXPORT_FOLDER_ID` to be configured (see `.env.example`
-for local dev, [`deployment.md`](deployment.md) for production secrets).
+Requires `PF_RATES_GDRIVE_EXPORT_FOLDER_ID` to be configured, and that
+folder shared as Editor with the service's identity (see `.env.example`
+for local dev, [`deployment.md`](deployment.md) for production, and
+[`google-drive-credentials-setup.md`](google-drive-credentials-setup.md)
+for the full setup and its accepted trade-off).
 
 **Authentication:** Required
 

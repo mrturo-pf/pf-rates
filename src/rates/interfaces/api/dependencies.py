@@ -2,10 +2,10 @@
 
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
-from pathlib import Path
 from typing import Protocol
 
 from fastapi import Depends
+from google.auth.exceptions import DefaultCredentialsError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rates.application.errors import FinancialDataDependencyConfigurationError
@@ -187,37 +187,32 @@ def get_sync_use_case(
     return build_sync_use_case(session)
 
 
-def _resolve_gdrive_oauth_token_json() -> str | None:
-    """Return the OAuth token JSON content from either configured source.
-
-    Prefers the file-path setting (local development, see
-    ../../../../secrets/pf-rates/ at the repo root) when both are set;
-    otherwise falls back to the raw-content setting (production, injected
-    by Secret Manager).
-    """
-    if settings.gdrive_oauth_token_json_path:
-        return Path(settings.gdrive_oauth_token_json_path).read_text()
-    return settings.gdrive_oauth_token_json
-
-
 def get_file_export_port() -> FileExportPort:
     """Build the Google Drive file-export adapter.
 
     Raises FinancialDataDependencyConfigurationError (-> HTTP 503) when the
-    OAuth token or destination folder are not configured yet, instead of
-    failing app startup -- the rest of the service must keep working even
-    before Drive export is wired up.
+    destination folder is not configured, or when Application Default
+    Credentials (ADC) can't be resolved -- instead of failing app startup,
+    since the rest of the service must keep working even before Drive
+    export is wired up. Both preconditions map to the same 503 so callers
+    see one consistent "not configured" failure mode either way.
     """
-    oauth_token_json = _resolve_gdrive_oauth_token_json()
-    if not oauth_token_json or not settings.gdrive_export_folder_id:
+    if not settings.gdrive_export_folder_id:
         raise FinancialDataDependencyConfigurationError(
             "Google Drive export is not configured: set "
-            "PF_RATES_GDRIVE_OAUTH_TOKEN_JSON_PATH (local) or "
-            "PF_RATES_GDRIVE_OAUTH_TOKEN_JSON (production), plus "
-            "PF_RATES_GDRIVE_EXPORT_FOLDER_ID. Run scripts/gdrive_oauth_setup.py "
-            "once to produce the token file."
+            "PF_RATES_GDRIVE_EXPORT_FOLDER_ID and share that folder with "
+            "the service's identity (Editor). See "
+            "docs/google-drive-credentials-setup.md."
         )
-    return GoogleDriveFileExport(oauth_token_json, settings.gdrive_export_folder_id)
+    try:
+        return GoogleDriveFileExport(settings.gdrive_export_folder_id)
+    except DefaultCredentialsError as exc:
+        raise FinancialDataDependencyConfigurationError(
+            "Google Drive export is not configured: no Application Default "
+            "Credentials available. Locally, run `gcloud auth "
+            "application-default login`; in production Cloud Run provides "
+            "this automatically via its attached service account."
+        ) from exc
 
 
 def get_export_job_repository(

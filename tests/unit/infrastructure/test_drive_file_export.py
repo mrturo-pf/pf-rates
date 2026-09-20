@@ -1,6 +1,5 @@
 """Tests for the GoogleDriveFileExport adapter."""
 
-import json
 from unittest.mock import Mock, patch
 
 import pytest
@@ -10,22 +9,22 @@ from rates.application.errors import FinancialDataDependencyError
 from rates.infrastructure.gdrive.drive_file_export import GoogleDriveFileExport
 
 _MODULE = "rates.infrastructure.gdrive.drive_file_export"
-_FAKE_OAUTH_TOKEN_JSON = json.dumps({"refresh_token": "fake-refresh-token"})
 _FOLDER_ID = "folder-123"
 
 
 def _build_export(mock_service: Mock) -> GoogleDriveFileExport:
-    """Build a GoogleDriveFileExport with build()/credentials mocked out."""
+    """Build a GoogleDriveFileExport with ADC/build() mocked out."""
     with (
-        patch(f"{_MODULE}.Credentials") as mock_credentials_cls,
+        patch(f"{_MODULE}.google_auth_default") as mock_default,
         patch(f"{_MODULE}.build", return_value=mock_service) as mock_build,
     ):
-        instance = GoogleDriveFileExport(_FAKE_OAUTH_TOKEN_JSON, _FOLDER_ID)
-    mock_credentials_cls.from_authorized_user_info.assert_called_once()
+        mock_default.return_value = (Mock(), "fake-project")
+        instance = GoogleDriveFileExport(_FOLDER_ID)
+    mock_default.assert_called_once_with(
+        scopes=["https://www.googleapis.com/auth/drive"]
+    )
     mock_build.assert_called_once_with(
-        "drive",
-        "v3",
-        credentials=mock_credentials_cls.from_authorized_user_info.return_value,
+        "drive", "v3", credentials=mock_default.return_value[0]
     )
     return instance
 
