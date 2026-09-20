@@ -15,6 +15,7 @@ from rates.application.use_cases.export_combined_financial_data_csv import (
     SERIES_TYPE_EXCHANGE_RATE,
 )
 from tests.unit.application._export_csv_test_doubles import (
+    StubFileExport as _StubFileExport,
     StubMarketDataRepositoryBase,
     build_currency as _currency,
     build_exchange_rates_csv_use_case,
@@ -75,19 +76,6 @@ class _StubMarketDataRepository(StubMarketDataRepositoryBase):
     async def list_economic_indices(self, code: str) -> list[EconomicIndexDTO]:
         """Return the preconfigured entries matching *code*."""
         return [entry for entry in self._economic_indices if entry.code == code]
-
-
-class _StubFileExport:
-    """FileExportPort test double that records the last upload call."""
-
-    def __init__(self, file_id: str = "drive-file-id") -> None:
-        self._file_id = file_id
-        self.uploads: list[tuple[str, bytes, str]] = []
-
-    async def upload(self, filename: str, content: bytes, mime_type: str) -> str:
-        """Record the call and return the preconfigured file id."""
-        self.uploads.append((filename, content, mime_type))
-        return self._file_id
 
 
 def _build_use_case(

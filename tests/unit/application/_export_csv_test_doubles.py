@@ -49,6 +49,19 @@ class StubFxRateProvider:
         return None
 
 
+class StubFileExport:
+    """FileExportPort test double that records the last upload call."""
+
+    def __init__(self, file_id: str = "drive-file-id") -> None:
+        self._file_id = file_id
+        self.uploads: list[tuple[str, bytes, str]] = []
+
+    async def upload(self, filename: str, content: bytes, mime_type: str) -> str:
+        """Record the call and return the preconfigured file id."""
+        self.uploads.append((filename, content, mime_type))
+        return self._file_id
+
+
 class StubMarketDataRepositoryBase:
     """DB-value-only MarketDataRepository test double.
 

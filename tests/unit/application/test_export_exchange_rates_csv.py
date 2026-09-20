@@ -15,6 +15,7 @@ from rates.application.use_cases.get_exchange_rate_value import (
     GetExchangeRateValue,
 )
 from tests.unit.application._export_csv_test_doubles import (
+    StubFileExport as _StubFileExport,
     StubMarketDataRepositoryBase as _StubMarketDataRepository,
     StubReferenceDataRepository as _StubReferenceDataRepository,
     build_currency as _currency,
@@ -49,19 +50,6 @@ class _StubFxRateProviderWithEntry:
                 source="provider",
             )
         return None
-
-
-class _StubFileExport:
-    """FileExportPort test double that records the last upload call."""
-
-    def __init__(self, file_id: str = "drive-file-id") -> None:
-        self._file_id = file_id
-        self.uploads: list[tuple[str, bytes, str]] = []
-
-    async def upload(self, filename: str, content: bytes, mime_type: str) -> str:
-        """Record the call and return the preconfigured file id."""
-        self.uploads.append((filename, content, mime_type))
-        return self._file_id
 
 
 def _build_use_case(
