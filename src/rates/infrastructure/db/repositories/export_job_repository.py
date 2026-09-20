@@ -16,15 +16,25 @@ from rates.shared.constants import (
     EXPORT_JOB_STATUS_FAILED,
     EXPORT_JOB_STATUS_RUNNING,
     EXPORT_JOB_STATUS_SUCCEEDED,
+    EXPORT_KIND_EXCHANGE_RATES,
 )
 
 
 class SqlAlchemyExportJobRepository(SessionBoundRepositoryMixin):
     """SQLAlchemy-backed implementation of ExportJobRepository."""
 
-    async def create(self, lookback_days: int, forward_days: int) -> int:
+    async def create(
+        self,
+        lookback_days: int,
+        forward_days: int,
+        export_kind: str = EXPORT_KIND_EXCHANGE_RATES,
+    ) -> int:
         """Insert a new job row in 'pending' status and return its id."""
-        job = ExportJobModel(lookback_days=lookback_days, forward_days=forward_days)
+        job = ExportJobModel(
+            lookback_days=lookback_days,
+            forward_days=forward_days,
+            export_kind=export_kind,
+        )
         self._session.add(job)
         await self._session.commit()
         await self._session.refresh(job)
@@ -140,6 +150,7 @@ class SqlAlchemyExportJobRepository(SessionBoundRepositoryMixin):
             status=job.status,
             lookback_days=job.lookback_days,
             forward_days=job.forward_days,
+            export_kind=job.export_kind,
             rows_written=job.rows_written,
             file_id=job.file_id,
             error_message=job.error_message,

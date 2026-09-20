@@ -268,6 +268,48 @@ curl -X POST -H "X-API-Key: your-key" \
   http://localhost:8001/exchange-rates/export
 ```
 
+#### Export combined exchange-rate + economic-index data to Google Drive
+
+**POST /exports/financial-data**
+
+Build a single CSV covering both exchange rates (RAT_EXCH_RATE) and
+economic indices (RAT_ECON_INDEX) and upload it to the same Google Drive
+folder as `POST /exchange-rates/export`. Does not replace that endpoint --
+both exist side by side, producing different files, for different
+consumers (`pf-sheets`' combined tab vs. its original exchange-rates-only
+tab).
+
+CSV shape (uniform across both series types):
+```
+series_type,code,period_date,value
+EXCHANGE_RATE,USD,2024-06-14,950.12
+ECONOMIC_INDEX,IPC_CL,2024-06-14,125.50
+```
+
+`series_type` is `EXCHANGE_RATE` or `ECONOMIC_INDEX`. Exchange-rate rows
+use the exact same resolution chain and rolling window as
+`POST /exchange-rates/export` (see above). Economic-index rows are
+expanded from RAT_ECON_INDEX's monthly storage to one row per calendar day
+in the window -- the same behavior `POST /exchange-rates/export` already
+uses for `UTM` -- repeating that month's value for every day in it. A
+month with nothing stored simply has its days omitted from the CSV, same
+"omit what can't be resolved" behavior exchange rates already use.
+
+Same configuration requirements, request body shape
+(`lookback_days`/`forward_days`/`async`), synchronous/async response
+shapes, and `503` error as `POST /exchange-rates/export` -- see that
+section above for details. Async jobs from this endpoint are monitored
+through the exact same `GET/POST /exchange-rates/export/jobs/...`
+endpoints, tagged with `export_kind: "combined"`.
+
+**Example (synchronous):**
+```bash
+curl -X POST -H "X-API-Key: your-key" \
+  -H "Content-Type: application/json" \
+  -d '{}' \
+  http://localhost:8001/exports/financial-data
+```
+
 #### Check an async export job status
 
 **GET /exchange-rates/export/jobs/{job_id}**
@@ -276,7 +318,11 @@ Return the current state of a previously-triggered async export job.
 Status is one of pending, running, succeeded, failed, cancelled. Job state is
 persisted in Postgres (RAT_EXPORT_JOB), not in process memory, so it
 survives Cloud Run scaling to zero or routing the poll to a different
-instance than the one that ran the job.
+instance than the one that ran the job. `export_kind` distinguishes which
+kind of export the job is: `exchange_rates` (triggered by
+`POST /exchange-rates/export`) or `combined` (triggered by
+`POST /exports/financial-data`) -- job status/progress/cancellation are
+shared infrastructure across both kinds.
 
 While a job is running, `processed_items`/`total_items`/`progress_percent`
 report how far the export loop has gotten. `total_items` is the number of

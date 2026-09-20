@@ -38,7 +38,11 @@ from rates.interfaces.api.routes._refresh_deps import (
     to_http_exception,
     RefreshRatesResponse,
 )
-from rates.shared.constants import EXPORT_JOB_STATUS_PENDING, MAX_LOOKBACK_DAYS
+from rates.shared.constants import (
+    EXPORT_JOB_STATUS_PENDING,
+    EXPORT_KIND_EXCHANGE_RATES,
+    MAX_LOOKBACK_DAYS,
+)
 
 router = APIRouter(prefix="/exchange-rates", tags=["exchange-rates"])
 
@@ -204,7 +208,7 @@ async def export_exchange_rates(
     payload: ExportExchangeRatesRequest = ExportExchangeRatesRequest(),
     use_case: ExportExchangeRatesCsv = Depends(get_export_exchange_rates_csv_use_case),
     export_job_repository: ExportJobRepository = Depends(get_export_job_repository),
-    run_job_in_background: Callable[[int, int, int], object] = Depends(
+    run_job_in_background: Callable[[int, int, int, str], object] = Depends(
         get_export_job_background_runner
     ),
 ) -> ExportExchangeRatesResponse | ExportJobTriggeredResponse:
@@ -230,13 +234,14 @@ async def export_exchange_rates(
     """
     if payload.async_execution:
         job_id = await export_job_repository.create(
-            payload.lookback_days, payload.forward_days
+            payload.lookback_days, payload.forward_days, EXPORT_KIND_EXCHANGE_RATES
         )
         background_tasks.add_task(
             run_job_in_background,
             job_id,
             payload.lookback_days,
             payload.forward_days,
+            EXPORT_KIND_EXCHANGE_RATES,
         )
         response.status_code = 202
         return ExportJobTriggeredResponse(

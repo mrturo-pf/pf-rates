@@ -2,7 +2,6 @@
 
 import csv
 import io
-from collections.abc import Awaitable, Callable
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -16,6 +15,13 @@ from rates.application.ports.reference_data_repository import (
 )
 from rates.application.use_cases.get_exchange_rate_value import (
     GetExchangeRateValue,
+)
+from rates.application.use_cases._export_csv_shared import (
+    CancellationCheck,
+    ExportCancelledSignal,
+    ProgressReport,
+    SessionRefresh,
+    build_export_date_range,
 )
 from rates.domain.normalization import normalize_exchange_rate_lookup_date
 from rates.shared.constants import (
@@ -32,20 +38,6 @@ DEFAULT_FILENAME = "exchange-rates.csv"
 
 _CSV_HEADER = ("currency_code", "rate_date", "value_clp")
 _BASE_CURRENCY_CODE = "CLP"
-
-CancellationCheck = Callable[[], Awaitable[bool]]
-ProgressReport = Callable[[int, int], Awaitable[None]]
-SessionRefresh = Callable[[], Awaitable[None]]
-
-
-class ExportCancelledSignal(Exception):
-    """Internal control-flow signal: the export was stopped cooperatively.
-
-    Deliberately does not subclass FinancialDataError -- it must never be
-    translated into an HTTP response. It is raised and caught entirely
-    within the background-job boundary (this use case and RunExportJob),
-    never escaping to a request/response cycle.
-    """
 
 
 class ExportExchangeRatesCsv:
@@ -155,9 +147,9 @@ class ExportExchangeRatesCsv:
         many minutes, long enough that a DB connection held open the
         whole time can go stale server-side (see RunExportJob).
         """
-        currency_codes = await self._list_exportable_currency_codes()
+        currency_codes = await self.list_exportable_currency_codes()
         today = datetime.now(tz=_CHILE_TZ).date()
-        rate_dates = self._build_date_range(today, lookback_days, forward_days)
+        rate_dates = build_export_date_range(today, lookback_days, forward_days)
         total_items = len(currency_codes) * len(rate_dates)
 
         buffer = io.StringIO(newline="")
@@ -170,7 +162,7 @@ class ExportExchangeRatesCsv:
 
         for currency_code in currency_codes:
             await self._raise_if_cancelled(cancellation_check)
-            cached_values = await self._bulk_fetch_values(
+            cached_values = await self.bulk_fetch_currency_values(
                 currency_code, rate_dates[0], rate_dates[-1]
             )
             for rate_date in rate_dates:
@@ -182,15 +174,9 @@ class ExportExchangeRatesCsv:
                     )
                     if session_refresh is not None:
                         await session_refresh()
-                value = self._lookup_cached_value(
-                    currency_code, rate_date, cached_values
+                value = await self.resolve_value_for_date(
+                    currency_code, rate_date, cached_values, today
                 )
-                if value is None and rate_date <= today:
-                    value = self._lookup_nearest_prior_cached_value(
-                        currency_code, rate_date, cached_values
-                    )
-                if value is None:
-                    value = await self._resolve_value(currency_code, rate_date)
                 if value is None:
                     continue
                 writer.writerow((currency_code, rate_date.isoformat(), value))
@@ -221,7 +207,7 @@ class ExportExchangeRatesCsv:
         if progress_report is not None:
             await progress_report(processed_items, total_items)
 
-    async def _bulk_fetch_values(
+    async def bulk_fetch_currency_values(
         self, currency_code: str, start: date, end: date
     ) -> dict[date, Decimal]:
         """Fetch every already-stored value for *currency_code* in one query.
@@ -230,6 +216,10 @@ class ExportExchangeRatesCsv:
         -- widen the query's start to that month's 1st so the whole window
         resolves from this single bulk map instead of falling through to
         the slow per-date path for every day that isn't itself the 1st.
+
+        Public: reusable by other exports that need the same bulk-fetched
+        values for a currency across a date range without duplicating this
+        widening logic.
         """
         query_start = start
         if currency_code.upper() in MONTHLY_EXCHANGE_RATE_CODES:
@@ -271,14 +261,54 @@ class ExportExchangeRatesCsv:
                 return str(value)
         return None
 
-    async def _list_exportable_currency_codes(self) -> list[str]:
-        """Return every supported currency/index code except the base currency."""
+    async def list_exportable_currency_codes(self) -> list[str]:
+        """Return every supported currency/index code except the base currency.
+
+        Public: reusable by other exports (e.g.
+        `ExportCombinedFinancialDataCsv`) that need the same non-CLP
+        currency list without re-deriving it from `ReferenceDataRepository`
+        themselves -- single source of truth for "which currencies does
+        this service export".
+        """
         currencies = await self._reference_data_repository.list_currencies()
         return [
             currency.code
             for currency in currencies
             if currency.code != _BASE_CURRENCY_CODE
         ]
+
+    async def resolve_value_for_date(
+        self,
+        currency_code: str,
+        rate_date: date,
+        cached_values: dict[date, Decimal],
+        today: date,
+    ) -> str | None:
+        """Resolve one (currency_code, rate_date) pair using execute()'s exact chain.
+
+        Three steps, in order: an exact hit in *cached_values* (from a
+        prior `bulk_fetch_currency_values` call) -> the in-memory
+        nearest-prior probe (restricted to `rate_date <= today`, same
+        'never invent future rates' guard as execute()) -> the full
+        `GetExchangeRateValue` DB/provider resolution chain. Returns None
+        if none of the three steps resolve anything -- callers are
+        expected to omit the row, not error out, matching execute()'s own
+        behavior.
+
+        This is the same three-step chain `execute()` runs inline for
+        each (currency, date) pair -- extracted here so other exports
+        (e.g. `ExportCombinedFinancialDataCsv`) can reuse it verbatim
+        instead of re-implementing fallback logic that has already had one
+        production bug (see this class's docstring).
+        """
+        value = self._lookup_cached_value(currency_code, rate_date, cached_values)
+        if value is None and rate_date <= today:
+            value = self._lookup_nearest_prior_cached_value(
+                currency_code, rate_date, cached_values
+            )
+        if value is None:
+            value = await self._resolve_value(currency_code, rate_date)
+        return value
 
     async def _resolve_value(self, currency_code: str, rate_date: date) -> str | None:
         """Resolve one (currency, date) pair, or None if it cannot be found."""
@@ -289,15 +319,6 @@ class ExportExchangeRatesCsv:
         except ExchangeRateNotFoundError:
             return None
         return str(value)
-
-    @staticmethod
-    def _build_date_range(
-        today: date, lookback_days: int, forward_days: int
-    ) -> list[date]:
-        """Return the inclusive date list from today-lookback to today+forward."""
-        start = today - timedelta(days=lookback_days)
-        span_days = lookback_days + forward_days
-        return [start + timedelta(days=offset) for offset in range(span_days + 1)]
 
     @staticmethod
     def _default_filename() -> str:

@@ -14,6 +14,7 @@ from rates.interfaces.api.dependencies import (
     get_sync_use_case,
 )
 from rates.interfaces.api.main import app
+from rates.shared.constants import EXPORT_KIND_EXCHANGE_RATES
 from tests.unit.interfaces._http_client_support import AUTHED, StubSyncUseCase
 
 
@@ -46,11 +47,16 @@ class _StubExportJobRepository:
     def __init__(self) -> None:
         self._next_id = 1
         self.jobs: dict[int, ExportJobDTO] = {}
-        self.create_calls: list[tuple[int, int]] = []
+        self.create_calls: list[tuple[int, int, str]] = []
 
-    async def create(self, lookback_days: int, forward_days: int) -> int:
+    async def create(
+        self,
+        lookback_days: int,
+        forward_days: int,
+        export_kind: str = EXPORT_KIND_EXCHANGE_RATES,
+    ) -> int:
         """Insert a fake pending job and return its id."""
-        self.create_calls.append((lookback_days, forward_days))
+        self.create_calls.append((lookback_days, forward_days, export_kind))
         job_id = self._next_id
         self._next_id += 1
         now = dt.now(UTC)
@@ -59,6 +65,7 @@ class _StubExportJobRepository:
             status="pending",
             lookback_days=lookback_days,
             forward_days=forward_days,
+            export_kind=export_kind,
             rows_written=None,
             file_id=None,
             error_message=None,
@@ -87,7 +94,10 @@ class _StubExportJobRepository:
 
 
 async def _noop_background_runner(
-    job_id: int, lookback_days: int, forward_days: int
+    job_id: int,
+    lookback_days: int,
+    forward_days: int,
+    export_kind: str = EXPORT_KIND_EXCHANGE_RATES,
 ) -> None:
     """Stub background runner that never touches a real database session."""
 
@@ -169,7 +179,7 @@ async def test_export_exchange_rates_async_returns_202_with_job_id() -> None:
         body = response.json()
         assert body["status"] == "pending"
         assert body["monitor_url"] == f"/exchange-rates/export/jobs/{body['job_id']}"
-        assert job_repository.create_calls == [(6100, 30)]
+        assert job_repository.create_calls == [(6100, 30, EXPORT_KIND_EXCHANGE_RATES)]
         # The synchronous use case must never be invoked in the async path.
         assert sync_stub.calls == []
     finally:

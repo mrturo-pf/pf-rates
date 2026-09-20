@@ -18,6 +18,9 @@ from rates.application.ports.reference_data_repository import (
 from rates.application.use_cases.export_exchange_rates_csv import (
     ExportExchangeRatesCsv,
 )
+from rates.application.use_cases.export_combined_financial_data_csv import (
+    ExportCombinedFinancialDataCsv,
+)
 from rates.application.use_cases.get_exchange_rate_value import (
     GetExchangeRateValue,
 )
@@ -52,7 +55,11 @@ from rates.infrastructure.rate_providers.official_providers import (
     SiiIndicatorsProvider,
     make_fetcher,
 )
-from rates.shared.constants import EXPORT_SESSION_REFRESH_INTERVAL_SECONDS
+from rates.shared.constants import (
+    EXPORT_KIND_COMBINED,
+    EXPORT_KIND_EXCHANGE_RATES,
+    EXPORT_SESSION_REFRESH_INTERVAL_SECONDS,
+)
 
 _fetcher = make_fetcher(settings.http_proxy)
 
@@ -240,6 +247,25 @@ def get_export_exchange_rates_csv_use_case(
     )
 
 
+def get_export_combined_financial_data_csv_use_case(
+    market_data_repository: MarketDataRepository = Depends(get_market_data_repository),
+    exchange_rates_csv: ExportExchangeRatesCsv = Depends(
+        get_export_exchange_rates_csv_use_case
+    ),
+) -> ExportCombinedFinancialDataCsv:
+    """Build the ExportCombinedFinancialDataCsv use case.
+
+    Composes the already-wired `ExportExchangeRatesCsv` instance (same
+    request-scoped session/repositories) instead of re-deriving its
+    dependencies -- reuses its resolution chain, not just its shape.
+    """
+    return ExportCombinedFinancialDataCsv(
+        market_data_repository,
+        exchange_rates_csv,
+        get_file_export_port(),
+    )
+
+
 class _SessionRebindable(Protocol):
     """Structural protocol for a repository that can swap its session."""
 
@@ -296,7 +322,7 @@ class ExportJobSessionSwapper:
 
 
 def build_run_export_job_use_case(
-    session: AsyncSession,
+    session: AsyncSession, export_kind: str = EXPORT_KIND_EXCHANGE_RATES
 ) -> tuple[RunExportJob, ExportJobSessionSwapper]:
     """Build the RunExportJob use case directly from a session.
 
@@ -305,6 +331,11 @@ def build_run_export_job_use_case(
     Depends-injected use case instances) has already been closed -- it
     needs a fresh session of its own, exactly like build_sync_use_case
     does for the same reason.
+
+    `export_kind` selects which CSV-export use case the lazy factory
+    builds (see shared.constants.EXPORT_KINDS) -- decided once by the
+    triggering route and threaded through unchanged, not re-derived from
+    the job row here.
 
     Also returns the ExportJobSessionSwapper wrapping that session: the
     caller must call `.close()` on it once RunExportJob.execute()
@@ -319,15 +350,28 @@ def build_run_export_job_use_case(
         session,
         (market_data_repository, reference_data_repository, export_job_repository),
     )
+
+    def _build_csv_export_use_case() -> (
+        ExportExchangeRatesCsv | ExportCombinedFinancialDataCsv
+    ):
+        exchange_rates_csv = ExportExchangeRatesCsv(
+            reference_data_repository,
+            market_data_repository,
+            GetExchangeRateValue(market_data_repository, get_fx_rate_provider()),
+            get_file_export_port(),
+        )
+        if export_kind == EXPORT_KIND_COMBINED:
+            return ExportCombinedFinancialDataCsv(
+                market_data_repository,
+                exchange_rates_csv,
+                get_file_export_port(),
+            )
+        return exchange_rates_csv
+
     return (
         RunExportJob(
             export_job_repository,
-            lambda: ExportExchangeRatesCsv(
-                reference_data_repository,
-                market_data_repository,
-                GetExchangeRateValue(market_data_repository, get_fx_rate_provider()),
-                get_file_export_port(),
-            ),
+            _build_csv_export_use_case,
             session_refresh=swapper.refresh_if_due,
         ),
         swapper,
@@ -335,7 +379,10 @@ def build_run_export_job_use_case(
 
 
 async def run_export_job_in_background(
-    job_id: int, lookback_days: int, forward_days: int
+    job_id: int,
+    lookback_days: int,
+    forward_days: int,
+    export_kind: str = EXPORT_KIND_EXCHANGE_RATES,
 ) -> None:
     """Run a triggered export job to completion in its own DB session.
 
@@ -350,14 +397,16 @@ async def run_export_job_in_background(
     currently active, so no connection is leaked either way.
     """
     session = SessionLocal()
-    use_case, swapper = build_run_export_job_use_case(session)
+    use_case, swapper = build_run_export_job_use_case(session, export_kind)
     try:
         await use_case.execute(job_id, lookback_days, forward_days)
     finally:
         await swapper.close()
 
 
-def get_export_job_background_runner() -> Callable[[int, int, int], Awaitable[None]]:
+def get_export_job_background_runner() -> Callable[
+    [int, int, int, str], Awaitable[None]
+]:
     """Return the callable that runs a triggered export job in the background.
 
     Exposed as a Depends() indirection (instead of the route importing and

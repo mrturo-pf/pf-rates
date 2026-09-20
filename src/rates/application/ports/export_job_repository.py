@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Protocol
 
 from rates.application.dto import ExportJobDTO
+from rates.shared.constants import EXPORT_KIND_EXCHANGE_RATES
 
 
 class ExportJobRepository(Protocol):
@@ -18,8 +19,19 @@ class ExportJobRepository(Protocol):
     the triggering request or the background execution.
     """
 
-    async def create(self, lookback_days: int, forward_days: int) -> int:
-        """Insert a new job row in 'pending' status and return its id."""
+    async def create(
+        self,
+        lookback_days: int,
+        forward_days: int,
+        export_kind: str = EXPORT_KIND_EXCHANGE_RATES,
+    ) -> int:
+        """Insert a new job row in 'pending' status and return its id.
+
+        `export_kind` records which CSV-export use case the background
+        runner must build for this job (see shared.constants.EXPORT_KINDS)
+        -- decided once at creation time by the triggering route, not
+        re-derived later.
+        """
         ...
 
     async def mark_running(self, job_id: int) -> None:

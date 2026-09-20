@@ -3,9 +3,9 @@
 from collections.abc import Awaitable, Callable
 
 from rates.application.ports.export_job_repository import ExportJobRepository
-from rates.application.use_cases.export_exchange_rates_csv import (
+from rates.application.use_cases._export_csv_shared import (
+    CsvExportUseCase,
     ExportCancelledSignal,
-    ExportExchangeRatesCsv,
 )
 from rates.infrastructure.logging.logger import logger
 
@@ -22,11 +22,14 @@ class RunExportJob:
     stuck in 'running' forever with the real error only visible in logs.
 
     `csv_export_factory` is a *lazy* constructor, not a ready instance:
-    building `ExportExchangeRatesCsv` can itself raise (e.g. Google Drive
-    not configured yet -> FinancialDataDependencyConfigurationError), and
-    that failure must land inside the try/except below too -- otherwise a
-    misconfigured dependency would leave the job stuck in 'pending'
-    forever instead of recording a clear 'failed' status.
+    building the underlying use case (`ExportExchangeRatesCsv` or
+    `ExportCombinedFinancialDataCsv` -- this class only depends on the
+    structural `CsvExportUseCase` shape, not a specific concrete class)
+    can itself raise (e.g. Google Drive not configured yet ->
+    FinancialDataDependencyConfigurationError), and that failure must land
+    inside the try/except below too -- otherwise a misconfigured
+    dependency would leave the job stuck in 'pending' forever instead of
+    recording a clear 'failed' status.
 
     Cooperative cancellation: before doing any work, checks whether a
     stop was already requested (covers the narrow window where a
@@ -59,7 +62,7 @@ class RunExportJob:
     def __init__(
         self,
         export_job_repository: ExportJobRepository,
-        csv_export_factory: Callable[[], ExportExchangeRatesCsv],
+        csv_export_factory: Callable[[], CsvExportUseCase],
         session_refresh: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         """Initialize the instance."""
@@ -75,7 +78,7 @@ class RunExportJob:
 
         await self._export_job_repository.mark_running(job_id)
         try:
-            export_exchange_rates_csv = self._csv_export_factory()
+            csv_export_use_case = self._csv_export_factory()
             job_repository = self._export_job_repository
 
             async def _report_progress(processed_items: int, total_items: int) -> None:
@@ -83,7 +86,7 @@ class RunExportJob:
                     job_id, processed_items, total_items
                 )
 
-            result = await export_exchange_rates_csv.execute(
+            result = await csv_export_use_case.execute(
                 lookback_days=lookback_days,
                 forward_days=forward_days,
                 cancellation_check=lambda: job_repository.is_cancel_requested(job_id),

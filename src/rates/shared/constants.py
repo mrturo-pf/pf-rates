@@ -46,6 +46,16 @@ EXPORT_JOB_STATUSES = (
 # Statuses a stop request may still act on -- anything else is terminal.
 EXPORT_JOB_ACTIVE_STATUSES = (EXPORT_JOB_STATUS_PENDING, EXPORT_JOB_STATUS_RUNNING)
 
+# RAT_EXPORT_JOB.export_kind values (pf-db migration 0007). Distinguishes
+# which CSV-export use case a job's background runner must build --
+# "exchange_rates" for ExportExchangeRatesCsv (POST /exchange-rates/export),
+# "combined" for ExportCombinedFinancialDataCsv (POST /exports/financial-data).
+# Job status/progress/cancellation endpoints are shared across both kinds;
+# only job creation and background dispatch need to know which is which.
+EXPORT_KIND_EXCHANGE_RATES = "exchange_rates"
+EXPORT_KIND_COMBINED = "combined"
+EXPORT_KINDS = (EXPORT_KIND_EXCHANGE_RATES, EXPORT_KIND_COMBINED)
+
 # GET /exchange-rates/export/jobs pagination guardrails. A hard cap (not
 # just a default) prevents an unbounded SELECT as job history grows --
 # cheap to enforce, and this is an internal operational endpoint, not a

@@ -79,6 +79,7 @@ class ExportJobModel(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending")
     lookback_days: Mapped[int] = mapped_column()
     forward_days: Mapped[int] = mapped_column()
+    export_kind: Mapped[str] = mapped_column(String(20), default="exchange_rates")
     rows_written: Mapped[int | None] = mapped_column(nullable=True)
     file_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     error_message: Mapped[str | None] = mapped_column(nullable=True)

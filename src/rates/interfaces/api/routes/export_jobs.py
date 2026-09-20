@@ -36,6 +36,7 @@ class ExportJobStatusResponse(BaseModel):
     status: str
     lookback_days: int
     forward_days: int
+    export_kind: str
     rows_written: int | None
     file_id: str | None
     error_message: str | None
@@ -82,6 +83,7 @@ def _to_status_response(job: ExportJobDTO) -> ExportJobStatusResponse:
         status=job.status,
         lookback_days=job.lookback_days,
         forward_days=job.forward_days,
+        export_kind=job.export_kind,
         rows_written=job.rows_written,
         file_id=job.file_id,
         error_message=job.error_message,
