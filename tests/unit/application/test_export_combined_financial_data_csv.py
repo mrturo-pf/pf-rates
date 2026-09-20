@@ -1,42 +1,57 @@
 """Tests for the ExportCombinedFinancialDataCsv use case."""
 
-import csv
-import io
+from contextlib import contextmanager
 from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
 
-from rates.application.dto import (
-    CurrencyDTO,
-    EconomicIndexDTO,
-    RefreshRatesCommandDTO,
-    RefreshRatesResultDTO,
-)
+from rates.application.dto import CurrencyDTO, EconomicIndexDTO
+from rates.application.use_cases._export_csv_shared import ExportCancelledSignal
 from rates.application.use_cases.export_combined_financial_data_csv import (
     ExportCombinedFinancialDataCsv,
     SERIES_TYPE_ECONOMIC_INDEX,
     SERIES_TYPE_EXCHANGE_RATE,
 )
-from rates.application.use_cases._export_csv_shared import ExportCancelledSignal
 from rates.application.use_cases.export_exchange_rates_csv import (
     ExportExchangeRatesCsv,
 )
 from rates.application.use_cases.get_exchange_rate_value import (
     GetExchangeRateValue,
 )
+from tests.unit.application._export_csv_test_doubles import (
+    StubFxRateProvider as _StubFxRateProvider,
+    StubMarketDataRepositoryBase,
+    StubReferenceDataRepository as _StubReferenceDataRepository,
+    build_currency as _currency,
+    read_csv_rows as _read_csv_rows,
+)
 
 _MODULE = "rates.application.use_cases.export_combined_financial_data_csv"
+_EXCHANGE_MODULE = "rates.application.use_cases.export_exchange_rates_csv"
 
 # Fixed "today" both this module's and export_exchange_rates_csv's
 # datetime.now() are patched to return, so the date window is deterministic.
 _TODAY = date(2024, 6, 15)
 
 
-def _currency(code: str) -> CurrencyDTO:
-    """Build a minimal CurrencyDTO for the given code."""
-    return CurrencyDTO(code=code, name=code, is_fiat=True, unit_kind="currency")
+@contextmanager
+def _frozen_today():
+    """Patch datetime.now().date() to _TODAY in both exporter modules.
+
+    ExportCombinedFinancialDataCsv delegates exchange-rate resolution to
+    ExportExchangeRatesCsv, so both modules' `datetime` need patching for
+    every test -- centralized here instead of repeating the same 6-line
+    `with (patch(...), patch(...))` block in every single test.
+    """
+    with (
+        patch(f"{_MODULE}.datetime") as mock_dt_combined,
+        patch(f"{_EXCHANGE_MODULE}.datetime") as mock_dt_exchange,
+    ):
+        mock_dt_combined.now.return_value.date.return_value = _TODAY
+        mock_dt_exchange.now.return_value.date.return_value = _TODAY
+        yield
 
 
 def _index(code: str, year: int, month: int, value: Decimal) -> EconomicIndexDTO:
@@ -53,70 +68,20 @@ def _index(code: str, year: int, month: int, value: Decimal) -> EconomicIndexDTO
     )
 
 
-class _StubReferenceDataRepository:
-    """Minimal ReferenceDataRepository test double."""
-
-    def __init__(self, currencies: list[CurrencyDTO]) -> None:
-        self._currencies = currencies
-
-    async def list_currencies(self) -> list[CurrencyDTO]:
-        """Return the preconfigured currency list."""
-        return self._currencies
-
-
-class _StubMarketDataRepository:
-    """Minimal MarketDataRepository test double: DB values + economic indices."""
+class _StubMarketDataRepository(StubMarketDataRepositoryBase):
+    """Extend the shared base stub with economic-index storage."""
 
     def __init__(
         self,
         db_values: dict[date, Decimal],
         economic_indices: list[EconomicIndexDTO] | None = None,
     ) -> None:
-        self._db_values = db_values
+        super().__init__(db_values)
         self._economic_indices = economic_indices or []
-
-    async def get_exchange_rate_value(
-        self, currency_code: str, rate_date: date
-    ) -> Decimal | None:
-        """Return a preconfigured DB value, ignoring currency_code."""
-        return self._db_values.get(rate_date)
-
-    async def get_latest_exchange_rate_value_before(
-        self, code: str, before: date, on_or_after: date | None = None
-    ) -> Decimal | None:
-        """Return None -- fallback is out of scope for these tests."""
-        return None
-
-    async def list_exchange_rate_values(
-        self, code: str, start: date, end: date
-    ) -> dict[date, Decimal]:
-        """Return the preconfigured DB values that fall within [start, end]."""
-        return {
-            rate_date: value
-            for rate_date, value in self._db_values.items()
-            if start <= rate_date <= end
-        }
-
-    async def refresh_rates(
-        self, command: RefreshRatesCommandDTO
-    ) -> RefreshRatesResultDTO:
-        """Record nothing; never expected to be called in these tests."""
-        return RefreshRatesResultDTO(
-            upserted_exchange_rates=len(command.exchange_rates),
-            upserted_economic_indices=0,
-        )
 
     async def list_economic_indices(self, code: str) -> list[EconomicIndexDTO]:
         """Return the preconfigured entries matching *code*."""
         return [entry for entry in self._economic_indices if entry.code == code]
-
-
-class _StubFxRateProvider:
-    """FxRateProvider test double that never has data."""
-
-    async def fetch_rate_entry(self, currency_code: str, on: date) -> None:
-        """Return None unconditionally."""
-        return None
 
 
 class _StubFileExport:
@@ -130,12 +95,6 @@ class _StubFileExport:
         """Record the call and return the preconfigured file id."""
         self.uploads.append((filename, content, mime_type))
         return self._file_id
-
-
-def _read_csv_rows(content: bytes) -> list[list[str]]:
-    """Parse uploaded CSV bytes into a list of rows (including the header)."""
-    text = content.decode("utf-8")
-    return list(csv.reader(io.StringIO(text)))
 
 
 def _build_use_case(
@@ -171,14 +130,7 @@ async def test_combines_exchange_rate_and_economic_index_rows() -> None:
         [_currency("CLP"), _currency("USD")], db_values, economic_indices, file_export
     )
 
-    with (
-        patch(f"{_MODULE}.datetime") as mock_dt_combined,
-        patch(
-            "rates.application.use_cases.export_exchange_rates_csv.datetime"
-        ) as mock_dt_exchange,
-    ):
-        mock_dt_combined.now.return_value.date.return_value = _TODAY
-        mock_dt_exchange.now.return_value.date.return_value = _TODAY
+    with _frozen_today():
         result = await use_case.execute(lookback_days=0, forward_days=0)
 
     assert result.file_id == "drive-file-id"
@@ -196,14 +148,7 @@ async def test_economic_index_value_expands_across_every_day_in_month() -> None:
     file_export = _StubFileExport()
     use_case = _build_use_case([_currency("CLP")], {}, economic_indices, file_export)
 
-    with (
-        patch(f"{_MODULE}.datetime") as mock_dt_combined,
-        patch(
-            "rates.application.use_cases.export_exchange_rates_csv.datetime"
-        ) as mock_dt_exchange,
-    ):
-        mock_dt_combined.now.return_value.date.return_value = _TODAY
-        mock_dt_exchange.now.return_value.date.return_value = _TODAY
+    with _frozen_today():
         # lookback=2, forward=2 -> 2024-06-13..2024-06-17, all in June.
         result = await use_case.execute(lookback_days=2, forward_days=2)
 
@@ -226,14 +171,7 @@ async def test_economic_index_month_with_no_stored_value_is_omitted() -> None:
     file_export = _StubFileExport()
     use_case = _build_use_case([_currency("CLP")], {}, [], file_export)
 
-    with (
-        patch(f"{_MODULE}.datetime") as mock_dt_combined,
-        patch(
-            "rates.application.use_cases.export_exchange_rates_csv.datetime"
-        ) as mock_dt_exchange,
-    ):
-        mock_dt_combined.now.return_value.date.return_value = _TODAY
-        mock_dt_exchange.now.return_value.date.return_value = _TODAY
+    with _frozen_today():
         result = await use_case.execute(lookback_days=0, forward_days=0)
 
     assert result.rows_written == 0
@@ -256,14 +194,7 @@ async def test_never_invents_future_exchange_rate_values() -> None:
         [_currency("CLP"), _currency("USD")], db_values, [], file_export
     )
 
-    with (
-        patch(f"{_MODULE}.datetime") as mock_dt_combined,
-        patch(
-            "rates.application.use_cases.export_exchange_rates_csv.datetime"
-        ) as mock_dt_exchange,
-    ):
-        mock_dt_combined.now.return_value.date.return_value = _TODAY
-        mock_dt_exchange.now.return_value.date.return_value = _TODAY
+    with _frozen_today():
         result = await use_case.execute(lookback_days=0, forward_days=5)
 
     rows = _read_csv_rows(file_export.uploads[0][1])
@@ -280,14 +211,7 @@ async def test_excludes_clp_from_exchange_rate_rows() -> None:
         [_currency("CLP")], {date(2024, 6, 15): Decimal("1")}, [], file_export
     )
 
-    with (
-        patch(f"{_MODULE}.datetime") as mock_dt_combined,
-        patch(
-            "rates.application.use_cases.export_exchange_rates_csv.datetime"
-        ) as mock_dt_exchange,
-    ):
-        mock_dt_combined.now.return_value.date.return_value = _TODAY
-        mock_dt_exchange.now.return_value.date.return_value = _TODAY
+    with _frozen_today():
         result = await use_case.execute(lookback_days=0, forward_days=0)
 
     assert result.rows_written == 0
@@ -304,14 +228,7 @@ async def test_cancellation_check_stops_before_any_upload() -> None:
     async def _always_cancelled() -> bool:
         return True
 
-    with (
-        patch(f"{_MODULE}.datetime") as mock_dt_combined,
-        patch(
-            "rates.application.use_cases.export_exchange_rates_csv.datetime"
-        ) as mock_dt_exchange,
-    ):
-        mock_dt_combined.now.return_value.date.return_value = _TODAY
-        mock_dt_exchange.now.return_value.date.return_value = _TODAY
+    with _frozen_today():
         with pytest.raises(ExportCancelledSignal):
             await use_case.execute(
                 lookback_days=0, forward_days=0, cancellation_check=_always_cancelled
@@ -332,14 +249,7 @@ async def test_progress_report_counts_both_series_types_up_front() -> None:
     async def _record_progress(processed_items: int, total_items: int) -> None:
         updates.append((processed_items, total_items))
 
-    with (
-        patch(f"{_MODULE}.datetime") as mock_dt_combined,
-        patch(
-            "rates.application.use_cases.export_exchange_rates_csv.datetime"
-        ) as mock_dt_exchange,
-    ):
-        mock_dt_combined.now.return_value.date.return_value = _TODAY
-        mock_dt_exchange.now.return_value.date.return_value = _TODAY
+    with _frozen_today():
         # lookback=0, forward=0 -> 1 date; 2 currencies + 1 index code = 3.
         await use_case.execute(
             lookback_days=0, forward_days=0, progress_report=_record_progress
@@ -354,14 +264,7 @@ async def test_explicit_filename_overrides_default() -> None:
     file_export = _StubFileExport()
     use_case = _build_use_case([_currency("USD")], {}, [], file_export)
 
-    with (
-        patch(f"{_MODULE}.datetime") as mock_dt_combined,
-        patch(
-            "rates.application.use_cases.export_exchange_rates_csv.datetime"
-        ) as mock_dt_exchange,
-    ):
-        mock_dt_combined.now.return_value.date.return_value = _TODAY
-        mock_dt_exchange.now.return_value.date.return_value = _TODAY
+    with _frozen_today():
         await use_case.execute(
             lookback_days=0, forward_days=0, filename="custom-financial-data.csv"
         )

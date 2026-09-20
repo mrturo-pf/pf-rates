@@ -1,19 +1,12 @@
 """Tests for the ExportExchangeRatesCsv use case."""
 
-import csv
-import io
 from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
 
-from rates.application.dto import (
-    CurrencyDTO,
-    ExchangeRateWriteDTO,
-    RefreshRatesCommandDTO,
-    RefreshRatesResultDTO,
-)
+from rates.application.dto import CurrencyDTO, ExchangeRateWriteDTO
 from rates.application.use_cases._export_csv_shared import ExportCancelledSignal
 from rates.application.use_cases.export_exchange_rates_csv import (
     ExportExchangeRatesCsv,
@@ -21,74 +14,19 @@ from rates.application.use_cases.export_exchange_rates_csv import (
 from rates.application.use_cases.get_exchange_rate_value import (
     GetExchangeRateValue,
 )
+from tests.unit.application._export_csv_test_doubles import (
+    StubFxRateProvider as _StubFxRateProvider,
+    StubMarketDataRepositoryBase as _StubMarketDataRepository,
+    StubReferenceDataRepository as _StubReferenceDataRepository,
+    build_currency as _currency,
+    read_csv_rows as _read_csv_rows,
+)
 
 _MODULE = "rates.application.use_cases.export_exchange_rates_csv"
 
 # Fixed "today" the module's datetime.now() is patched to return, so the
 # resulting date window is fully deterministic.
 _TODAY = date(2024, 6, 15)
-
-
-def _currency(code: str) -> CurrencyDTO:
-    """Build a minimal CurrencyDTO for the given code."""
-    return CurrencyDTO(code=code, name=code, is_fiat=True, unit_kind="currency")
-
-
-class _StubReferenceDataRepository:
-    """Minimal ReferenceDataRepository test double."""
-
-    def __init__(self, currencies: list[CurrencyDTO]) -> None:
-        self._currencies = currencies
-
-    async def list_currencies(self) -> list[CurrencyDTO]:
-        """Return the preconfigured currency list."""
-        return self._currencies
-
-
-class _StubMarketDataRepository:
-    """Minimal MarketDataRepository test double, DB-value-only."""
-
-    def __init__(self, db_values: dict[date, Decimal]) -> None:
-        self._db_values = db_values
-
-    async def get_exchange_rate_value(
-        self, currency_code: str, rate_date: date
-    ) -> Decimal | None:
-        """Return a preconfigured DB value, ignoring currency_code."""
-        return self._db_values.get(rate_date)
-
-    async def get_latest_exchange_rate_value_before(
-        self, code: str, before: date, on_or_after: date | None = None
-    ) -> Decimal | None:
-        """Return None -- fallback is out of scope for these tests."""
-        return None
-
-    async def list_exchange_rate_values(
-        self, code: str, start: date, end: date
-    ) -> dict[date, Decimal]:
-        """Return the preconfigured DB values that fall within [start, end]."""
-        return {
-            rate_date: value
-            for rate_date, value in self._db_values.items()
-            if start <= rate_date <= end
-        }
-
-    async def refresh_rates(
-        self, command: RefreshRatesCommandDTO
-    ) -> RefreshRatesResultDTO:
-        """Record nothing; never expected to be called in these tests."""
-        return RefreshRatesResultDTO(
-            upserted_exchange_rates=len(command.exchange_rates),
-            upserted_economic_indices=0,
-        )
-
-
-class _StubFxRateProvider:
-    """FxRateProvider test double that never has data."""
-
-    async def fetch_rate_entry(self, currency_code: str, on: date) -> None:
-        """Return None unconditionally."""
-        return None
 
 
 class _StubFxRateProviderWithEntry:
@@ -124,12 +62,6 @@ class _StubFileExport:
         """Record the call and return the preconfigured file id."""
         self.uploads.append((filename, content, mime_type))
         return self._file_id
-
-
-def _read_csv_rows(content: bytes) -> list[list[str]]:
-    """Parse uploaded CSV bytes into a list of rows (including the header)."""
-    text = content.decode("utf-8")
-    return list(csv.reader(io.StringIO(text)))
 
 
 def _build_use_case(

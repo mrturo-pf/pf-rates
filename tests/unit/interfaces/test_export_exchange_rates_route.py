@@ -1,11 +1,9 @@
 """Unit tests for the POST /exchange-rates/export route."""
 
-from datetime import UTC, datetime as dt
-
 import pytest
 from httpx import AsyncClient
 
-from rates.application.dto import ExportExchangeRatesResultDTO, ExportJobDTO
+from rates.application.dto import ExportExchangeRatesResultDTO
 from rates.application.errors import FinancialDataDependencyConfigurationError
 from rates.interfaces.api.dependencies import (
     get_export_exchange_rates_csv_use_case,
@@ -15,91 +13,12 @@ from rates.interfaces.api.dependencies import (
 )
 from rates.interfaces.api.main import app
 from rates.shared.constants import EXPORT_KIND_EXCHANGE_RATES
+from tests.unit.interfaces._export_job_test_support import (
+    StubCsvExportUseCase as _StubExportExchangeRatesCsv,
+    StubExportJobRepository as _StubExportJobRepository,
+    noop_background_runner as _noop_background_runner,
+)
 from tests.unit.interfaces._http_client_support import AUTHED, StubSyncUseCase
-
-
-class _StubExportExchangeRatesCsv:
-    """Stub ExportExchangeRatesCsv use case recording every call."""
-
-    def __init__(
-        self,
-        result: ExportExchangeRatesResultDTO | None = None,
-        error: Exception | None = None,
-    ) -> None:
-        self._result = result
-        self._error = error
-        self.calls: list[tuple[int, int]] = []
-
-    async def execute(
-        self, lookback_days: int, forward_days: int, filename: str | None = None
-    ) -> ExportExchangeRatesResultDTO:
-        """Record the call, then return the stub result or raise the stub error."""
-        self.calls.append((lookback_days, forward_days))
-        if self._error is not None:
-            raise self._error
-        assert self._result is not None
-        return self._result
-
-
-class _StubExportJobRepository:
-    """In-memory stand-in for ExportJobRepository, keyed by an incrementing id."""
-
-    def __init__(self) -> None:
-        self._next_id = 1
-        self.jobs: dict[int, ExportJobDTO] = {}
-        self.create_calls: list[tuple[int, int, str]] = []
-
-    async def create(
-        self,
-        lookback_days: int,
-        forward_days: int,
-        export_kind: str = EXPORT_KIND_EXCHANGE_RATES,
-    ) -> int:
-        """Insert a fake pending job and return its id."""
-        self.create_calls.append((lookback_days, forward_days, export_kind))
-        job_id = self._next_id
-        self._next_id += 1
-        now = dt.now(UTC)
-        self.jobs[job_id] = ExportJobDTO(
-            id=job_id,
-            status="pending",
-            lookback_days=lookback_days,
-            forward_days=forward_days,
-            export_kind=export_kind,
-            rows_written=None,
-            file_id=None,
-            error_message=None,
-            cancel_requested_at=None,
-            total_items=None,
-            processed_items=0,
-            created_at=now,
-            updated_at=now,
-        )
-        return job_id
-
-    async def mark_running(self, job_id: int) -> None:
-        """Unused by these route tests -- the stub runner never calls it."""
-
-    async def mark_succeeded(
-        self, job_id: int, rows_written: int, file_id: str
-    ) -> None:
-        """Unused by these route tests -- the stub runner never calls it."""
-
-    async def mark_failed(self, job_id: int, error_message: str) -> None:
-        """Unused by these route tests -- the stub runner never calls it."""
-
-    async def get(self, job_id: int) -> ExportJobDTO | None:
-        """Return the fake job DTO, or None if it was never created."""
-        return self.jobs.get(job_id)
-
-
-async def _noop_background_runner(
-    job_id: int,
-    lookback_days: int,
-    forward_days: int,
-    export_kind: str = EXPORT_KIND_EXCHANGE_RATES,
-) -> None:
-    """Stub background runner that never touches a real database session."""
 
 
 @pytest.mark.asyncio
