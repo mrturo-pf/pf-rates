@@ -12,7 +12,6 @@ from rates.interfaces.api.dependencies import (
     get_sync_use_case,
 )
 from rates.interfaces.api.main import app
-from rates.shared.constants import EXPORT_KIND_COMBINED
 from tests.unit.interfaces._export_job_test_support import (
     StubCsvExportUseCase as _StubExportCombinedFinancialDataCsv,
     StubExportJobRepository as _StubExportJobRepository,
@@ -62,8 +61,8 @@ async def test_export_financial_data_returns_503_when_drive_not_configured() -> 
 
 
 @pytest.mark.asyncio
-async def test_export_financial_data_async_returns_202_with_combined_kind() -> None:
-    """The async flag creates a job tagged with the 'combined' export_kind."""
+async def test_export_financial_data_async_returns_202() -> None:
+    """The async flag creates a job and returns its monitor_url."""
     sync_stub = _StubExportCombinedFinancialDataCsv()
     job_repository = _StubExportJobRepository()
     app.dependency_overrides[_get_combined_csv_use_case] = lambda: sync_stub
@@ -80,7 +79,7 @@ async def test_export_financial_data_async_returns_202_with_combined_kind() -> N
         body = response.json()
         assert body["status"] == "pending"
         assert body["monitor_url"] == f"/exports/jobs/{body['job_id']}"
-        assert job_repository.create_calls == [(10, 5, EXPORT_KIND_COMBINED)]
+        assert job_repository.create_calls == [(10, 5)]
         assert sync_stub.calls == []
     finally:
         app.dependency_overrides.clear()

@@ -56,8 +56,6 @@ from rates.infrastructure.rate_providers.official_providers import (
     make_fetcher,
 )
 from rates.shared.constants import (
-    EXPORT_KIND_COMBINED,
-    EXPORT_KIND_EXCHANGE_RATES,
     EXPORT_SESSION_REFRESH_INTERVAL_SECONDS,
 )
 
@@ -322,7 +320,7 @@ class ExportJobSessionSwapper:
 
 
 def build_run_export_job_use_case(
-    session: AsyncSession, export_kind: str = EXPORT_KIND_EXCHANGE_RATES
+    session: AsyncSession,
 ) -> tuple[RunExportJob, ExportJobSessionSwapper]:
     """Build the RunExportJob use case directly from a session.
 
@@ -331,11 +329,6 @@ def build_run_export_job_use_case(
     Depends-injected use case instances) has already been closed -- it
     needs a fresh session of its own, exactly like build_sync_use_case
     does for the same reason.
-
-    `export_kind` selects which CSV-export use case the lazy factory
-    builds (see shared.constants.EXPORT_KINDS) -- decided once by the
-    triggering route and threaded through unchanged, not re-derived from
-    the job row here.
 
     Also returns the ExportJobSessionSwapper wrapping that session: the
     caller must call `.close()` on it once RunExportJob.execute()
@@ -351,22 +344,18 @@ def build_run_export_job_use_case(
         (market_data_repository, reference_data_repository, export_job_repository),
     )
 
-    def _build_csv_export_use_case() -> (
-        ExportExchangeRatesCsv | ExportCombinedFinancialDataCsv
-    ):
+    def _build_csv_export_use_case() -> ExportCombinedFinancialDataCsv:
         exchange_rates_csv = ExportExchangeRatesCsv(
             reference_data_repository,
             market_data_repository,
             GetExchangeRateValue(market_data_repository, get_fx_rate_provider()),
             get_file_export_port(),
         )
-        if export_kind == EXPORT_KIND_COMBINED:
-            return ExportCombinedFinancialDataCsv(
-                market_data_repository,
-                exchange_rates_csv,
-                get_file_export_port(),
-            )
-        return exchange_rates_csv
+        return ExportCombinedFinancialDataCsv(
+            market_data_repository,
+            exchange_rates_csv,
+            get_file_export_port(),
+        )
 
     return (
         RunExportJob(
@@ -382,7 +371,6 @@ async def run_export_job_in_background(
     job_id: int,
     lookback_days: int,
     forward_days: int,
-    export_kind: str = EXPORT_KIND_EXCHANGE_RATES,
 ) -> None:
     """Run a triggered export job to completion in its own DB session.
 
@@ -397,16 +385,14 @@ async def run_export_job_in_background(
     currently active, so no connection is leaked either way.
     """
     session = SessionLocal()
-    use_case, swapper = build_run_export_job_use_case(session, export_kind)
+    use_case, swapper = build_run_export_job_use_case(session)
     try:
         await use_case.execute(job_id, lookback_days, forward_days)
     finally:
         await swapper.close()
 
 
-def get_export_job_background_runner() -> Callable[
-    [int, int, int, str], Awaitable[None]
-]:
+def get_export_job_background_runner() -> Callable[[int, int, int], Awaitable[None]]:
     """Return the callable that runs a triggered export job in the background.
 
     Exposed as a Depends() indirection (instead of the route importing and

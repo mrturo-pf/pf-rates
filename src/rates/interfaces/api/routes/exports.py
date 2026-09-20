@@ -22,10 +22,7 @@ from rates.interfaces.api.routes._export_job_trigger import (
     ExportJobTriggeredResponse,
     trigger_async_export_job,
 )
-from rates.shared.constants import (
-    EXPORT_KIND_COMBINED,
-    MAX_LOOKBACK_DAYS,
-)
+from rates.shared.constants import MAX_LOOKBACK_DAYS
 
 router = APIRouter(prefix="/exports", tags=["exports"])
 
@@ -57,9 +54,7 @@ class ExportFinancialDataRequest(BaseModel):
         description=(
             "If true, create the export job and return immediately with a "
             "job_id instead of waiting for completion -- poll "
-            "GET /exports/jobs/{job_id} for its status (job "
-            "status/cancellation is shared infrastructure across every "
-            "export kind). Defaults to false."
+            "GET /exports/jobs/{job_id} for its status. Defaults to false."
         ),
     )
 
@@ -80,7 +75,7 @@ async def export_financial_data(
         get_export_combined_financial_data_csv_use_case
     ),
     export_job_repository: ExportJobRepository = Depends(get_export_job_repository),
-    run_job_in_background: Callable[[int, int, int, str], object] = Depends(
+    run_job_in_background: Callable[[int, int, int], object] = Depends(
         get_export_job_background_runner
     ),
 ) -> ExportFinancialDataResponse | ExportJobTriggeredResponse:
@@ -99,8 +94,8 @@ async def export_financial_data(
     removed once `pf-sheets` fully migrated to this combined export.
 
     Job status, progress, and cooperative-cancellation endpoints
-    (`GET/POST /exports/jobs/...`) are shared infrastructure, generic
-    across every export kind.
+    (`GET/POST /exports/jobs/...`) are shared infrastructure, reused
+    as-is by any future export trigger this service grows.
     """
     if payload.async_execution:
         return await trigger_async_export_job(
@@ -110,7 +105,6 @@ async def export_financial_data(
             run_job_in_background,
             payload.lookback_days,
             payload.forward_days,
-            EXPORT_KIND_COMBINED,
         )
     try:
         result = await use_case.execute(

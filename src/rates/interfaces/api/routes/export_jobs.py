@@ -1,18 +1,13 @@
 """Export-job management routes: list, status, and cooperative cancellation.
 
-Split out from exchange_rates.py (which keeps the CRUD + trigger
-endpoints) to keep each route module focused on one sub-resource --
-job lifecycle management is a distinct concern from rate data itself.
+Split out from exchange_rates.py (which keeps the CRUD endpoints) to keep
+each route module focused on one sub-resource -- job lifecycle management
+is a distinct concern from rate data itself.
 
-Lives under `/exports/jobs` (not nested under `/exchange-rates`) because
-it is shared infrastructure across every export kind -- these routes read
-`RAT_EXPORT_JOB` by id/status alone, agnostic to whether the job is an
-`exchange_rates` or `combined` export (see `export_kind` on the response).
-`POST /exports/financial-data` points its async `monitor_url` here.
-Historical jobs with `export_kind="exchange_rates"` (from the now-removed
-`POST /exchange-rates/export` trigger) still show up correctly here too --
-only job *creation* for that kind was removed, not the ability to read
-back jobs that already exist.
+Lives under `/exports/jobs` because it reads `RAT_EXPORT_JOB` by id/
+status alone, independent of the CSV-export trigger endpoint that created
+the row. `POST /exports/financial-data` points its async `monitor_url`
+here.
 """
 
 from datetime import datetime
@@ -51,7 +46,6 @@ class ExportJobStatusResponse(BaseModel):
     status: str
     lookback_days: int
     forward_days: int
-    export_kind: str
     rows_written: int | None
     file_id: str | None
     error_message: str | None
@@ -99,7 +93,6 @@ def _to_status_response(job: ExportJobDTO) -> ExportJobStatusResponse:
         status=job.status,
         lookback_days=job.lookback_days,
         forward_days=job.forward_days,
-        export_kind=job.export_kind,
         rows_written=job.rows_written,
         file_id=job.file_id,
         error_message=job.error_message,

@@ -11,10 +11,7 @@ from rates.interfaces.api.dependencies import (
     get_sync_use_case,
 )
 from rates.interfaces.api.main import app
-from rates.shared.constants import (
-    EXPORT_JOB_ACTIVE_STATUSES,
-    EXPORT_KIND_EXCHANGE_RATES,
-)
+from rates.shared.constants import EXPORT_JOB_ACTIVE_STATUSES
 from tests.unit.interfaces._http_client_support import AUTHED, StubSyncUseCase
 
 
@@ -28,9 +25,7 @@ class _StubExportJobRepository:
         """Insert a pre-built job row directly, bypassing create()."""
         self.jobs[job.id] = job
 
-    async def create(
-        self, lookback_days: int, forward_days: int, export_kind: str = ""
-    ) -> int:
+    async def create(self, lookback_days: int, forward_days: int) -> int:
         """Unused by these tests -- jobs are seeded directly via seed()."""
         raise NotImplementedError
 
@@ -89,7 +84,6 @@ class _StubExportJobRepository:
             status=job.status,
             lookback_days=job.lookback_days,
             forward_days=job.forward_days,
-            export_kind=job.export_kind,
             rows_written=job.rows_written,
             file_id=job.file_id,
             error_message=job.error_message,
@@ -131,7 +125,6 @@ def _job(
         status=status,
         lookback_days=90,
         forward_days=30,
-        export_kind=EXPORT_KIND_EXCHANGE_RATES,
         rows_written=500 if status == "succeeded" else None,
         file_id="drive-x" if status == "succeeded" else None,
         error_message="boom" if status == "failed" else None,

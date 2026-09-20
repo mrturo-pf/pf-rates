@@ -179,7 +179,6 @@ class ExportJobDTO:
     status: str
     lookback_days: int
     forward_days: int
-    export_kind: str
     rows_written: int | None
     file_id: str | None
     error_message: str | None

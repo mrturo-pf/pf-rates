@@ -51,13 +51,11 @@ class StubExportJobRepository:
     def __init__(self) -> None:
         self._next_id = 1
         self.jobs: dict[int, ExportJobDTO] = {}
-        self.create_calls: list[tuple[int, int, str]] = []
+        self.create_calls: list[tuple[int, int]] = []
 
-    async def create(
-        self, lookback_days: int, forward_days: int, export_kind: str = ""
-    ) -> int:
+    async def create(self, lookback_days: int, forward_days: int) -> int:
         """Insert a fake pending job and return its id."""
-        self.create_calls.append((lookback_days, forward_days, export_kind))
+        self.create_calls.append((lookback_days, forward_days))
         job_id = self._next_id
         self._next_id += 1
         now = dt.now(UTC)
@@ -66,7 +64,6 @@ class StubExportJobRepository:
             status="pending",
             lookback_days=lookback_days,
             forward_days=forward_days,
-            export_kind=export_kind,
             rows_written=None,
             file_id=None,
             error_message=None,
@@ -95,6 +92,6 @@ class StubExportJobRepository:
 
 
 async def noop_background_runner(
-    job_id: int, lookback_days: int, forward_days: int, export_kind: str = ""
+    job_id: int, lookback_days: int, forward_days: int
 ) -> None:
     """Stub background runner that never touches a real database session."""

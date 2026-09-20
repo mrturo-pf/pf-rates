@@ -22,10 +22,11 @@ class RunExportJob:
     stuck in 'running' forever with the real error only visible in logs.
 
     `csv_export_factory` is a *lazy* constructor, not a ready instance:
-    building the underlying use case (`ExportExchangeRatesCsv` or
-    `ExportCombinedFinancialDataCsv` -- this class only depends on the
-    structural `CsvExportUseCase` shape, not a specific concrete class)
-    can itself raise (e.g. Google Drive not configured yet ->
+    building the underlying use case (`ExportCombinedFinancialDataCsv` --
+    this class only depends on the structural `CsvExportUseCase` shape,
+    not that specific concrete class, so any future export use case
+    following the same shape plugs in without changes here) can itself
+    raise (e.g. Google Drive not configured yet ->
     FinancialDataDependencyConfigurationError), and that failure must land
     inside the try/except below too -- otherwise a misconfigured
     dependency would leave the job stuck in 'pending' forever instead of
@@ -34,11 +35,10 @@ class RunExportJob:
     Cooperative cancellation: before doing any work, checks whether a
     stop was already requested (covers the narrow window where a
     'pending' job is cancelled before this task ever runs). Once running,
-    the cancellation flag is polled periodically inside
-    `ExportExchangeRatesCsv.execute` itself -- see
-    EXPORT_CANCELLATION_CHECK_INTERVAL -- and surfaces here as
-    `ExportCancelledSignal`, which is treated as a normal, expected
-    outcome (not a failure).
+    the cancellation flag is polled periodically inside the use case's
+    own `execute()` -- see EXPORT_CANCELLATION_CHECK_INTERVAL -- and
+    surfaces here as `ExportCancelledSignal`, which is treated as a
+    normal, expected outcome (not a failure).
 
     Progress reporting: wires a `progress_report` callback into the same
     `execute()` call, persisting (processed_items, total_items) on the

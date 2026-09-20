@@ -27,7 +27,6 @@ from rates.interfaces.api.dependencies import (
     get_export_exchange_rates_csv_use_case,
     get_file_export_port,
 )
-from rates.shared.constants import EXPORT_KIND_COMBINED
 
 _MODULE = "rates.interfaces.api.dependencies"
 
@@ -119,11 +118,11 @@ def test_get_export_combined_financial_data_csv_use_case_wires_dependencies() ->
     assert isinstance(use_case, ExportCombinedFinancialDataCsv)
 
 
-def test_build_run_export_job_use_case_combined_kind_wires_combined_use_case() -> None:
-    """export_kind=combined makes the lazy factory build the combined use case.
+def test_build_run_export_job_use_case_wires_the_combined_use_case() -> None:
+    """The lazy factory builds ExportCombinedFinancialDataCsv.
 
-    The factory is lazy precisely so this branch (see
-    build_run_export_job_use_case's docstring) only runs when the
+    It composes ExportExchangeRatesCsv internally for its exchange-rate
+    rows. The factory is lazy precisely so this only runs when the
     background job actually executes -- exercised here directly since
     RunExportJob.execute() is the only other caller, and it's already
     covered end to end by the async-export integration tests.
@@ -140,7 +139,6 @@ def test_build_run_export_job_use_case_combined_kind_wires_combined_use_case() -
         mock_get_port.return_value = Mock()
         run_export_job, _swapper = build_run_export_job_use_case(
             _FakeSession(),  # type: ignore[arg-type]
-            export_kind=EXPORT_KIND_COMBINED,
         )
         use_case = run_export_job._csv_export_factory()
 

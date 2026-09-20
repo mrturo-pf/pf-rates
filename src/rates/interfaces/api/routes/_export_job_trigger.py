@@ -5,11 +5,9 @@ Used by `exports.py` (`POST /exports/financial-data`) to offer the
 task, and return a 202-style response with a `job_id` and `monitor_url`.
 
 Extracted into its own module (rather than living inline in exports.py)
-because it previously had a second caller -- the now-removed
-`POST /exchange-rates/export` -- and job-trigger logic is exactly the
-kind of thing that tends to grow a second consumer again as new export
-kinds get added; keeping it isolated and independently testable costs
-nothing today and avoids re-extracting it later.
+since job-trigger logic is exactly the kind of thing that tends to grow
+a second consumer over time; keeping it isolated and independently
+testable costs nothing today and avoids re-extracting it later.
 """
 
 from collections.abc import Callable
@@ -35,22 +33,14 @@ async def trigger_async_export_job(
     background_tasks: BackgroundTasks,
     response: Response,
     export_job_repository: ExportJobRepository,
-    run_job_in_background: Callable[[int, int, int, str], object],
+    run_job_in_background: Callable[[int, int, int], object],
     lookback_days: int,
     forward_days: int,
-    export_kind: str,
 ) -> ExportJobTriggeredResponse:
-    """Create an export job row, schedule it in the background, return 202.
-
-    Job status/cancellation endpoints are shared infrastructure across
-    every export kind (they read `RAT_EXPORT_JOB` by id), so the
-    monitor_url is the same path regardless of export_kind.
-    """
-    job_id = await export_job_repository.create(
-        lookback_days, forward_days, export_kind
-    )
+    """Create an export job row, schedule it in the background, return 202."""
+    job_id = await export_job_repository.create(lookback_days, forward_days)
     background_tasks.add_task(
-        run_job_in_background, job_id, lookback_days, forward_days, export_kind
+        run_job_in_background, job_id, lookback_days, forward_days
     )
     response.status_code = 202
     return ExportJobTriggeredResponse(

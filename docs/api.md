@@ -247,7 +247,7 @@ instead of waiting for it (see below) -- recommended for large windows
 (e.g. a multi-year historical backfill), where a synchronous call risks
 the request timing out before the CSV finishes uploading. Async jobs
 from this endpoint are monitored through the `GET/POST /exports/jobs/...`
-endpoints, tagged with `export_kind: "combined"`.
+endpoints.
 
 **Response (synchronous, default):**
 ```json
@@ -296,13 +296,7 @@ Return the current state of a previously-triggered async export job.
 Status is one of pending, running, succeeded, failed, cancelled. Job state is
 persisted in Postgres (RAT_EXPORT_JOB), not in process memory, so it
 survives Cloud Run scaling to zero or routing the poll to a different
-instance than the one that ran the job. `export_kind` distinguishes which
-kind of export the job is: `combined` (triggered by
-`POST /exports/financial-data`, the only export-trigger endpoint pf-rates
-exposes today) or `exchange_rates` (historical jobs created before the
-now-removed `POST /exchange-rates/export` trigger was retired -- still
-readable here, just no longer creatable) -- job status/progress/
-cancellation are shared infrastructure across both kinds.
+instance than the one that ran the job.
 
 While a job is running, `processed_items`/`total_items`/`progress_percent`
 report how far the export loop has gotten. `total_items` is the number of
