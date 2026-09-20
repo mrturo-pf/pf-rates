@@ -212,6 +212,77 @@ async def test_cancellation_check_stops_before_any_upload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_cancellation_check_stops_mid_processing() -> None:
+    """A cancellation flagged after the first checkpoint stops further work.
+
+    Regression guard mirroring
+    test_cancellation_stops_iteration_mid_currency_loop in
+    test_export_exchange_rates_csv.py -- exercises the _checkpoint
+    periodic-check branch (EXPORT_CANCELLATION_CHECK_INTERVAL), which a
+    small handful of items never reaches on its own.
+    """
+    file_export = _StubFileExport()
+    use_case = _build_use_case(
+        [_currency("CLP"), _currency("USD"), _currency("EUR")], {}, [], file_export
+    )
+    calls = {"count": 0}
+
+    async def _cancel_after_one_check() -> bool:
+        calls["count"] += 1
+        return calls["count"] > 1
+
+    with _frozen_today(), patch(f"{_MODULE}.EXPORT_CANCELLATION_CHECK_INTERVAL", 1):
+        with pytest.raises(ExportCancelledSignal):
+            await use_case.execute(
+                lookback_days=5,
+                forward_days=5,
+                cancellation_check=_cancel_after_one_check,
+            )
+
+    assert file_export.uploads == []
+    assert calls["count"] >= 2
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_reports_progress_and_refreshes_the_session() -> None:
+    """Past the cancellation check, a checkpoint also reports progress and refreshes.
+
+    Regression guard mirroring
+    test_session_refresh_is_called_at_every_checkpoint in
+    test_export_exchange_rates_csv.py -- _checkpoint's post-cancellation-check
+    branch (report_progress + session_refresh) is otherwise unreachable
+    from a cancellation-focused test, since raising ExportCancelledSignal
+    short-circuits before either callback runs.
+    """
+    file_export = _StubFileExport()
+    use_case = _build_use_case(
+        [_currency("CLP"), _currency("USD")], {}, [], file_export
+    )
+    updates: list[tuple[int, int]] = []
+    refresh_calls = 0
+
+    async def _record_progress(processed_items: int, total_items: int) -> None:
+        updates.append((processed_items, total_items))
+
+    async def _session_refresh() -> None:
+        nonlocal refresh_calls
+        refresh_calls += 1
+
+    with _frozen_today(), patch(f"{_MODULE}.EXPORT_CANCELLATION_CHECK_INTERVAL", 2):
+        # lookback=3, forward=0 -> 4 dates * 1 currency = 4 items;
+        # checkpoint every 2 -> 2 checkpoints.
+        await use_case.execute(
+            lookback_days=3,
+            forward_days=0,
+            progress_report=_record_progress,
+            session_refresh=_session_refresh,
+        )
+
+    assert updates[-1][0] > 0
+    assert refresh_calls >= 2
+
+
+@pytest.mark.asyncio
 async def test_progress_report_counts_both_series_types_up_front() -> None:
     """total_items counts (currencies + economic index codes) * dates."""
     file_export = _StubFileExport()

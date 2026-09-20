@@ -11,6 +11,9 @@ from rates.application.ports.market_data_repository import MarketDataRepository
 from rates.application.ports.reference_data_repository import (
     ReferenceDataRepository,
 )
+from rates.application.use_cases.export_combined_financial_data_csv import (
+    ExportCombinedFinancialDataCsv,
+)
 from rates.application.use_cases.export_exchange_rates_csv import (
     ExportExchangeRatesCsv,
 )
@@ -19,9 +22,12 @@ from rates.application.use_cases.get_exchange_rate_value import (
 )
 from rates.interfaces.api.dependencies import (
     ExportJobSessionSwapper,
+    build_run_export_job_use_case,
+    get_export_combined_financial_data_csv_use_case,
     get_export_exchange_rates_csv_use_case,
     get_file_export_port,
 )
+from rates.shared.constants import EXPORT_KIND_COMBINED
 
 _MODULE = "rates.interfaces.api.dependencies"
 
@@ -92,6 +98,53 @@ def test_get_export_exchange_rates_csv_use_case_wires_dependencies() -> None:
         )
 
     assert isinstance(use_case, ExportExchangeRatesCsv)
+
+
+def test_get_export_combined_financial_data_csv_use_case_wires_dependencies() -> None:
+    """The FastAPI dependency builds a fully wired ExportCombinedFinancialDataCsv.
+
+    Composes an already-built ExportExchangeRatesCsv rather than deriving
+    its own reference-data/get-exchange-rate-value dependencies -- see
+    the docstring on the real function for why.
+    """
+    market_data_repository = Mock(spec=MarketDataRepository)
+    exchange_rates_csv = Mock(spec=ExportExchangeRatesCsv)
+
+    with patch(f"{_MODULE}.get_file_export_port") as mock_get_port:
+        mock_get_port.return_value = Mock()
+        use_case = get_export_combined_financial_data_csv_use_case(
+            market_data_repository, exchange_rates_csv
+        )
+
+    assert isinstance(use_case, ExportCombinedFinancialDataCsv)
+
+
+def test_build_run_export_job_use_case_combined_kind_wires_combined_use_case() -> None:
+    """export_kind=combined makes the lazy factory build the combined use case.
+
+    The factory is lazy precisely so this branch (see
+    build_run_export_job_use_case's docstring) only runs when the
+    background job actually executes -- exercised here directly since
+    RunExportJob.execute() is the only other caller, and it's already
+    covered end to end by the async-export integration tests.
+    """
+
+    class _FakeSession:
+        pass
+
+    with (
+        patch(f"{_MODULE}.get_fx_rate_provider") as mock_get_fx_provider,
+        patch(f"{_MODULE}.get_file_export_port") as mock_get_port,
+    ):
+        mock_get_fx_provider.return_value = Mock()
+        mock_get_port.return_value = Mock()
+        run_export_job, _swapper = build_run_export_job_use_case(
+            _FakeSession(),  # type: ignore[arg-type]
+            export_kind=EXPORT_KIND_COMBINED,
+        )
+        use_case = run_export_job._csv_export_factory()
+
+    assert isinstance(use_case, ExportCombinedFinancialDataCsv)
 
 
 def _fake_session(name: str) -> Mock:
