@@ -151,13 +151,13 @@ def _override(job_repository: _StubExportJobRepository) -> None:
 
 @pytest.mark.asyncio
 async def test_get_export_job_returns_current_status() -> None:
-    """GET /exchange-rates/export/jobs/{id} returns the job's stored state."""
+    """GET /exports/jobs/{id} returns the job's stored state."""
     job_repository = _StubExportJobRepository()
     job_repository.seed(_job(1, "succeeded"))
     _override(job_repository)
     try:
         async with AsyncClient(**AUTHED) as client:
-            response = await client.get("/exchange-rates/export/jobs/1")
+            response = await client.get("/exports/jobs/1")
         assert response.status_code == 200
         body = response.json()
         assert body["status"] == "succeeded"
@@ -176,7 +176,7 @@ async def test_get_export_job_reports_progress_percent_while_running() -> None:
     _override(job_repository)
     try:
         async with AsyncClient(**AUTHED) as client:
-            response = await client.get("/exchange-rates/export/jobs/1")
+            response = await client.get("/exports/jobs/1")
         assert response.status_code == 200
         body = response.json()
         assert body["total_items"] == 200
@@ -194,7 +194,7 @@ async def test_get_export_job_progress_percent_is_null_before_total_is_known() -
     _override(job_repository)
     try:
         async with AsyncClient(**AUTHED) as client:
-            response = await client.get("/exchange-rates/export/jobs/1")
+            response = await client.get("/exports/jobs/1")
         assert response.status_code == 200
         body = response.json()
         assert body["total_items"] is None
@@ -206,11 +206,11 @@ async def test_get_export_job_progress_percent_is_null_before_total_is_known() -
 
 @pytest.mark.asyncio
 async def test_get_export_job_returns_404_when_missing() -> None:
-    """GET /exchange-rates/export/jobs/{id} returns 404 for an unknown job."""
+    """GET /exports/jobs/{id} returns 404 for an unknown job."""
     _override(_StubExportJobRepository())
     try:
         async with AsyncClient(**AUTHED) as client:
-            response = await client.get("/exchange-rates/export/jobs/999999")
+            response = await client.get("/exports/jobs/999999")
         assert response.status_code == 404
     finally:
         app.dependency_overrides.clear()
@@ -218,7 +218,7 @@ async def test_get_export_job_returns_404_when_missing() -> None:
 
 @pytest.mark.asyncio
 async def test_list_export_jobs_returns_every_job_newest_first() -> None:
-    """GET /exchange-rates/export/jobs with no filters lists everything."""
+    """GET /exports/jobs with no filters lists everything."""
     job_repository = _StubExportJobRepository()
     older = dt.now(UTC) - timedelta(hours=1)
     newer = dt.now(UTC)
@@ -227,7 +227,7 @@ async def test_list_export_jobs_returns_every_job_newest_first() -> None:
     _override(job_repository)
     try:
         async with AsyncClient(**AUTHED) as client:
-            response = await client.get("/exchange-rates/export/jobs")
+            response = await client.get("/exports/jobs")
         assert response.status_code == 200
         body = response.json()
         assert [job["job_id"] for job in body] == [2, 1]
@@ -237,16 +237,14 @@ async def test_list_export_jobs_returns_every_job_newest_first() -> None:
 
 @pytest.mark.asyncio
 async def test_list_export_jobs_filters_by_status() -> None:
-    """GET /exchange-rates/export/jobs?status=... only returns matching jobs."""
+    """GET /exports/jobs?status=... only returns matching jobs."""
     job_repository = _StubExportJobRepository()
     job_repository.seed(_job(1, "succeeded"))
     job_repository.seed(_job(2, "failed"))
     _override(job_repository)
     try:
         async with AsyncClient(**AUTHED) as client:
-            response = await client.get(
-                "/exchange-rates/export/jobs", params={"status": "failed"}
-            )
+            response = await client.get("/exports/jobs", params={"status": "failed"})
         assert response.status_code == 200
         body = response.json()
         assert [job["job_id"] for job in body] == [2]
@@ -261,7 +259,7 @@ async def test_list_export_jobs_rejects_invalid_status() -> None:
     try:
         async with AsyncClient(**AUTHED) as client:
             response = await client.get(
-                "/exchange-rates/export/jobs", params={"status": "not-a-real-status"}
+                "/exports/jobs", params={"status": "not-a-real-status"}
             )
         assert response.status_code == 400
     finally:
@@ -280,7 +278,7 @@ async def test_list_export_jobs_filters_by_created_range() -> None:
     try:
         async with AsyncClient(**AUTHED) as client:
             response = await client.get(
-                "/exchange-rates/export/jobs",
+                "/exports/jobs",
                 params={"created_from": (recent - timedelta(hours=1)).isoformat()},
             )
         assert response.status_code == 200
@@ -298,7 +296,7 @@ async def test_stop_export_job_sets_cancel_requested_at() -> None:
     _override(job_repository)
     try:
         async with AsyncClient(**AUTHED) as client:
-            response = await client.post("/exchange-rates/export/jobs/1/stop")
+            response = await client.post("/exports/jobs/1/stop")
         assert response.status_code == 200
         body = response.json()
         assert body["status"] == "running"  # not flipped synchronously
@@ -313,7 +311,7 @@ async def test_stop_export_job_returns_404_when_missing() -> None:
     _override(_StubExportJobRepository())
     try:
         async with AsyncClient(**AUTHED) as client:
-            response = await client.post("/exchange-rates/export/jobs/999999/stop")
+            response = await client.post("/exports/jobs/999999/stop")
         assert response.status_code == 404
     finally:
         app.dependency_overrides.clear()
@@ -327,7 +325,7 @@ async def test_stop_export_job_returns_409_when_already_terminal() -> None:
     _override(job_repository)
     try:
         async with AsyncClient(**AUTHED) as client:
-            response = await client.post("/exchange-rates/export/jobs/1/stop")
+            response = await client.post("/exports/jobs/1/stop")
         assert response.status_code == 409
     finally:
         app.dependency_overrides.clear()
@@ -341,8 +339,8 @@ async def test_stop_export_job_is_idempotent() -> None:
     _override(job_repository)
     try:
         async with AsyncClient(**AUTHED) as client:
-            first = await client.post("/exchange-rates/export/jobs/1/stop")
-            second = await client.post("/exchange-rates/export/jobs/1/stop")
+            first = await client.post("/exports/jobs/1/stop")
+            second = await client.post("/exports/jobs/1/stop")
         assert first.status_code == 200
         assert second.status_code == 200
         assert (
@@ -354,7 +352,7 @@ async def test_stop_export_job_is_idempotent() -> None:
 
 @pytest.mark.asyncio
 async def test_stop_all_export_jobs_only_touches_active_ones() -> None:
-    """POST /exchange-rates/export/jobs/stop stops pending/running jobs only."""
+    """POST /exports/jobs/stop stops pending/running jobs only."""
     job_repository = _StubExportJobRepository()
     job_repository.seed(_job(1, "pending"))
     job_repository.seed(_job(2, "running"))
@@ -362,7 +360,7 @@ async def test_stop_all_export_jobs_only_touches_active_ones() -> None:
     _override(job_repository)
     try:
         async with AsyncClient(**AUTHED) as client:
-            response = await client.post("/exchange-rates/export/jobs/stop")
+            response = await client.post("/exports/jobs/stop")
         assert response.status_code == 200
         body = response.json()
         stopped_ids = {job["job_id"] for job in body["jobs"]}

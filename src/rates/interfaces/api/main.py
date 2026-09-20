@@ -170,7 +170,9 @@ _OPENAPI_TAGS = [
         "name": "exports",
         "description": (
             "Combined exchange-rate + economic-index CSV export "
-            "(one row shape, both series types, same rolling window)."
+            "(one row shape, both series types, same rolling window). "
+            "Also hosts async export-job status, listing, and cooperative "
+            "cancellation -- shared across every export kind."
         ),
     },
     {

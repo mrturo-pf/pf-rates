@@ -929,7 +929,7 @@ async def test_export_job_monitor_returns_404_for_unknown_job(
     http_client: AsyncClient,
 ) -> None:
     """The job status endpoint returns 404 for a job id that was never created."""
-    response = await http_client.get("/exchange-rates/export/jobs/999999")
+    response = await http_client.get("/exports/jobs/999999")
     assert response.status_code == 404
 
 

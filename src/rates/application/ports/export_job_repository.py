@@ -123,6 +123,6 @@ class ExportJobRepository(Protocol):
     async def list_active_ids(self) -> list[int]:
         """Return ids of every job in 'pending' or 'running' status.
 
-        Backs the bulk `POST /exchange-rates/export/jobs/stop` endpoint.
+        Backs the bulk `POST /exports/jobs/stop` endpoint.
         """
         ...

@@ -242,7 +242,7 @@ the request timing out before the CSV finishes uploading.
 {
   "job_id": 42,
   "status": "pending",
-  "monitor_url": "/exchange-rates/export/jobs/42"
+  "monitor_url": "/exports/jobs/42"
 }
 ```
 
@@ -299,7 +299,7 @@ Same configuration requirements, request body shape
 (`lookback_days`/`forward_days`/`async`), synchronous/async response
 shapes, and `503` error as `POST /exchange-rates/export` -- see that
 section above for details. Async jobs from this endpoint are monitored
-through the exact same `GET/POST /exchange-rates/export/jobs/...`
+through the exact same `GET/POST /exports/jobs/...`
 endpoints, tagged with `export_kind: "combined"`.
 
 **Example (synchronous):**
@@ -312,7 +312,7 @@ curl -X POST -H "X-API-Key: your-key" \
 
 #### Check an async export job status
 
-**GET /exchange-rates/export/jobs/{job_id}**
+**GET /exports/jobs/{job_id}**
 
 Return the current state of a previously-triggered async export job.
 Status is one of pending, running, succeeded, failed, cancelled. Job state is
@@ -378,7 +378,7 @@ While it is still running, the same shape looks like this instead:
 **Example:**
 ```bash
 curl -H "X-API-Key: your-key" \
-  http://localhost:8001/exchange-rates/export/jobs/42
+  http://localhost:8001/exports/jobs/42
 ```
 
 ---
@@ -387,7 +387,7 @@ curl -H "X-API-Key: your-key" \
 
 #### List export jobs
 
-**GET /exchange-rates/export/jobs**
+**GET /exports/jobs**
 
 List export jobs, newest first, optionally filtered by status and/or a
 `created_at` date range. Backed by the same `RAT_EXPORT_JOB` table. Each
@@ -409,12 +409,12 @@ currently `running`.
 **Example:**
 ```bash
 curl -H "X-API-Key: your-key" \
-  "http://localhost:8001/exchange-rates/export/jobs?status=failed&limit=20"
+  "http://localhost:8001/exports/jobs?status=failed&limit=20"
 ```
 
 #### Stop a running/pending export job
 
-**POST /exchange-rates/export/jobs/{job_id}/stop**
+**POST /exports/jobs/{job_id}/stop**
 
 Request cooperative cancellation of a single job. pf-rates has no message
 queue in front of it (Cloud Run + BackgroundTasks only, by deliberate cost
@@ -445,12 +445,12 @@ twice on the same job is safe (idempotent).
 **Example:**
 ```bash
 curl -X POST -H "X-API-Key: your-key" \
-  http://localhost:8001/exchange-rates/export/jobs/42/stop
+  http://localhost:8001/exports/jobs/42/stop
 ```
 
 #### Stop every running/pending export job
 
-**POST /exchange-rates/export/jobs/stop**
+**POST /exports/jobs/stop**
 
 Same cooperative-cancellation semantics as above, applied in bulk to
 every job currently `pending` or `running`. Jobs that finish in the small
@@ -472,7 +472,7 @@ omitted from the response rather than reported as stopped.
 **Example:**
 ```bash
 curl -X POST -H "X-API-Key: your-key" \
-  http://localhost:8001/exchange-rates/export/jobs/stop
+  http://localhost:8001/exports/jobs/stop
 ```
 
 ---

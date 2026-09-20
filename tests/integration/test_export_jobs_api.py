@@ -3,7 +3,7 @@
 Split out from test_market_data_api.py (which already covers the basic
 create/mark_running/mark_succeeded/mark_failed lifecycle) to keep each
 file focused and under a manageable size -- this one owns everything
-added for GET /exchange-rates/export/jobs (list) and the stop endpoints.
+added for GET /exports/jobs (list) and the stop endpoints.
 
 Uses testcontainers (PostgreSQL) + httpx AsyncClient against the real
 FastAPI app. Fixtures (pg_url, db_session, http_client) are defined in
@@ -204,14 +204,14 @@ async def test_repository_list_active_ids(db_session: AsyncSession) -> None:
 async def test_get_export_job_endpoint_reports_progress_percent(
     http_client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    """GET /exchange-rates/export/jobs/{id} derives progress_percent from the DB row."""
+    """GET /exports/jobs/{id} derives progress_percent from the DB row."""
     repo = SqlAlchemyExportJobRepository(db_session)
     job_id = await repo.create(lookback_days=1, forward_days=0)
     await repo.mark_running(job_id)
     await repo.update_progress(job_id, processed_items=3, total_items=12)
     await db_session.commit()
 
-    response = await http_client.get(f"/exchange-rates/export/jobs/{job_id}")
+    response = await http_client.get(f"/exports/jobs/{job_id}")
 
     assert response.status_code == 200
     body = response.json()
@@ -224,15 +224,13 @@ async def test_get_export_job_endpoint_reports_progress_percent(
 async def test_list_export_jobs_endpoint_filters_by_status(
     http_client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    """GET /exchange-rates/export/jobs?status=... filters through the real DB."""
+    """GET /exports/jobs?status=... filters through the real DB."""
     repo = SqlAlchemyExportJobRepository(db_session)
     succeeded_id = await repo.create(lookback_days=1, forward_days=0)
     await repo.mark_succeeded(succeeded_id, rows_written=1, file_id="drive-a")
     await db_session.commit()
 
-    response = await http_client.get(
-        "/exchange-rates/export/jobs", params={"status": "succeeded"}
-    )
+    response = await http_client.get("/exports/jobs", params={"status": "succeeded"})
 
     assert response.status_code == 200
     job_ids = {job["job_id"] for job in response.json()}
@@ -248,7 +246,7 @@ async def test_stop_endpoint_flags_a_pending_job(
     job_id = await repo.create(lookback_days=1, forward_days=0)
     await db_session.commit()
 
-    response = await http_client.post(f"/exchange-rates/export/jobs/{job_id}/stop")
+    response = await http_client.post(f"/exports/jobs/{job_id}/stop")
 
     assert response.status_code == 200
     body = response.json()
@@ -266,7 +264,7 @@ async def test_stop_endpoint_returns_409_for_succeeded_job(
     await repo.mark_succeeded(job_id, rows_written=1, file_id="drive-a")
     await db_session.commit()
 
-    response = await http_client.post(f"/exchange-rates/export/jobs/{job_id}/stop")
+    response = await http_client.post(f"/exports/jobs/{job_id}/stop")
 
     assert response.status_code == 409
 
@@ -275,14 +273,14 @@ async def test_stop_endpoint_returns_409_for_succeeded_job(
 async def test_bulk_stop_endpoint_stops_every_active_job(
     http_client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    """POST /exchange-rates/export/jobs/stop cancels every pending/running job."""
+    """POST /exports/jobs/stop cancels every pending/running job."""
     repo = SqlAlchemyExportJobRepository(db_session)
     pending_id = await repo.create(lookback_days=1, forward_days=0)
     succeeded_id = await repo.create(lookback_days=1, forward_days=0)
     await repo.mark_succeeded(succeeded_id, rows_written=1, file_id="drive-a")
     await db_session.commit()
 
-    response = await http_client.post("/exchange-rates/export/jobs/stop")
+    response = await http_client.post("/exports/jobs/stop")
 
     assert response.status_code == 200
     stopped_ids = {job["job_id"] for job in response.json()["jobs"]}

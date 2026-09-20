@@ -97,7 +97,7 @@ async def test_export_exchange_rates_async_returns_202_with_job_id() -> None:
         assert response.status_code == 202
         body = response.json()
         assert body["status"] == "pending"
-        assert body["monitor_url"] == f"/exchange-rates/export/jobs/{body['job_id']}"
+        assert body["monitor_url"] == f"/exports/jobs/{body['job_id']}"
         assert job_repository.create_calls == [(6100, 30, EXPORT_KIND_EXCHANGE_RATES)]
         # The synchronous use case must never be invoked in the async path.
         assert sync_stub.calls == []
@@ -122,5 +122,5 @@ async def test_export_exchange_rates_defaults_to_sync_without_async_flag() -> No
         app.dependency_overrides.clear()
 
 
-# GET /exchange-rates/export/jobs/{id} (and the list/stop endpoints) are
+# GET /exports/jobs/{id} (and the list/stop endpoints) are
 # tested in test_export_jobs_route.py, alongside the routes' own module.

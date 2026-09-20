@@ -79,7 +79,7 @@ async def test_export_financial_data_async_returns_202_with_combined_kind() -> N
         assert response.status_code == 202
         body = response.json()
         assert body["status"] == "pending"
-        assert body["monitor_url"] == f"/exchange-rates/export/jobs/{body['job_id']}"
+        assert body["monitor_url"] == f"/exports/jobs/{body['job_id']}"
         assert job_repository.create_calls == [(10, 5, EXPORT_KIND_COMBINED)]
         assert sync_stub.calls == []
     finally:

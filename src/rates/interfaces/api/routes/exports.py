@@ -57,7 +57,7 @@ class ExportFinancialDataRequest(BaseModel):
         description=(
             "If true, create the export job and return immediately with a "
             "job_id instead of waiting for completion -- poll "
-            "GET /exchange-rates/export/jobs/{job_id} for its status (job "
+            "GET /exports/jobs/{job_id} for its status (job "
             "status/cancellation is shared infrastructure across every "
             "export kind). Defaults to false."
         ),
@@ -98,7 +98,7 @@ async def export_financial_data(
     Same async_execution / job-monitoring contract as
     `POST /exchange-rates/export` -- see its docstring. Job status,
     progress, and cooperative-cancellation endpoints
-    (`GET/POST /exchange-rates/export/jobs/...`) are shared across both
+    (`GET/POST /exports/jobs/...`) are shared across both
     export kinds; only creation and background dispatch differ.
     """
     if payload.async_execution:

@@ -113,7 +113,7 @@ class ExportExchangeRatesRequest(BaseModel):
         description=(
             "If true, create the export job and return immediately with a "
             "job_id instead of waiting for completion -- poll "
-            "GET /exchange-rates/export/jobs/{job_id} for its status. "
+            "GET /exports/jobs/{job_id} for its status. "
             "Defaults to false (synchronous, waits for the CSV upload)."
         ),
     )
@@ -218,7 +218,7 @@ async def export_exchange_rates(
     Set async_execution (JSON key: async) to true to trigger the export in
     the background instead of waiting for it: returns 202 Accepted with a
     job_id right away, and the actual export runs after the response is
-    sent. Poll GET /exchange-rates/export/jobs/{job_id} for its status.
+    sent. Poll GET /exports/jobs/{job_id} for its status.
     Recommended for large windows (e.g. a multi-year historical backfill)
     where a synchronous call risks the request timing out before the CSV
     finishes uploading, even with a warm cache.

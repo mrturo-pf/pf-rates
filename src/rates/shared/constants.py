@@ -56,7 +56,7 @@ EXPORT_KIND_EXCHANGE_RATES = "exchange_rates"
 EXPORT_KIND_COMBINED = "combined"
 EXPORT_KINDS = (EXPORT_KIND_EXCHANGE_RATES, EXPORT_KIND_COMBINED)
 
-# GET /exchange-rates/export/jobs pagination guardrails. A hard cap (not
+# GET /exports/jobs pagination guardrails. A hard cap (not
 # just a default) prevents an unbounded SELECT as job history grows --
 # cheap to enforce, and this is an internal operational endpoint, not a
 # user-facing paginated list that needs a larger page size.

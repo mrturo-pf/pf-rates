@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from rates.application.ports.export_job_repository import ExportJobRepository
 from rates.shared.constants import EXPORT_JOB_STATUS_PENDING
 
-_JOB_STATUS_MONITOR_PATH = "/exchange-rates/export/jobs"
+_JOB_STATUS_MONITOR_PATH = "/exports/jobs"
 
 
 class ExportJobTriggeredResponse(BaseModel):

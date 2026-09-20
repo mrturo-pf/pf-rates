@@ -3,6 +3,13 @@
 Split out from exchange_rates.py (which keeps the CRUD + trigger
 endpoints) to keep each route module focused on one sub-resource --
 job lifecycle management is a distinct concern from rate data itself.
+
+Lives under `/exports/jobs` (not nested under `/exchange-rates`) because
+it is shared infrastructure across every export kind -- these routes read
+`RAT_EXPORT_JOB` by id/status alone, agnostic to whether the job is an
+`exchange_rates` or `combined` export (see `export_kind` on the response).
+Both `POST /exchange-rates/export` and `POST /exports/financial-data`
+point their async `monitor_url` here.
 """
 
 from datetime import datetime
@@ -26,7 +33,7 @@ from rates.shared.constants import (
     EXPORT_JOB_STATUSES,
 )
 
-router = APIRouter(prefix="/exchange-rates/export/jobs", tags=["exchange-rates"])
+router = APIRouter(prefix="/exports/jobs", tags=["exports"])
 
 
 class ExportJobStatusResponse(BaseModel):
