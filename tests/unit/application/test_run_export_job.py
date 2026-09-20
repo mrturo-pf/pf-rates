@@ -5,9 +5,7 @@ from decimal import Decimal
 import pytest
 
 from rates.application.dto import ExportExchangeRatesResultDTO
-from rates.application.use_cases.export_exchange_rates_csv import (
-    ExportCancelledSignal,
-)
+from rates.application.use_cases._export_csv_shared import ExportCancelledSignal
 from rates.application.use_cases.run_export_job import RunExportJob
 
 

@@ -32,6 +32,11 @@ router = APIRouter(prefix="/exchange-rates/export/jobs", tags=["exchange-rates"]
 class ExportJobStatusResponse(BaseModel):
     """Represent the current state of an async export job."""
 
+    # jscpd:ignore-start -- this field-for-field mirrors ExportJobDTO
+    # (application layer) by design: DTOs are the only thing allowed to
+    # cross layer boundaries (see AGENTS.md), so the interface layer's
+    # response schema legitimately restates them rather than importing an
+    # application-layer type straight into a Pydantic response model.
     job_id: int
     status: str
     lookback_days: int
@@ -46,6 +51,7 @@ class ExportJobStatusResponse(BaseModel):
     progress_percent: float | None
     created_at: datetime
     updated_at: datetime
+    # jscpd:ignore-end
 
 
 class ExportJobStopResponse(BaseModel):

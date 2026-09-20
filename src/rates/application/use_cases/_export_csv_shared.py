@@ -39,6 +39,30 @@ def build_export_date_range(
     return [start + timedelta(days=offset) for offset in range(span_days + 1)]
 
 
+async def raise_if_cancelled(cancellation_check: CancellationCheck | None) -> None:
+    """Raise ExportCancelledSignal if a cancellation has been requested.
+
+    Shared by every CSV-export use case -- previously duplicated as an
+    identical private staticmethod on each one.
+    """
+    if cancellation_check is not None and await cancellation_check():
+        raise ExportCancelledSignal
+
+
+async def report_progress(
+    progress_report: ProgressReport | None,
+    processed_items: int,
+    total_items: int,
+) -> None:
+    """Invoke progress_report(processed_items, total_items) if given.
+
+    Shared by every CSV-export use case -- previously duplicated as an
+    identical private staticmethod on each one.
+    """
+    if progress_report is not None:
+        await progress_report(processed_items, total_items)
+
+
 class CsvExportUseCase(Protocol):
     """Structural type for any CSV-export use case `RunExportJob` can drive.
 

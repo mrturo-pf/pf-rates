@@ -30,6 +30,10 @@ from rates.interfaces.api.dependencies import (
     get_export_job_background_runner,
     get_export_job_repository,
 )
+from rates.interfaces.api.routes._export_job_trigger import (
+    ExportJobTriggeredResponse,
+    trigger_async_export_job,
+)
 from rates.interfaces.api.routes._refresh_deps import (
     MarketDataRepository,
     RefreshRates,
@@ -39,7 +43,6 @@ from rates.interfaces.api.routes._refresh_deps import (
     RefreshRatesResponse,
 )
 from rates.shared.constants import (
-    EXPORT_JOB_STATUS_PENDING,
     EXPORT_KIND_EXCHANGE_RATES,
     MAX_LOOKBACK_DAYS,
 )
@@ -121,14 +124,6 @@ class ExportExchangeRatesResponse(BaseModel):
 
     rows_written: int
     file_id: str
-
-
-class ExportJobTriggeredResponse(BaseModel):
-    """Represent the response for an asynchronously triggered export job."""
-
-    job_id: int
-    status: str
-    monitor_url: str
 
 
 @router.get("", response_model=list[ExchangeRateRead])
@@ -233,21 +228,14 @@ async def export_exchange_rates(
     would otherwise be guaranteed to fail as soon as it ran in the background.
     """
     if payload.async_execution:
-        job_id = await export_job_repository.create(
-            payload.lookback_days, payload.forward_days, EXPORT_KIND_EXCHANGE_RATES
-        )
-        background_tasks.add_task(
+        return await trigger_async_export_job(
+            background_tasks,
+            response,
+            export_job_repository,
             run_job_in_background,
-            job_id,
             payload.lookback_days,
             payload.forward_days,
             EXPORT_KIND_EXCHANGE_RATES,
-        )
-        response.status_code = 202
-        return ExportJobTriggeredResponse(
-            job_id=job_id,
-            status=EXPORT_JOB_STATUS_PENDING,
-            monitor_url=f"/exchange-rates/export/jobs/{job_id}",
         )
     try:
         result = await use_case.execute(

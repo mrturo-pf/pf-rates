@@ -18,10 +18,11 @@ from rates.application.use_cases.get_exchange_rate_value import (
 )
 from rates.application.use_cases._export_csv_shared import (
     CancellationCheck,
-    ExportCancelledSignal,
     ProgressReport,
     SessionRefresh,
     build_export_date_range,
+    raise_if_cancelled,
+    report_progress,
 )
 from rates.domain.normalization import normalize_exchange_rate_lookup_date
 from rates.shared.constants import (
@@ -158,20 +159,18 @@ class ExportExchangeRatesCsv:
         rows_written = 0
         dates_checked = 0
 
-        await self._report_progress(progress_report, dates_checked, total_items)
+        await report_progress(progress_report, dates_checked, total_items)
 
         for currency_code in currency_codes:
-            await self._raise_if_cancelled(cancellation_check)
+            await raise_if_cancelled(cancellation_check)
             cached_values = await self.bulk_fetch_currency_values(
                 currency_code, rate_dates[0], rate_dates[-1]
             )
             for rate_date in rate_dates:
                 dates_checked += 1
                 if dates_checked % EXPORT_CANCELLATION_CHECK_INTERVAL == 0:
-                    await self._raise_if_cancelled(cancellation_check)
-                    await self._report_progress(
-                        progress_report, dates_checked, total_items
-                    )
+                    await raise_if_cancelled(cancellation_check)
+                    await report_progress(progress_report, dates_checked, total_items)
                     if session_refresh is not None:
                         await session_refresh()
                 value = await self.resolve_value_for_date(
@@ -182,30 +181,14 @@ class ExportExchangeRatesCsv:
                 writer.writerow((currency_code, rate_date.isoformat(), value))
                 rows_written += 1
 
-        await self._raise_if_cancelled(cancellation_check)
-        await self._report_progress(progress_report, dates_checked, total_items)
+        await raise_if_cancelled(cancellation_check)
+        await report_progress(progress_report, dates_checked, total_items)
         file_id = await self._file_export.upload(
             filename=filename or self._default_filename(),
             content=buffer.getvalue().encode("utf-8"),
             mime_type="text/csv",
         )
         return ExportExchangeRatesResultDTO(rows_written=rows_written, file_id=file_id)
-
-    @staticmethod
-    async def _raise_if_cancelled(cancellation_check: CancellationCheck | None) -> None:
-        """Raise ExportCancelledSignal if a cancellation has been requested."""
-        if cancellation_check is not None and await cancellation_check():
-            raise ExportCancelledSignal
-
-    @staticmethod
-    async def _report_progress(
-        progress_report: ProgressReport | None,
-        processed_items: int,
-        total_items: int,
-    ) -> None:
-        """Invoke progress_report(processed_items, total_items) if given."""
-        if progress_report is not None:
-            await progress_report(processed_items, total_items)
 
     async def bulk_fetch_currency_values(
         self, currency_code: str, start: date, end: date

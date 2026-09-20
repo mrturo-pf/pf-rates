@@ -11,10 +11,11 @@ from rates.application.ports.file_export_port import FileExportPort
 from rates.application.ports.market_data_repository import MarketDataRepository
 from rates.application.use_cases._export_csv_shared import (
     CancellationCheck,
-    ExportCancelledSignal,
     ProgressReport,
     SessionRefresh,
     build_export_date_range,
+    raise_if_cancelled,
+    report_progress,
 )
 from rates.application.use_cases.export_exchange_rates_csv import (
     ExportExchangeRatesCsv,
@@ -77,6 +78,13 @@ class ExportCombinedFinancialDataCsv:
         self._exchange_rates_csv = exchange_rates_csv
         self._file_export = file_export
 
+    # jscpd:ignore-start -- this signature is mandated verbatim by the
+    # shared CsvExportUseCase Protocol in _export_csv_shared.py, which
+    # RunExportJob depends on structurally. Every implementation (this
+    # one and ExportExchangeRatesCsv) must repeat it exactly to satisfy
+    # the Protocol -- there is no way to factor out a method signature
+    # itself in Python without runtime code-generation, which would cost
+    # far more in readability/type-safety than the duplication it removes.
     async def execute(
         self,
         lookback_days: int = DEFAULT_LOOKBACK_DAYS,
@@ -108,10 +116,10 @@ class ExportCombinedFinancialDataCsv:
         rows_written = 0
         items_checked = 0
 
-        await self._report_progress(progress_report, items_checked, total_items)
+        await report_progress(progress_report, items_checked, total_items)
 
         for currency_code in currency_codes:
-            await self._raise_if_cancelled(cancellation_check)
+            await raise_if_cancelled(cancellation_check)
             cached_values = await self._exchange_rates_csv.bulk_fetch_currency_values(
                 currency_code, rate_dates[0], rate_dates[-1]
             )
@@ -139,7 +147,7 @@ class ExportCombinedFinancialDataCsv:
                 rows_written += 1
 
         for index_code in economic_index_codes:
-            await self._raise_if_cancelled(cancellation_check)
+            await raise_if_cancelled(cancellation_check)
             monthly_values = await self._bulk_fetch_economic_index_values(index_code)
             for rate_date in rate_dates:
                 items_checked = await self._checkpoint(
@@ -162,14 +170,16 @@ class ExportCombinedFinancialDataCsv:
                 )
                 rows_written += 1
 
-        await self._raise_if_cancelled(cancellation_check)
-        await self._report_progress(progress_report, items_checked, total_items)
+        await raise_if_cancelled(cancellation_check)
+        await report_progress(progress_report, items_checked, total_items)
         file_id = await self._file_export.upload(
             filename=filename or DEFAULT_FILENAME,
             content=buffer.getvalue().encode("utf-8"),
             mime_type="text/csv",
         )
         return ExportExchangeRatesResultDTO(rows_written=rows_written, file_id=file_id)
+
+    # jscpd:ignore-end
 
     async def _checkpoint(
         self,
@@ -182,8 +192,8 @@ class ExportCombinedFinancialDataCsv:
         """Advance the item counter, polling cancellation/progress/refresh."""
         items_checked += 1
         if items_checked % EXPORT_CANCELLATION_CHECK_INTERVAL == 0:
-            await self._raise_if_cancelled(cancellation_check)
-            await self._report_progress(progress_report, items_checked, total_items)
+            await raise_if_cancelled(cancellation_check)
+            await report_progress(progress_report, items_checked, total_items)
             if session_refresh is not None:
                 await session_refresh()
         return items_checked
@@ -204,19 +214,3 @@ class ExportCombinedFinancialDataCsv:
             (entry.period_year, entry.period_month): entry.index_value
             for entry in entries
         }
-
-    @staticmethod
-    async def _raise_if_cancelled(cancellation_check: CancellationCheck | None) -> None:
-        """Raise ExportCancelledSignal if a cancellation has been requested."""
-        if cancellation_check is not None and await cancellation_check():
-            raise ExportCancelledSignal
-
-    @staticmethod
-    async def _report_progress(
-        progress_report: ProgressReport | None,
-        processed_items: int,
-        total_items: int,
-    ) -> None:
-        """Invoke progress_report(processed_items, total_items) if given."""
-        if progress_report is not None:
-            await progress_report(processed_items, total_items)

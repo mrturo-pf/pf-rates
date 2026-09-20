@@ -14,8 +14,8 @@ from rates.application.dto import (
     RefreshRatesCommandDTO,
     RefreshRatesResultDTO,
 )
+from rates.application.use_cases._export_csv_shared import ExportCancelledSignal
 from rates.application.use_cases.export_exchange_rates_csv import (
-    ExportCancelledSignal,
     ExportExchangeRatesCsv,
 )
 from rates.application.use_cases.get_exchange_rate_value import (

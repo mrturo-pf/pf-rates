@@ -19,8 +19,8 @@ from rates.application.use_cases.export_combined_financial_data_csv import (
     SERIES_TYPE_ECONOMIC_INDEX,
     SERIES_TYPE_EXCHANGE_RATE,
 )
+from rates.application.use_cases._export_csv_shared import ExportCancelledSignal
 from rates.application.use_cases.export_exchange_rates_csv import (
-    ExportCancelledSignal,
     ExportExchangeRatesCsv,
 )
 from rates.application.use_cases.get_exchange_rate_value import (
