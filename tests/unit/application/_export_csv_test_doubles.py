@@ -17,6 +17,12 @@ from rates.application.dto import (
     RefreshRatesCommandDTO,
     RefreshRatesResultDTO,
 )
+from rates.application.ports.file_export_port import FileExportPort
+from rates.application.ports.market_data_repository import MarketDataRepository
+from rates.application.use_cases.export_exchange_rates_csv import (
+    ExportExchangeRatesCsv,
+)
+from rates.application.use_cases.get_exchange_rate_value import GetExchangeRateValue
 
 
 def build_currency(code: str) -> CurrencyDTO:
@@ -91,3 +97,29 @@ def read_csv_rows(content: bytes) -> list[list[str]]:
     """Parse uploaded CSV bytes into a list of rows (including the header)."""
     text = content.decode("utf-8")
     return list(csv.reader(io.StringIO(text)))
+
+
+def build_exchange_rates_csv_use_case(
+    currencies: list[CurrencyDTO],
+    market_data_repository: MarketDataRepository,
+    file_export: FileExportPort,
+) -> ExportExchangeRatesCsv:
+    """Wire an ExportExchangeRatesCsv from an already-built market-data stub.
+
+    Shared by both export_exchange_rates_csv and
+    export_combined_financial_data_csv use-case tests: the combined
+    exporter's test double for ExportExchangeRatesCsv must be wired
+    identically to the base exporter's own tests -- only the concrete
+    market_data_repository stub passed in differs (the combined one
+    additionally exposes economic indices).
+    """
+    reference_data_repository = StubReferenceDataRepository(currencies)
+    get_exchange_rate_value = GetExchangeRateValue(
+        market_data_repository, StubFxRateProvider()
+    )
+    return ExportExchangeRatesCsv(
+        reference_data_repository,
+        market_data_repository,
+        get_exchange_rate_value,
+        file_export,
+    )

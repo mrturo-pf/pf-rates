@@ -14,17 +14,10 @@ from rates.application.use_cases.export_combined_financial_data_csv import (
     SERIES_TYPE_ECONOMIC_INDEX,
     SERIES_TYPE_EXCHANGE_RATE,
 )
-from rates.application.use_cases.export_exchange_rates_csv import (
-    ExportExchangeRatesCsv,
-)
-from rates.application.use_cases.get_exchange_rate_value import (
-    GetExchangeRateValue,
-)
 from tests.unit.application._export_csv_test_doubles import (
-    StubFxRateProvider as _StubFxRateProvider,
     StubMarketDataRepositoryBase,
-    StubReferenceDataRepository as _StubReferenceDataRepository,
     build_currency as _currency,
+    build_exchange_rates_csv_use_case,
     read_csv_rows as _read_csv_rows,
 )
 
@@ -104,16 +97,9 @@ def _build_use_case(
     file_export: _StubFileExport,
 ) -> ExportCombinedFinancialDataCsv:
     """Wire an ExportCombinedFinancialDataCsv with the given stub data."""
-    reference_data_repository = _StubReferenceDataRepository(currencies)
     market_data_repository = _StubMarketDataRepository(db_values, economic_indices)
-    get_exchange_rate_value = GetExchangeRateValue(
-        market_data_repository, _StubFxRateProvider()
-    )
-    exchange_rates_csv = ExportExchangeRatesCsv(
-        reference_data_repository,
-        market_data_repository,
-        get_exchange_rate_value,
-        file_export,
+    exchange_rates_csv = build_exchange_rates_csv_use_case(
+        currencies, market_data_repository, file_export
     )
     return ExportCombinedFinancialDataCsv(
         market_data_repository, exchange_rates_csv, file_export
