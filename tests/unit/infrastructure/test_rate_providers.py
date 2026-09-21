@@ -27,6 +27,7 @@ from rates.infrastructure.rate_providers.official_providers import (
     _extract_sii_rows,
     _fetch_url,
     _proxy_is_reachable,
+    _resolve_ipc_base_period,
     _resolve_proxy_handler,
     make_fetcher,
     _parse_chilean_amount,
@@ -226,7 +227,7 @@ async def test_sii_indicators_provider_parses_utm_and_ipc_rows() -> None:
         index_value=Decimal("109.70"),
         monthly_change=Decimal("0.0"),
         yearly_change=Decimal("2.4"),
-        base_period="2023=100",
+        base_period="DIC-2023",
         source="sii",
     )
     assert utm_entries == [
@@ -251,7 +252,7 @@ async def test_sii_indicators_provider_parses_utm_and_ipc_rows() -> None:
             index_value=Decimal("109.71"),
             monthly_change=Decimal("0.4"),
             yearly_change=Decimal("2.8"),
-            base_period="2023=100",
+            base_period="DIC-2023",
             source="sii",
         ),
         EconomicIndexWriteDTO(
@@ -261,7 +262,7 @@ async def test_sii_indicators_provider_parses_utm_and_ipc_rows() -> None:
             index_value=Decimal("109.70"),
             monthly_change=Decimal("0.0"),
             yearly_change=Decimal("2.4"),
-            base_period="2023=100",
+            base_period="DIC-2023",
             source="sii",
         ),
     ]
@@ -925,3 +926,34 @@ async def test_chained_provider_logs_exhausted_when_all_providers_return_empty()
         )
         == []
     )
+
+
+@pytest.mark.parametrize(
+    ("period_year", "period_month", "expected_base"),
+    [
+        # Regression coverage: _resolve_ipc_base_period used to not exist
+        # at all -- SiiIndicatorsProvider hardcoded "2023=100" for every
+        # period, mislabeling any month fetched under an older INE base.
+        (1990, 1, "DIC-1998"),  # before the earliest known base: clamps low
+        (1998, 12, "DIC-1998"),  # last month before the first rebasing
+        (1999, 1, "DIC-1998"),  # first month of the earliest known base
+        (2006, 12, "DIC-1998"),
+        (2007, 1, "DIC-2006"),
+        (2008, 12, "DIC-2006"),
+        (2009, 1, "DIC-2008"),
+        (2013, 1, "DIC-2008"),  # the exact month our IPC_CL backfill starts at
+        (2013, 12, "DIC-2008"),
+        (2014, 1, "DIC-2013"),
+        (2018, 12, "DIC-2013"),
+        (2019, 1, "DIC-2018"),
+        (2023, 12, "DIC-2018"),
+        (2024, 1, "DIC-2023"),
+        (2026, 8, "DIC-2023"),  # current month at the time of this fix
+        (2099, 1, "DIC-2023"),  # far future: clamps to the latest known base
+    ],
+)
+def test_resolve_ipc_base_period(
+    period_year: int, period_month: int, expected_base: str
+) -> None:
+    """Test resolve ipc base period against INE Chile's official rebasing history."""
+    assert _resolve_ipc_base_period(period_year, period_month) == expected_base

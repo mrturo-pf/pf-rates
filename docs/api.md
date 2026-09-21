@@ -163,38 +163,68 @@ curl -H "X-API-Key: your-key" \
 
 **POST /exchange-rates/refresh**
 
-Upsert exchange rates from manual entries or provider fetches.
+Upsert exchange rates, either from values you supply yourself ("manual"
+entries) or by asking pf-rates to fetch the value from its configured
+provider chain for you ("provider fetch" entries). Both can be combined
+in the same request; if the same `(currency_code, rate_date)` pair
+appears in both lists, the manual entry wins.
 
 **Authentication:** Required
 
 **Request Body:**
 ```json
 {
-  "source": "mindicador",
-  "entries": [
+  "exchange_rates": [
     {
       "currency_code": "USD",
       "rate_date": "2024-01-15",
-      "value_clp": "897.5000"
+      "value_clp": "897.5000",
+      "source": "manual"
     }
+  ],
+  "fetch_exchange_rates": [
+    { "currency_code": "USD", "rate_date": "2024-01-16" }
   ]
 }
 ```
 
-**Response:**
+Both arrays default to empty and are optional individually, but at least
+one entry (in either array) is required across the whole request.
+`exchange_rates[].source` defaults to `"manual"` if omitted.
+
+**Response** (same shape for `/exchange-rates/refresh` and
+`/economic-indices/refresh` -- see `RefreshRatesResponse`; whichever
+field doesn't apply to the endpoint you called is always `0`):
 ```json
 {
-  "inserted": 1,
-  "updated": 0,
-  "total": 1
+  "upserted_exchange_rates": 2,
+  "upserted_economic_indices": 0
 }
 ```
 
-**Example:**
+**Errors:**
+- `400` if neither `exchange_rates` nor `fetch_exchange_rates` has any entries.
+- `502` if a `fetch_exchange_rates` entry can't be resolved by any
+  configured provider. **The whole request is rejected and nothing is
+  persisted** -- even entries earlier in the same request that resolved
+  fine. For a large batch (e.g. a multi-year historical backfill), split
+  it into smaller requests (e.g. one per year) so one bad date doesn't
+  discard an otherwise-successful batch.
+- `503` if `fetch_exchange_rates` has entries but no provider chain is configured.
+
+**Example (manual entry):**
 ```bash
 curl -X POST -H "X-API-Key: your-key" \
   -H "Content-Type: application/json" \
-  -d '{"source": "manual", "entries": [{"currency_code": "USD", "rate_date": "2024-01-15", "value_clp": "897.50"}]}' \
+  -d '{"exchange_rates": [{"currency_code": "USD", "rate_date": "2024-01-15", "value_clp": "897.50"}]}' \
+  http://localhost:8001/exchange-rates/refresh
+```
+
+**Example (provider fetch -- pf-rates resolves the value itself):**
+```bash
+curl -X POST -H "X-API-Key: your-key" \
+  -H "Content-Type: application/json" \
+  -d '{"fetch_exchange_rates": [{"currency_code": "USD", "rate_date": "2024-01-16"}]}' \
   http://localhost:8001/exchange-rates/refresh
 ```
 
@@ -528,39 +558,100 @@ curl -H "X-API-Key: your-key" \
 
 **POST /economic-indices/refresh**
 
-Upsert economic indices from manual entries or provider fetches.
+Upsert economic indices, either from values you supply yourself ("manual"
+entries) or by asking pf-rates to fetch the value from its configured
+provider chain for you ("provider fetch" entries). Both can be combined
+in the same request; if the same `(code, period_year, period_month)`
+triple appears in both lists, the manual entry wins. This is the
+endpoint to use for a historical backfill of `RAT_ECON_INDEX` (e.g.
+`IPC_CL` since 2010) -- `POST /sync` does NOT work for this: its
+`lookback_days` only applies to exchange rates, economic indices there
+are always limited to a fixed rolling 12-month window regardless of what
+you pass. `POST /exports/financial-data` doesn't help either -- it's
+read-only, it exports what's already in the DB to a CSV, it never writes
+to `RAT_ECON_INDEX`.
 
 **Authentication:** Required
 
 **Request Body:**
 ```json
 {
-  "source": "bcch",
-  "entries": [
+  "economic_indices": [
     {
-      "code": "UF",
-      "year": 2024,
-      "month": 1,
-      "value": "36500.25"
+      "code": "IPC_CL",
+      "period_year": 2024,
+      "period_month": 1,
+      "index_value": "125.50",
+      "source": "manual"
     }
+  ],
+  "fetch_economic_indices": [
+    { "code": "IPC_CL", "period_year": 2013, "period_month": 1 },
+    { "code": "IPC_CL", "period_year": 2013, "period_month": 2 }
   ]
 }
 ```
 
-**Response:**
+Both arrays default to empty and are optional individually, but at least
+one entry (in either array) is required across the whole request.
+`economic_indices[].source` defaults to `"manual"`,
+`economic_indices[].base_period` defaults to `"DIC-2018"` if omitted (only
+applies to manual entries -- see the note below for `fetch_economic_indices`).
+`period_year` must be between 1990 and 2100.
+
+> **`IPC_CL` provider coverage:** as of 2026-09, the configured providers
+> (BCCh + SII, chained) only have `IPC_CL` data from **2013-01 onward**.
+> `2010-01` through `2012-12` reliably fail with a `502` -- this was
+> confirmed by direct probing, not assumed, so don't retry that range
+> expecting a transient failure.
+>
+> **`base_period` for fetched entries:** INE Chile rebases the IPC index
+> roughly every five years. `SiiIndicatorsProvider` resolves the correct
+> historical `base_period` label per `(period_year, period_month)` instead
+> of using a single fixed value -- e.g. `2013-01` is labeled `DIC-2008`,
+> `2015-06` is labeled `DIC-2013`, `2026-08` is labeled `DIC-2023`. See
+> `_IPC_BASE_PERIODS` in `official_providers.py` for the full chronology
+> (sourced from INE's published rebasing history).
+
+**Response** (same shape for `/exchange-rates/refresh` and
+`/economic-indices/refresh` -- see `RefreshRatesResponse`; whichever
+field doesn't apply to the endpoint you called is always `0`):
 ```json
 {
-  "inserted": 1,
-  "updated": 0,
-  "total": 1
+  "upserted_exchange_rates": 0,
+  "upserted_economic_indices": 2
 }
 ```
 
-**Example:**
+**Errors:**
+- `400` if neither `economic_indices` nor `fetch_economic_indices` has any entries.
+- `502` if a `fetch_economic_indices` entry can't be resolved by any
+  configured provider (e.g. a period the provider never published, such
+  as `IPC_CL` before 2013-01 -- see the coverage note above).
+  **The whole request is rejected and nothing is persisted** -- even
+  entries earlier in the same request that resolved fine. For a large
+  batch (e.g. a multi-year historical backfill), split it into smaller
+  requests (e.g. one per year, 12 months at a time) so one bad period
+  doesn't discard an otherwise-successful batch.
+- `503` if `fetch_economic_indices` has entries but no provider chain is configured.
+
+**Example (manual entry):**
 ```bash
 curl -X POST -H "X-API-Key: your-key" \
   -H "Content-Type: application/json" \
-  -d '{"source": "manual", "entries": [{"code": "UF", "year": 2024, "month": 1, "value": "36500.25"}]}' \
+  -d '{"economic_indices": [{"code": "IPC_CL", "period_year": 2024, "period_month": 1, "index_value": "125.50"}]}' \
+  http://localhost:8001/economic-indices/refresh
+```
+
+**Example (provider fetch -- historical backfill, one year at a time):**
+```bash
+curl -X POST -H "X-API-Key: your-key" \
+  -H "Content-Type: application/json" \
+  -d '{"fetch_economic_indices": [
+    {"code": "IPC_CL", "period_year": 2013, "period_month": 1},
+    {"code": "IPC_CL", "period_year": 2013, "period_month": 2},
+    {"code": "IPC_CL", "period_year": 2013, "period_month": 3}
+  ]}' \
   http://localhost:8001/economic-indices/refresh
 ```
 
@@ -675,7 +766,18 @@ curl -X POST -H "X-API-Key: your-key" \
 
 **POST /sync**
 
-Rolling sync of all missing market data. Fetches exchange rates and economic indices for a date range.
+Rolling sync of missing market data. Fetches exchange rates and income
+tax brackets for the requested window, plus economic indices -- but
+**`lookback_days` only applies to exchange rates**; economic indices
+(`IPC_CL`) are always synced for a fixed rolling 12-month window ending
+today, regardless of what `lookback_days`/`forward_days` you pass (see
+`SyncRecentMarketData._build_monthly_dates` in
+`src/rates/application/use_cases/sync_recent_market_data.py`). This
+endpoint is meant for routine "catch up on what's missing recently"
+syncs (e.g. a daily/weekly cron), not for a historical backfill of
+`RAT_ECON_INDEX` further back than 12 months -- use
+[`POST /economic-indices/refresh`](#refresh-economic-indices) with
+`fetch_economic_indices` for that instead.
 
 **Authentication:** Required
 
@@ -688,22 +790,15 @@ Rolling sync of all missing market data. Fetches exchange rates and economic ind
 ```
 
 **Defaults:**
-- `lookback_days`: 365
-- `forward_days`: 35
+- `lookback_days`: 365 (exchange rates only -- max `MAX_LOOKBACK_DAYS`, 7300)
+- `forward_days`: 35 (exchange rates only, e.g. pre-published `UF` values)
 
 **Response:**
 ```json
 {
-  "exchange_rates": {
-    "inserted": 730,
-    "updated": 0,
-    "total": 730
-  },
-  "economic_indices": {
-    "inserted": 24,
-    "updated": 0,
-    "total": 24
-  }
+  "exchange_rates_upserted": 730,
+  "economic_indices_upserted": 24,
+  "brackets_upserted": 1
 }
 ```
 
@@ -712,7 +807,7 @@ Rolling sync of all missing market data. Fetches exchange rates and economic ind
 # Use defaults
 curl -X POST -H "X-API-Key: your-key" http://localhost:8001/sync
 
-# Custom range
+# Custom exchange-rate window (does not affect economic indices)
 curl -X POST -H "X-API-Key: your-key" \
   -H "Content-Type: application/json" \
   -d '{"lookback_days": 180, "forward_days": 60}' \

@@ -491,6 +491,44 @@ class MindicadorRateProvider(_FetchRateEntryMixin):
         return _ordered_entries(entries_by_date, requested_dates)
 
 
+# Chronology of official INE Chile IPC base-period rebasings (INE
+# rebases roughly every five years). Each entry is the first (year,
+# month) published under that base; a base stays in effect up to (but
+# not including) the next entry's start. Source:
+# https://www.ine.gob.cl/estadisticas-por-tema/precios-e-inflacion/indice-de-precios-al-consumidor
+# Kept as a plain sorted tuple (not a dict) since lookups are a linear
+# scan over ~6 known rebasings -- a dict/bisect would be premature
+# optimization for a table this small that changes once every five years.
+_IPC_BASE_PERIODS: tuple[tuple[tuple[int, int], str], ...] = (
+    ((1999, 1), "DIC-1998"),
+    ((2007, 1), "DIC-2006"),
+    ((2009, 1), "DIC-2008"),
+    ((2014, 1), "DIC-2013"),
+    ((2019, 1), "DIC-2018"),
+    ((2024, 1), "DIC-2023"),
+)
+
+
+def _resolve_ipc_base_period(period_year: int, period_month: int) -> str:
+    """Return the INE IPC base-period label in effect for a given period.
+
+    Regression fix: `SiiIndicatorsProvider` used to hardcode this to the
+    *current* base ("2023=100") for every period it fetched, mislabeling
+    any historical month fetched under an older base -- e.g. a backfilled
+    2013 value stored as if it were on the 2023=100 base, when 2013 was
+    actually published under the 2008-based series (DIC-2008, in effect
+    2009-01 through 2013-12). See docs/api.md and _IPC_BASE_PERIODS above
+    for the full rebasing chronology.
+    """
+    period = (period_year, period_month)
+    label = _IPC_BASE_PERIODS[0][1]
+    for start, base_label in _IPC_BASE_PERIODS:
+        if period < start:
+            break
+        label = base_label
+    return label
+
+
 class _SiiBaseProvider:
     """Shared HTTP-fetcher setup for SII providers."""
 
@@ -592,7 +630,7 @@ class SiiIndicatorsProvider(_SiiBaseProvider, _FetchRateEntryMixin):
             index_value=index_value,
             monthly_change=_parse_chilean_decimal(row[4]),
             yearly_change=_parse_chilean_decimal(row[6]) if len(row) > 6 else None,
-            base_period="2023=100",
+            base_period=_resolve_ipc_base_period(period_year, period_month),
             source=self.name,
         )
 
@@ -630,7 +668,7 @@ class SiiIndicatorsProvider(_SiiBaseProvider, _FetchRateEntryMixin):
                     yearly_change=_parse_chilean_decimal(row[6])
                     if len(row) > 6
                     else None,
-                    base_period="2023=100",
+                    base_period=_resolve_ipc_base_period(period_year, period_month),
                     source=self.name,
                 )
 
