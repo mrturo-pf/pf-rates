@@ -613,9 +613,9 @@ applies to manual entries -- see the note below for `fetch_economic_indices`).
 > `_IPC_BASE_PERIODS` in `official_providers.py` for the full chronology
 > (sourced from INE's published rebasing history).
 
-**Response** (same shape for `/exchange-rates/refresh` and
-`/economic-indices/refresh` -- see `RefreshRatesResponse`; whichever
-field doesn't apply to the endpoint you called is always `0`):
+**Response:** same shape as [`/exchange-rates/refresh`](#refresh-exchange-rates)
+(see above) -- `upserted_exchange_rates` will always be `0` here, since
+this endpoint never touches exchange rates:
 ```json
 {
   "upserted_exchange_rates": 0,
