@@ -8,8 +8,8 @@ set -euo pipefail
 DB_CONTAINER="${DB_CONTAINER:-pf-db-db-1}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=../../pf-common/scripts/detect_container_cli.sh
-source "$SCRIPT_DIR/../../pf-common/scripts/detect_container_cli.sh"
+# shellcheck source=../../pf-common/scripts/local_stack_common.sh
+source "$SCRIPT_DIR/../../pf-common/scripts/local_stack_common.sh"
 PF_DATABASE_URL="${PF_DATABASE_URL:-postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db}"
 PF_RATES_API_KEY="${PF_RATES_API_KEY:-change-me-before-use}"
 APP_PORT="${APP_PORT:-8001}"
@@ -19,29 +19,9 @@ CORPORATIVE_PIP_INDEX="${CORPORATIVE_PIP_INDEX:-}"
 CORPORATIVE_NPM_REGISTRY="${CORPORATIVE_NPM_REGISTRY:-}"
 CORPORATIVE_PROXY="${CORPORATIVE_PROXY:-}"
 
-log() {
-  printf '[local-up] %s\n' "$1"
-}
+pf_require_db_container "$DB_CONTAINER"
 
-venv_ready() {
-  [[ -x "$VENV/bin/python" ]] && [[ -x "$VENV/bin/uvicorn" ]] && \
-    "$VENV/bin/python" -c "import rates, fastapi, asyncpg, pydantic_settings, sqlalchemy, uvicorn" >/dev/null 2>&1
-}
-
-# Verify the shared pf-db container is running.
-log "Checking shared pf-db container ($DB_CONTAINER)"
-if ! container_is_running "$DB_CONTAINER"; then
-  echo ""
-  echo "ERROR: pf-db container '$DB_CONTAINER' is not running."
-  echo ""
-  echo "Start the shared database first:"
-  echo "  cd ../pf-db && make db-up"
-  echo ""
-  exit 1
-fi
-log "pf-db container is running"
-
-log "Writing environment file to $ENV_FILE"
+pf_log "Writing environment file to $ENV_FILE"
 PF_DATABASE_URL="$PF_DATABASE_URL" \
 PF_RATES_API_KEY="$PF_RATES_API_KEY" \
 CORPORATIVE_PIP_INDEX="$CORPORATIVE_PIP_INDEX" \
@@ -50,21 +30,8 @@ CORPORATIVE_PROXY="$CORPORATIVE_PROXY" \
 ENV_FILE="$ENV_FILE" \
 ./scripts/write_env.sh >/dev/null
 
-if venv_ready; then
-  log "Reusing existing virtual environment in $VENV"
-else
-  log "Installing project dependencies"
-  if [[ ! -x "$VENV/bin/python" ]]; then
-    python3 -m venv "$VENV"
-  fi
-  "$VENV/bin/python" -m ensurepip --upgrade
-  "$VENV/bin/python" -m pip install -e ".[dev]"
-fi
+pf_ensure_venv "$VENV" "import rates, fastapi, asyncpg, pydantic_settings, sqlalchemy, uvicorn"
 
-printf '\n'
-printf 'API  : http://127.0.0.1:%s\n' "$APP_PORT"
-printf 'Docs : http://127.0.0.1:%s/docs\n' "$APP_PORT"
-printf 'Env  : %s\n' "$ENV_FILE"
-printf '\n'
+pf_print_startup_banner "$APP_PORT" "$ENV_FILE"
 
 exec "$VENV/bin/uvicorn" rates.interfaces.api.main:app --reload --host 127.0.0.1 --port "$APP_PORT"
