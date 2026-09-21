@@ -299,9 +299,14 @@ endpoints.
 ```
 
 **Errors:**
-- `503` if Google Drive export is not configured yet (missing OAuth
-  token or destination folder id). Returned immediately even in async
-  mode, before any job row is created -- a job would otherwise be
+- `503` if Google Drive export is not configured yet -- either
+  `PF_RATES_GDRIVE_EXPORT_FOLDER_ID` is unset/the folder isn't shared as
+  Editor with the service's identity, or no Application Default
+  Credentials are available (see
+  [`google-drive-credentials-setup.md`](google-drive-credentials-setup.md)).
+  Both preconditions map to the same 503 so callers see one consistent
+  "not configured" failure mode either way. Returned immediately even in
+  async mode, before any job row is created -- a job would otherwise be
   guaranteed to fail as soon as it ran in the background.
 
 **Example (synchronous):**
