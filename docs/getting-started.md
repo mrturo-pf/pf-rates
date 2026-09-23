@@ -53,6 +53,12 @@ This creates `.env` from `.env.example`. **Important:** Edit `.env` and set a se
 PF_RATES_API_KEY=your-secure-api-key-here
 ```
 
+`.env` also ships with generic (non-functional) placeholder values for
+`CORPORATIVE_PIP_INDEX`/`CORPORATIVE_NPM_REGISTRY`/`CORPORATIVE_PROXY` — see
+[pf-common's Makefile guide](../../pf-common/make/README.md#corporate-vpn-support)
+for how to override them and why VPN auto-detection silently no-ops without an
+override.
+
 The API key is required for all authenticated endpoints (all except `/health`).
 
 ## Step 5: Run the service
