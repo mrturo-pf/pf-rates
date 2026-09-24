@@ -5,11 +5,11 @@
 #                        days + M forward days.
 #
 # Why this exists: pf-rates is normally launched from a shell that carries
-# Walmart-VPN leftovers (a corporate-only SSL_CERT_FILE bundle + proxy env
-# vars). Those work fine for Walmart-internal hosts, but break TLS/DNS for
+# Corporative-VPN leftovers (a corporate-only SSL_CERT_FILE bundle + proxy env
+# vars). Those work fine for Corporative-internal hosts, but break TLS/DNS for
 # the public Chilean data providers pf-rates talks to (mindicador.cl,
 # sii.cl). This script relaunches pf-rates with those wiped, so it can
-# actually reach the providers -- meant to be run with the Walmart VPN
+# actually reach the providers -- meant to be run with the Corporative VPN
 # DISCONNECTED.
 #
 # Usage (from the pf-rates module root):
@@ -38,17 +38,24 @@ LOG_FILE="$PF_ROOT_DIR/scripts/logs/pf-rates.log"
 MODULE="rates.interfaces.api.main:app"
 PORT=8001
 
+# DNS search-domain substring that indicates the corporate VPN is still
+# connected. Kept out of source as a placeholder default -- override with
+# the real value via env var (e.g. in your shell profile or .env), same
+# pattern as CORPORATIVE_PROXY / CORPORATIVE_PIP_INDEX in this repo's
+# Makefile, so no real corporate domain ever needs to be committed.
+VPN_DNS_MARKER="${VPN_DNS_MARKER:-corporative.com}"
+
 section() { printf '\n== %s ==\n' "$*"; }
 log() { printf '  %s\n' "$*"; }
 
 section "Pre-flight: VPN check"
-if scutil --dns 2>/dev/null | grep -q 'wal-mart.com'; then
-  log "WARNING: looks like the Walmart VPN might still be connected"
-  log "(DNS search domain includes wal-mart.com). This script needs the VPN"
+if scutil --dns 2>/dev/null | grep -q "$VPN_DNS_MARKER"; then
+  log "WARNING: looks like the corporate VPN might still be connected"
+  log "(DNS search domain includes $VPN_DNS_MARKER). This script needs the VPN"
   log "DISCONNECTED to reach mindicador.cl / sii.cl. Continuing anyway --"
   log "if the sync comes back empty, disconnect the VPN and re-run."
 else
-  log "no wal-mart.com DNS search domain detected -- looks disconnected, good."
+  log "no $VPN_DNS_MARKER DNS search domain detected -- looks disconnected, good."
 fi
 
 if [ ! -f "$PF_RATES_DIR/.env" ]; then
@@ -113,4 +120,4 @@ section "Last 60 lines of pf-rates.log (provider detail)"
 tail -n 60 "$LOG_FILE"
 
 section "Done"
-log "Remember to reconnect the Walmart VPN now if you disconnected it for this."
+log "Remember to reconnect the Corporative VPN now if you disconnected it for this."
