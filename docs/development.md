@@ -249,6 +249,41 @@ make run
 curl -X POST -H "X-API-Key: your-key" http://localhost:8001/sync
 ```
 
+#### Corporate network gotcha (Walmart VPN)
+
+On a Walmart-managed machine, hitting the real providers (mindicador.cl,
+sii.cl) from a shell that still carries VPN leftovers usually fails in one
+of two ways:
+
+- **DNS blackhole while connected to the VPN**: the corporate resolver
+  returns `NXDOMAIN` for `mindicador.cl` / `sii.cl` (`urlopen error [Errno 8]
+  nodename nor servname provided, or not known`). Public DNS (`8.8.8.8`) is
+  also blocked by the corporate firewall, so there's no bypass — the VPN
+  needs to be disconnected.
+- **TLS failure once disconnected**: if `SSL_CERT_FILE` is set in your shell
+  to a Walmart-only CA bundle (common on Walmart-managed dev tooling), TLS
+  verification fails with `CERTIFICATE_VERIFY_FAILED: unable to get local
+  issuer certificate` — that bundle doesn't include the public CAs that
+  sign `mindicador.cl` / `sii.cl` certificates.
+
+`scripts/sync_market_data.sh` automates the workaround: it relaunches
+pf-rates with `SSL_CERT_FILE` (and any proxy env vars) stripped and
+pointed at the venv's own `certifi` bundle instead, then triggers `/sync`
+with whatever window you pass it.
+
+```bash
+# Run with the Walmart VPN DISCONNECTED
+./scripts/sync_market_data.sh                # defaults: 365 days back, 35 forward
+./scripts/sync_market_data.sh 1095 30        # e.g. a 3-year backfill + 30 days forward
+```
+
+It only restarts pf-rates (not pf-db/pf-payroll), prints a VPN pre-flight
+warning if it still detects `wal-mart.com` in the DNS search domain, and
+tails the last 60 lines of `scripts/logs/pf-rates.log` so you can see
+provider-by-provider results. Reconnect the VPN once you're done — this is
+a local diagnostic tool, not something CI or production ever needs (CI
+runners don't carry Walmart VPN env leftovers).
+
 ### Database inspection
 
 See [Database Guide](database.md#inspection) for psql and Adminer usage.
@@ -307,6 +342,19 @@ make reinstall      # Wipe caches and reinstall all dependencies
 1. Check provider status manually (browse to mindicador.cl)
 2. Increase timeout in `infrastructure/providers/`
 3. Use stub providers for local development
+
+### `/sync` returns 0 upserted on a Walmart-managed machine
+
+**Cause:** Walmart VPN/corporate-network leftovers in the shell that
+launched `pf-rates` — either DNS blackholing `mindicador.cl`/`sii.cl`
+(while connected), or a Walmart-only `SSL_CERT_FILE` breaking TLS
+verification against those public sites (once disconnected). See
+[Corporate network gotcha](#corporate-network-gotcha-walmart-vpn) above for
+the full diagnosis.
+
+**Solution:** disconnect the Walmart VPN, then run
+`./scripts/sync_market_data.sh [lookback_days] [forward_days]` — it
+relaunches pf-rates with a clean TLS/proxy env before triggering `/sync`.
 
 ## Continuous Integration
 
