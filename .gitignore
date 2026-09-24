@@ -224,8 +224,3 @@ __marimo__/
 .streamlit/secrets.toml
 
 *.backup
-
-# Local-only secrets for one-off scripts (e.g. target URL/API key files) --
-# personal/local config, never committed. See secrets/*.env.example for the
-# template convention if you add a new script that needs one.
-secrets/*.env
