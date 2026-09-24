@@ -30,9 +30,14 @@ from rates.shared.constants import (
 _logger = structlog.get_logger(__name__)
 
 _LOOKBACK_DAYS = 365
-_LOOKBACK_MONTHS = 12
 # Forward window for currencies that publish future values (e.g. UF).
 _FORWARD_DAYS = 35
+# Approximate days-per-month divisor used to derive the monthly window (UTM /
+# economic indices) from the same lookback_days the caller passes for the
+# daily exchange-rate window. Keeps both series covering a comparable
+# historical horizon instead of hardcoding an unrelated fixed month count --
+# e.g. a 3-year lookback_days now also yields ~3 years of monthly history.
+_DAYS_PER_MONTH_APPROX = 30
 
 
 class SyncRecentMarketData:
@@ -72,7 +77,7 @@ class SyncRecentMarketData:
         actual_lookback = lookback_days if lookback_days is not None else _LOOKBACK_DAYS
         actual_forward = forward_days if forward_days is not None else _FORWARD_DAYS
         daily_dates = self._build_daily_dates(today, actual_lookback)
-        monthly_dates = self._build_monthly_dates(today)
+        monthly_dates = self._build_monthly_dates(today, actual_lookback)
         forward_dates = self._build_forward_dates(today, actual_forward)
 
         missing_exchange_rate_requests = await self._collect_missing_exchange_rates(
@@ -335,11 +340,20 @@ class SyncRecentMarketData:
         """Build future dates for currencies that publish values in advance."""
         return [today + timedelta(days=i) for i in range(1, forward_days + 1)]
 
-    def _build_monthly_dates(self, today: date) -> list[date]:
-        """Build monthly dates for the rolling twelve-month window."""
+    def _build_monthly_dates(
+        self, today: date, lookback_days: int = _LOOKBACK_DAYS
+    ) -> list[date]:
+        """Build monthly dates for the rolling window derived from lookback_days.
+
+        Mirrors the same historical horizon as the daily exchange-rate window
+        (see _build_daily_dates) instead of a hardcoded month count, so a
+        larger lookback_days (e.g. a multi-year backfill) also widens the
+        monthly economic-index / UTM window proportionally.
+        """
+        lookback_months = max(1, lookback_days // _DAYS_PER_MONTH_APPROX)
         month_cursor = date(today.year, today.month, 1)
         monthly_dates: list[date] = []
-        for _ in range(_LOOKBACK_MONTHS):
+        for _ in range(lookback_months):
             monthly_dates.append(month_cursor)
             month_cursor = self._previous_month(month_cursor)
         monthly_dates.reverse()

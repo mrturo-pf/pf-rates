@@ -597,3 +597,28 @@ async def test_execute_custom_lookback_limits_requested_window() -> None:
     assert cutoff not in usd_dates, (
         "dates before the 7-day window must not be requested"
     )
+
+
+@pytest.mark.asyncio
+async def test_execute_custom_lookback_widens_monthly_window_too() -> None:
+    """A 3-year lookback_days also widens the monthly (UTM/IPC_CL) window.
+
+    Regression test: the monthly window used to be a hardcoded 12 months
+    regardless of lookback_days, so a multi-year backfill request never
+    reached back far enough for UTM / economic indices.
+    """
+    today = date(2026, 1, 15)
+    repository = StubMarketDataRepository()
+    use_case = _make_default_use_case(today, repository)
+
+    await use_case.execute(lookback_days=1095, forward_days=0)
+
+    requested_periods = {
+        (entry.period_year, entry.period_month)
+        for cmd in repository.refreshed
+        for entry in cmd.economic_indices
+    }
+    # 1095 // 30 == 36 months total, counting January 2026 as month 0 --
+    # the 36th (oldest) month lands on February 2023.
+    assert (2023, 2) in requested_periods
+    assert (2023, 1) not in requested_periods
