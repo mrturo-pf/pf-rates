@@ -32,5 +32,18 @@ vulture --config pyproject.toml
 echo "==> [pre-commit] typecheck"
 mypy src
 
+echo "==> [pre-commit] word-check (banned terms across the pf ecosystem)"
+WORD_CHECK="../../scripts/replace-words.py"
+if [ -f "$WORD_CHECK" ]; then
+  if ! python3 "$WORD_CHECK"; then
+    echo ""
+    echo "Pending word replacements found across the ecosystem (see above)."
+    echo "Run 'python3 $WORD_CHECK --apply' to fix, then re-stage and commit."
+    exit 1
+  fi
+else
+  echo "Skipping word-check: $WORD_CHECK not found (standalone checkout without the pf-base root?)"
+fi
+
 echo ""
-echo "✓ pre-commit checks passed"
+echo "pre-commit checks passed"
