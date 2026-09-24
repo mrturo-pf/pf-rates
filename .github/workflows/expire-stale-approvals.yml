@@ -1,0 +1,14 @@
+name: CI / Expire Stale Deployment Approvals
+
+on:
+  schedule:
+    - cron: '0 * * * *' # hourly
+  workflow_dispatch: {}
+
+jobs:
+  expire:
+    uses: mrturo-pf/pf-common/.github/workflows/expire-stale-approvals-reusable.yml@main
+    with:
+      repo_name: pf-rates
+      max_wait_hours: 12
+    secrets: inherit

@@ -46,6 +46,20 @@ see the full manual setup checklist in the header comment of `deploy.yml`.
 **Calls:** `pf-common/.github/workflows/debug-reusable.yml`. Use this to poke at
 runner environment/connectivity issues without going through the full pipeline.
 
+### `expire-stale-approvals.yml` — CI / Expire Stale Deployment Approvals
+
+**Trigger:** hourly (`cron: '0 * * * *'`), plus `workflow_dispatch` for manual runs.
+
+**Calls:** `pf-common/.github/workflows/expire-stale-approvals-reusable.yml` with
+`repo_name: pf-rates`, `max_wait_hours: 12`.
+
+GitHub's "required reviewers" environment protection has no built-in timeout — a
+pending deployment approval waits forever until someone approves or rejects it. This
+workflow polls for runs stuck in the `waiting` state and auto-rejects any older than
+12 hours, so an unapproved (or forgotten) deploy backlog can't pile up silently.
+Requires `GH_PAT` (see below) — GitHub blocks the default `GITHUB_TOKEN` from
+approving/rejecting its own environment gates by design.
+
 ## Required GitHub Secrets
 
 Configured once at the repo (or org) level — see `deploy.yml`'s header comment for the
@@ -56,7 +70,7 @@ full one-time `gcloud` setup script.
 | `GCP_SA_KEY` | Service account JSON key used to authenticate to GCP |
 | `GCP_PROJECT_ID` | GCP project ID |
 | `GCP_CLOUD_SQL_INSTANCE` | (optional) Cloud SQL instance for the proxy sidecar |
-| `GH_PAT` | (optional) GitHub PAT, only needed if `pf-common`/`pf-db` become private |
+| `GH_PAT` | GitHub PAT (repo scope). Needed if `pf-common`/`pf-db` become private, and **required** for `expire-stale-approvals.yml` — the default `GITHUB_TOKEN` cannot approve/reject deployment environment gates |
 | `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_TO` | SMTP config for the Notify jobs |
 
 Secret Manager secrets (`PF_DATABASE_URL`, `PF_RATES_API_KEY`) are injected
