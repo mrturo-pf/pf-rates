@@ -266,26 +266,24 @@ of two ways:
   local issuer certificate` — that bundle doesn't include the public CAs
   that sign `mindicador.cl` / `sii.cl` certificates.
 
-`scripts/sync_market_data.sh` automates the workaround: it relaunches
-pf-rates with `SSL_CERT_FILE` (and any proxy env vars) stripped and
-pointed at the venv's own `certifi` bundle instead, then triggers `/sync`
-with whatever window you pass it.
+Don't fight this locally. Production (the deployed Cloud Run instance)
+always keeps its DB current by calling `/sync` itself, so the supported
+local path is pulling that already-synced data down instead of hitting
+mindicador.cl/sii.cl yourself from a corporate-managed machine:
 
 ```bash
-# Run with the corporate VPN DISCONNECTED
-./scripts/sync_market_data.sh                # defaults: 365 days back, 35 forward
-./scripts/sync_market_data.sh 1095 30        # e.g. a 3-year backfill + 30 days forward
+cd ../pf-db
+./scripts/export-neon-dump.sh    # run with the corporate VPN DISCONNECTED
+./scripts/restore-neon-dump.sh   # run with the VPN reconnected
 ```
 
-It only restarts pf-rates (not pf-db/pf-payroll), and prints a VPN
-pre-flight warning if `scutil --dns` still matches `$VPN_DNS_MARKER` (a
-placeholder env var, defaulting to `corporative.com` — set it in your own
-shell/`.env` to your real corporate domain; the actual value is never
-committed, same convention as `CORPORATIVE_PROXY` in the Makefile). It also
-tails the last 60 lines of `scripts/logs/pf-rates.log` so you can see
-provider-by-provider results. Reconnect the VPN once you're done — this is
-a local diagnostic tool, not something CI or production ever needs (CI
-runners don't carry corporate VPN env leftovers).
+See `pf-db`'s `scripts/` for details. There is deliberately no local
+script that relaunches pf-rates to call the real providers directly
+anymore — an earlier version of that approach (restarting the local
+process with a clean TLS/proxy env) was unreliable with `make run`'s
+`uvicorn --reload` reloader/worker split, and duplicated what the
+export/restore scripts already do more reliably straight from the source
+of truth.
 
 ### Database inspection
 
@@ -355,9 +353,10 @@ against those public sites (once disconnected). See
 [Corporate network gotcha](#corporate-network-gotcha-vpn) above for the
 full diagnosis.
 
-**Solution:** disconnect the corporate VPN, then run
-`./scripts/sync_market_data.sh [lookback_days] [forward_days]` — it
-relaunches pf-rates with a clean TLS/proxy env before triggering `/sync`.
+**Solution:** don't sync locally — pull already-synced data from Neon
+instead via `pf-db/scripts/export-neon-dump.sh` +
+`pf-db/scripts/restore-neon-dump.sh`. See
+[Corporate network gotcha](#corporate-network-gotcha-vpn) above.
 
 ## Continuous Integration
 
