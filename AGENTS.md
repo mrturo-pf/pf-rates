@@ -90,9 +90,12 @@ Quick reference:
   (`gh run watch` or the Actions tab). It will eventually reach a manual approval stage
   — never autonomously approve; requires explicit user command. Deploy pipelines queue
   rather than auto-cancel superseded runs (`cancel-in-progress: false`, deliberate —
-  see `pf-common/.github/workflows/deploy-reusable.yml`), so check `gh run list` for
-  older runs of the same workflow already stuck at that stage and cancel them with
-  `gh run cancel <run-id>` so only the current run remains pending.
+  see `pf-common/.github/workflows/deploy-reusable.yml`), so check for older runs of
+  the same workflow already stuck at that stage and cancel them with
+  `gh run cancel <run-id>` so only the current run remains pending. Always filter
+  explicitly by status with a wide limit (`gh run list --repo <org>/<repo> --limit 20 |
+  grep waiting`) instead of trusting a shallow default-limit list — a stale `waiting`
+  run can be buried under newer completed/cancelled ones and get missed.
 
 ## Database
 
