@@ -50,6 +50,21 @@ shared/          # Cross-cutting constants
   [`docs/deployment.md`](docs/deployment.md#pipeline-invariants) for the concrete rules
   this drives (`--min-instances=0`, Trivy instead of paid AR scanning, external DB option).
 
+## Documentation and Postman collection must track reality
+
+- [`docs/api.md`](docs/api.md) must describe every HTTP endpoint this service actually
+  exposes. Adding, removing, or changing an endpoint (path, request/response shape,
+  auth, error codes) requires updating `docs/api.md` in the **same change**, not
+  "later" — letting it drift is an incomplete change. If ever unsure whether it's
+  stale, check it against the live `GET /openapi.json`/route definitions before
+  assuming it's correct.
+- This service's endpoints are also mirrored in the shared Postman collection at the
+  ecosystem root: `pf-base/postman/pf-ecosystem.postman_collection.json`, plus the
+  `pf-rates-url`/`pf-rates-api-key` variables in
+  `pf-base/postman/pf-ecosystem.postman_environment.{local,gcp}.json`. Update those too
+  in the same change when practical — see `pf-base/postman/README.md` for the sync
+  mechanics and `pf-base/AGENTS.md` for the ecosystem-wide version of this rule.
+
 ## Development commands
 
 See [`docs/development.md`](docs/development.md) for the complete development workflow:
