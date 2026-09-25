@@ -86,6 +86,10 @@ Quick reference:
 
 - SemVer; Conventional Commits (English)
 - Never autonomously commit, push branches, create issues, or open PRs — requires explicit user command
+- **Post-push monitoring:** after pushing, monitor the pipeline in GitHub Actions. It
+  will eventually reach a manual approval stage — never autonomously approve; requires
+  explicit user command. If other runs for this same service are already pending
+  approval, cancel the older ones so only the current run remains.
 
 ## Database
 
