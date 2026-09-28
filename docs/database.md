@@ -76,10 +76,11 @@ pf-rates **owns** the following tables (writes allowed):
 
 | Table | Description |
 |---|---|
-| `RAT_CURRENCY` | Supported currencies (USD, EUR) |
+| `RAT_CURRENCY` | Supported currencies and index units (USD, EUR, UF, UTM) |
 | `RAT_EXCH_RATE` | Historical exchange rates (CLP value) |
-| `RAT_ECON_INDEX` | Economic indices (UF, UTM, IPC) |
-| `RAT_TAX_BRCKT` | Tax brackets for payroll calculation |
+| `RAT_ECON_INDEX` | Economic indices (`UF`, `UTM`, `IPC_CL`) |
+| `RAT_TAX_BRCKT` | Income tax brackets for payroll calculation |
+| `RAT_EXPORT_JOB` | Async CSV export job tracking (`POST /exports/financial-data`) |
 
 **Ownership means:**
 - pf-rates can INSERT, UPDATE, DELETE on these tables
@@ -92,16 +93,22 @@ SQLAlchemy models live in `infrastructure/db/models/financial_data.py`:
 ### Example: Currency model
 
 ```python
-from sqlalchemy import String
+from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column
 from rates.infrastructure.db.models.base import Base
 
 class Currency(Base):
     __tablename__ = "RAT_CURRENCY"
-    
+
     code: Mapped[str] = mapped_column(String(3), primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str] = mapped_column(String(60), nullable=False)
+    is_fiat: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    unit_kind: Mapped[str] = mapped_column(String(20), nullable=False, default="currency")
 ```
+
+(`is_fiat`/`unit_kind` distinguish real currencies from index units like `UF`/`UTM`,
+which share this table -- see [pf-db's `tables.md`](../../pf-db/docs/tables.md#rat_currency)
+for the full schema.)
 
 ### Example: ExchangeRate model
 
@@ -117,7 +124,7 @@ class ExchangeRate(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     currency_code: Mapped[str] = mapped_column(String(3), ForeignKey("RAT_CURRENCY.code"))
     rate_date: Mapped[date] = mapped_column(Date, nullable=False)
-    value_clp: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    value_clp: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
 ```
 
 ## Repositories
@@ -208,9 +215,9 @@ SELECT COUNT(*) FROM "RAT_EXCH_RATE";
 -- Show recent rates
 SELECT * FROM "RAT_EXCH_RATE" ORDER BY rate_date DESC LIMIT 10;
 
--- Get UF value for a specific month
+-- Get UF value for a specific month (code is 'UF'; other index is 'IPC_CL')
 SELECT * FROM "RAT_ECON_INDEX" 
-WHERE code = 'UF' AND year = 2024 AND month = 1;
+WHERE code = 'UF' AND period_year = 2024 AND period_month = 1;
 ```
 
 ### Using Adminer
