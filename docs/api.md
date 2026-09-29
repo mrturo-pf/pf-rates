@@ -28,7 +28,7 @@ All endpoints except `GET /health` require the `X-API-Key` header.
 
 **curl:**
 ```bash
-curl -H "X-API-Key: your-api-key-here" http://localhost:8001/currencies
+curl -H "X-API-Key: your-api-key-here" http://localhost:8001/monetary-units
 ```
 
 **Python requests:**
@@ -36,7 +36,7 @@ curl -H "X-API-Key: your-api-key-here" http://localhost:8001/currencies
 import requests
 
 headers = {"X-API-Key": "your-api-key-here"}
-response = requests.get("http://localhost:8001/currencies", headers=headers)
+response = requests.get("http://localhost:8001/monetary-units", headers=headers)
 ```
 
 ### Response codes
@@ -69,25 +69,28 @@ curl http://localhost:8001/health
 
 ---
 
-### Currencies
+### Monetary units
 
-**GET /currencies**
+**GET /monetary-units**
 
-List all supported currencies.
+List all monetary units: fiat currencies (`is_fiat: true`, `unit_kind: "currency"`) and
+index units like UF/UTM (`is_fiat: false`, `unit_kind: "index_unit"`) -- both share the
+same `RAT_CURRENCY` table (see `docs/database.md`). Renamed from `/currencies` since the
+old name implied it only returned fiat currencies.
 
 **Authentication:** Required
 
 **Response:**
 ```json
 [
-  {"code": "USD", "name": "United States Dollar"},
-  {"code": "EUR", "name": "Euro"}
+  {"code": "USD", "name": "US Dollar", "is_fiat": true, "unit_kind": "currency"},
+  {"code": "UF", "name": "Unidad de Fomento", "is_fiat": false, "unit_kind": "index_unit"}
 ]
 ```
 
 **Example:**
 ```bash
-curl -H "X-API-Key: your-key" http://localhost:8001/currencies
+curl -H "X-API-Key: your-key" http://localhost:8001/monetary-units
 ```
 
 ---

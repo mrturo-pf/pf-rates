@@ -74,15 +74,15 @@ async def health() -> HealthRead:
 
 
 @_root_router.get(
-    "/currencies",
-    tags=["currencies"],
+    "/monetary-units",
+    tags=["monetary-units"],
     response_model=list[CurrencyRead],
     dependencies=[Depends(verify_api_key)],
 )
-async def list_currencies(
+async def list_monetary_units(
     repository: ReferenceDataRepository = Depends(get_reference_data_repository),
 ) -> list[CurrencyRead]:
-    """List all supported currencies."""
+    """List all monetary units: fiat currencies and index units (UF, UTM)."""
     return [
         CurrencyRead(
             code=item.code,
@@ -153,7 +153,10 @@ Use the **Authorize** button above to set your key for this session.
 
 _OPENAPI_TAGS = [
     {"name": "health", "description": "Service liveness check."},
-    {"name": "currencies", "description": "Supported currency catalogue."},
+    {
+        "name": "monetary-units",
+        "description": "Fiat currencies and index units (UF, UTM) catalogue.",
+    },
     {
         "name": "exchange-rates",
         "description": "CLP exchange rates — list, lookup, refresh, and CSV export.",

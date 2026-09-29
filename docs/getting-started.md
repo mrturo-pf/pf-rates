@@ -82,7 +82,7 @@ http://localhost:8001/docs
 1. Click **Authorize** button (top right)
 2. Enter your `PF_RATES_API_KEY` from `.env`
 3. Click **Authorize** then **Close**
-4. Try the `GET /currencies` endpoint
+4. Try the `GET /monetary-units` endpoint
 
 ### Option B: curl (Terminal)
 
@@ -90,20 +90,20 @@ http://localhost:8001/docs
 # Health check (no auth required)
 curl http://localhost:8001/health
 
-# List currencies (requires API key)
-curl -H "X-API-Key: your-api-key-here" http://localhost:8001/currencies
+# List monetary units: fiat currencies + index units like UF/UTM (requires API key)
+curl -H "X-API-Key: your-api-key-here" http://localhost:8001/monetary-units
 
 # Get UF value for a specific month
 curl -H "X-API-Key: your-api-key-here" \
   "http://localhost:8001/economic-indices/value?code=UF&year=2024&month=1"
 ```
 
-Expected response for `/currencies`:
+Expected response for `/monetary-units`:
 
 ```json
 [
-  {"code": "USD", "name": "United States Dollar"},
-  {"code": "EUR", "name": "Euro"}
+  {"code": "USD", "name": "US Dollar", "is_fiat": true, "unit_kind": "currency"},
+  {"code": "UF", "name": "Unidad de Fomento", "is_fiat": false, "unit_kind": "index_unit"}
 ]
 ```
 

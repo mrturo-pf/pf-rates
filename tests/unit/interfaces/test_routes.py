@@ -564,14 +564,14 @@ async def test_refresh_income_tax_brackets_error_returns_502() -> None:
 
 
 @pytest.mark.asyncio
-async def test_list_currencies_serializes_non_empty_result() -> None:
-    """GET /currencies returns serialized CurrencyRead items."""
+async def test_list_monetary_units_serializes_non_empty_result() -> None:
+    """GET /monetary-units returns serialized CurrencyRead items."""
     stub = _StubReferenceDataRepository()
     app.dependency_overrides[get_reference_data_repository] = lambda: stub
     app.dependency_overrides[get_sync_use_case] = lambda: _StubSyncUseCase()
     try:
         async with AsyncClient(**_AUTHED) as client:
-            response = await client.get("/currencies")
+            response = await client.get("/monetary-units")
         assert response.status_code == 200
         items = response.json()
         assert len(items) == 1

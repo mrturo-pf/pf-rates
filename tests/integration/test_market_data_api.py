@@ -77,14 +77,14 @@ async def test_health(http_client: AsyncClient) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Currencies
+# Monetary units (fiat currencies + index units)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_list_currencies_returns_seed_data(http_client: AsyncClient) -> None:
-    """GET /currencies returns the seeded currencies."""
-    response = await http_client.get("/currencies")
+async def test_list_monetary_units_returns_seed_data(http_client: AsyncClient) -> None:
+    """GET /monetary-units returns the seeded currencies and index units."""
+    response = await http_client.get("/monetary-units")
     assert response.status_code == 200
     codes = {item["code"] for item in response.json()}
     assert {"CLP", "USD", "EUR", "UF", "UTM"} <= codes
@@ -797,7 +797,7 @@ async def test_missing_api_key_returns_403() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
-        response = await client.get("/currencies")
+        response = await client.get("/monetary-units")
     assert response.status_code == 403
 
 
@@ -809,7 +809,7 @@ async def test_wrong_api_key_returns_403() -> None:
         base_url="http://test",
         headers={"X-API-Key": "wrong-key"},
     ) as client:
-        response = await client.get("/currencies")
+        response = await client.get("/monetary-units")
     assert response.status_code == 403
 
 
