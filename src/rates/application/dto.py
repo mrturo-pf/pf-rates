@@ -36,6 +36,15 @@ class ExchangeRateWriteDTO:
 
 
 @dataclass(frozen=True, slots=True)
+class ExchangeRateValueLookupDTO:
+    """Represent one exchange-rate batch lookup result."""
+
+    currency_code: str
+    rate_date: date
+    value_clp: Decimal | None
+
+
+@dataclass(frozen=True, slots=True)
 class EconomicIndexDTO:
     """Represent Economic Index DTO."""
 
@@ -61,6 +70,16 @@ class EconomicIndexWriteDTO:
     yearly_change: Decimal | None = None
     base_period: str = "DIC-2018"
     source: str = "manual"
+
+
+@dataclass(frozen=True, slots=True)
+class EconomicIndexValueLookupDTO:
+    """Represent one economic-index batch lookup result."""
+
+    code: str
+    period_year: int
+    period_month: int
+    index_value: Decimal | None
 
 
 @dataclass(frozen=True, slots=True)

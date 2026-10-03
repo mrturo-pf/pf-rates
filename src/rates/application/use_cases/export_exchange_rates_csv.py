@@ -2,7 +2,7 @@
 
 import csv
 import io
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -24,11 +24,13 @@ from rates.application.use_cases._export_csv_shared import (
     raise_if_cancelled,
     report_progress,
 )
-from rates.domain.normalization import normalize_exchange_rate_lookup_date
+from rates.application.use_cases._bulk_rate_resolution_shared import (
+    bulk_fetch_currency_values,
+    lookup_cached_value,
+    lookup_nearest_prior_cached_value,
+)
 from rates.shared.constants import (
     EXPORT_CANCELLATION_CHECK_INTERVAL,
-    MAX_PROVIDER_LOOKBACK_DAYS,
-    MONTHLY_EXCHANGE_RATE_CODES,
 )
 
 _CHILE_TZ = ZoneInfo("America/Santiago")
@@ -204,11 +206,8 @@ class ExportExchangeRatesCsv:
         values for a currency across a date range without duplicating this
         widening logic.
         """
-        query_start = start
-        if currency_code.upper() in MONTHLY_EXCHANGE_RATE_CODES:
-            query_start = date(start.year, start.month, 1)
-        return await self._market_data_repository.list_exchange_rate_values(
-            currency_code, query_start, end
+        return await bulk_fetch_currency_values(
+            self._market_data_repository, currency_code, start, end
         )
 
     @staticmethod
@@ -216,8 +215,7 @@ class ExportExchangeRatesCsv:
         currency_code: str, rate_date: date, cached_values: dict[date, Decimal]
     ) -> str | None:
         """Return the bulk-fetched value for this pair, or None if not cached."""
-        lookup_date = normalize_exchange_rate_lookup_date(currency_code, rate_date)
-        value = cached_values.get(lookup_date)
+        value = lookup_cached_value(currency_code, rate_date, cached_values)
         return str(value) if value is not None else None
 
     @staticmethod
@@ -237,12 +235,10 @@ class ExportExchangeRatesCsv:
         today` guard). This method itself has no notion of "today", so it
         cannot enforce that guard on its own; the caller does.
         """
-        lookup_date = normalize_exchange_rate_lookup_date(currency_code, rate_date)
-        for days_back in range(1, MAX_PROVIDER_LOOKBACK_DAYS + 1):
-            value = cached_values.get(lookup_date - timedelta(days=days_back))
-            if value is not None:
-                return str(value)
-        return None
+        value = lookup_nearest_prior_cached_value(
+            currency_code, rate_date, cached_values
+        )
+        return str(value) if value is not None else None
 
     async def list_exportable_currency_codes(self) -> list[str]:
         """Return every supported currency/index code except the base currency.

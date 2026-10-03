@@ -9,11 +9,15 @@ from rates.application.errors import (
     EconomicIndexNotFoundError,
     FinancialDataError,
 )
+from rates.application.use_cases.get_economic_index_values import (
+    GetEconomicIndexValues,
+)
 from rates.application.dto import (
     EconomicIndexWriteDTO,
     ProviderEconomicIndexRequestDTO,
     RefreshRatesCommandDTO,
 )
+from rates.interfaces.api.dependencies import get_economic_index_values_use_case
 from rates.interfaces.api.routes._refresh_deps import (
     MarketDataRepository,
     RefreshRates,
@@ -60,6 +64,29 @@ class ProviderEconomicIndexRequest(BaseModel):
     period_month: int = Field(ge=1, le=12)
 
 
+class EconomicIndexValuesRequest(BaseModel):
+    """Represent a batch economic-index lookup request."""
+
+    pairs: list[ProviderEconomicIndexRequest] = Field(
+        default_factory=list, max_length=500
+    )
+
+
+class EconomicIndexValueResult(BaseModel):
+    """Represent one batch economic-index lookup result."""
+
+    code: str
+    period_year: int
+    period_month: int
+    index_value: str | None
+
+
+class EconomicIndexValuesResponse(BaseModel):
+    """Represent a batch economic-index lookup response."""
+
+    results: list[EconomicIndexValueResult]
+
+
 class EconomicIndexRefreshRequest(BaseModel):
     """Represent Economic Index Refresh Request."""
 
@@ -92,6 +119,30 @@ async def list_economic_indices(
         )
         for item in await repository.list_economic_indices(code)
     ]
+
+
+@router.post("/values", response_model=EconomicIndexValuesResponse)
+async def get_economic_index_values(
+    payload: EconomicIndexValuesRequest,
+    use_case: GetEconomicIndexValues = Depends(get_economic_index_values_use_case),
+) -> EconomicIndexValuesResponse:
+    """Return values for multiple economic-index period pairs."""
+    values = await use_case.execute(
+        [(pair.code, pair.period_year, pair.period_month) for pair in payload.pairs]
+    )
+    return EconomicIndexValuesResponse(
+        results=[
+            EconomicIndexValueResult(
+                code=item.code,
+                period_year=item.period_year,
+                period_month=item.period_month,
+                index_value=(
+                    str(item.index_value) if item.index_value is not None else None
+                ),
+            )
+            for item in values
+        ]
+    )
 
 
 @router.get("/value")

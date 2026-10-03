@@ -24,6 +24,12 @@ from rates.application.use_cases.export_combined_financial_data_csv import (
 from rates.application.use_cases.get_exchange_rate_value import (
     GetExchangeRateValue,
 )
+from rates.application.use_cases.get_exchange_rate_values import (
+    GetExchangeRateValues,
+)
+from rates.application.use_cases.get_economic_index_values import (
+    GetEconomicIndexValues,
+)
 from rates.application.use_cases.refresh_rates import RefreshRates
 from rates.application.use_cases.refresh_income_tax_brackets import (
     RefreshIncomeTaxBrackets,
@@ -149,6 +155,23 @@ def get_exchange_rate_value_use_case(
 ) -> GetExchangeRateValue:
     """Build the GetExchangeRateValue use case."""
     return GetExchangeRateValue(repository, get_fx_rate_provider())
+
+
+def get_exchange_rate_values_use_case(
+    repository: MarketDataRepository = Depends(get_market_data_repository),
+) -> GetExchangeRateValues:
+    """Build the GetExchangeRateValues use case."""
+    return GetExchangeRateValues(
+        repository,
+        GetExchangeRateValue(repository, get_fx_rate_provider()),
+    )
+
+
+def get_economic_index_values_use_case(
+    repository: MarketDataRepository = Depends(get_market_data_repository),
+) -> GetEconomicIndexValues:
+    """Build the GetEconomicIndexValues use case."""
+    return GetEconomicIndexValues(repository)
 
 
 def get_refresh_rates_use_case(

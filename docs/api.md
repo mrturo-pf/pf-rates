@@ -162,7 +162,41 @@ curl -H "X-API-Key: your-key" \
   "http://localhost:8001/exchange-rates/value?currency_code=USD&rate_date=2024-01-15"
 ```
 
-#### Refresh exchange rates
+#### Batch exchange rate values
+
+**POST /exchange-rates/values**
+
+Resolve up to 500 currency/date pairs in one request. Each result preserves
+its input pair and returns `null` when that individual value cannot be
+resolved; one missing pair does not fail the rest of the batch.
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "pairs": [
+    { "currency_code": "USD", "rate_date": "2024-01-15" },
+    { "currency_code": "EUR", "rate_date": "2024-01-15" },
+    { "currency_code": "UF", "rate_date": "2024-02-15" }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "results": [
+    { "currency_code": "USD", "rate_date": "2024-01-15", "value_clp": "897.5000" },
+    { "currency_code": "EUR", "rate_date": "2024-01-15", "value_clp": null },
+    { "currency_code": "UF", "rate_date": "2024-02-15", "value_clp": "36500.2500" }
+  ]
+}
+```
+
+Results preserve the request order. Exchange rates use the same database
+and provider fallback chain as `GET /exchange-rates/value`.
+
 
 **POST /exchange-rates/refresh**
 
@@ -562,7 +596,39 @@ curl -H "X-API-Key: your-key" \
   "http://localhost:8001/economic-indices/value?code=UF&year=2024&month=1"
 ```
 
-#### Refresh economic indices
+#### Batch economic index values
+
+**POST /economic-indices/values**
+
+Resolve up to 500 economic-index/code-period pairs in one request. Each
+result preserves its input pair and returns `null` when that individual
+period is not stored; one missing period does not fail the rest of the batch.
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "pairs": [
+    { "code": "IPC_CL", "period_year": 2024, "period_month": 1 },
+    { "code": "IPC_CL", "period_year": 2024, "period_month": 2 }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "results": [
+    { "code": "IPC_CL", "period_year": 2024, "period_month": 1, "index_value": "125.50" },
+    { "code": "IPC_CL", "period_year": 2024, "period_month": 2, "index_value": null }
+  ]
+}
+```
+
+Results preserve the request order. The endpoint reads stored index values;
+it does not trigger provider fallback.
+
 
 **POST /economic-indices/refresh**
 

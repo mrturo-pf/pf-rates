@@ -1,7 +1,8 @@
 """Exchange-rate routes."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
@@ -14,10 +15,12 @@ from rates.application.dto import (
     ProviderExchangeRateRequestDTO,
     RefreshRatesCommandDTO,
 )
-from rates.application.use_cases.get_exchange_rate_value import (
-    GetExchangeRateValue,
+from rates.application.use_cases.get_exchange_rate_value import GetExchangeRateValue
+from rates.application.use_cases.get_exchange_rate_values import (
+    GetExchangeRateValues,
 )
 from rates.interfaces.api.dependencies import (
+    get_exchange_rate_values_use_case,
     get_exchange_rate_value_use_case,
 )
 from rates.interfaces.api.routes._refresh_deps import (
@@ -30,6 +33,7 @@ from rates.interfaces.api.routes._refresh_deps import (
 )
 
 router = APIRouter(prefix="/exchange-rates", tags=["exchange-rates"])
+_CHILE_TZ = ZoneInfo("America/Santiago")
 
 
 class ExchangeRateRead(BaseModel):
@@ -57,6 +61,28 @@ class ProviderExchangeRateRequest(BaseModel):
     rate_date: date
 
 
+class ExchangeRateValuesRequest(BaseModel):
+    """Represent a batch exchange-rate lookup request."""
+
+    pairs: list[ProviderExchangeRateRequest] = Field(
+        default_factory=list, max_length=500
+    )
+
+
+class ExchangeRateValueResult(BaseModel):
+    """Represent one batch exchange-rate lookup result."""
+
+    currency_code: str
+    rate_date: date
+    value_clp: str | None
+
+
+class ExchangeRateValuesResponse(BaseModel):
+    """Represent a batch exchange-rate lookup response."""
+
+    results: list[ExchangeRateValueResult]
+
+
 class ExchangeRateRefreshRequest(BaseModel):
     """Represent Exchange Rate Refresh Request."""
 
@@ -81,6 +107,28 @@ async def list_exchange_rates(
         )
         for item in await repository.list_exchange_rates(currency_code)
     ]
+
+
+@router.post("/values", response_model=ExchangeRateValuesResponse)
+async def get_exchange_rate_values(
+    payload: ExchangeRateValuesRequest,
+    use_case: GetExchangeRateValues = Depends(get_exchange_rate_values_use_case),
+) -> ExchangeRateValuesResponse:
+    """Return CLP values for multiple currency/date pairs."""
+    values = await use_case.execute(
+        [(pair.currency_code, pair.rate_date) for pair in payload.pairs],
+        datetime.now(tz=_CHILE_TZ).date(),
+    )
+    return ExchangeRateValuesResponse(
+        results=[
+            ExchangeRateValueResult(
+                currency_code=item.currency_code,
+                rate_date=item.rate_date,
+                value_clp=str(item.value_clp) if item.value_clp is not None else None,
+            )
+            for item in values
+        ]
+    )
 
 
 @router.get("/value")
