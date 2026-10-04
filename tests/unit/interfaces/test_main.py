@@ -281,6 +281,38 @@ def test_get_reference_data_repository_returns_sqla_repository() -> None:
     assert isinstance(repo, SqlAlchemyReferenceDataRepository)
 
 
+def test_get_exchange_rate_values_use_case_builds_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The batch exchange-rate dependency builds its singular fallback."""
+    import rates.interfaces.api.dependencies as deps_module
+
+    class _Repository:
+        pass
+
+    class _Provider:
+        pass
+
+    provider = _Provider()
+    monkeypatch.setattr(deps_module, "get_fx_rate_provider", lambda: provider)
+
+    use_case = deps_module.get_exchange_rate_values_use_case(_Repository())  # type: ignore[arg-type]
+
+    assert use_case._singular_use_case._provider is provider  # type: ignore[attr-defined]
+
+
+def test_get_economic_index_values_use_case_builds_dependency() -> None:
+    """The batch economic-index dependency wraps the repository."""
+    import rates.interfaces.api.dependencies as deps_module
+
+    class _Repository:
+        pass
+
+    use_case = deps_module.get_economic_index_values_use_case(_Repository())  # type: ignore[arg-type]
+
+    assert use_case._repository is not None  # type: ignore[attr-defined]
+
+
 @pytest.mark.asyncio
 async def test_get_session_yields_session_from_session_local(
     monkeypatch: pytest.MonkeyPatch,

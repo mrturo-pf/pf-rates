@@ -5,8 +5,50 @@ from decimal import Decimal
 import pytest
 
 from rates.application.dto import EconomicIndexDTO
+from rates.application.errors import ExchangeRateNotFoundError
+from rates.application.use_cases._bulk_rate_resolution_shared import (
+    resolve_value_for_date,
+)
 from rates.application.use_cases.get_economic_index_values import GetEconomicIndexValues
 from rates.application.use_cases.get_exchange_rate_values import GetExchangeRateValues
+
+
+class _NotFoundExchangeRate:
+    """Singular fallback fake that reports an unavailable value."""
+
+    async def execute(self, currency_code: str, rate_date: date) -> Decimal:
+        """Raise the expected not-found error."""
+        raise ExchangeRateNotFoundError(
+            f"Exchange rate {currency_code} on {rate_date} not found"
+        )
+
+
+@pytest.mark.asyncio
+async def test_bulk_resolution_uses_nearest_prior_cached_value() -> None:
+    """Past missing dates use a bounded prior value from the bulk cache."""
+    value = await resolve_value_for_date(
+        "USD",
+        date(2026, 3, 10),
+        {date(2026, 3, 9): Decimal("950")},
+        date(2026, 3, 10),
+        _SingularExchangeRate(),
+    )
+
+    assert value == Decimal("950")
+
+
+@pytest.mark.asyncio
+async def test_bulk_resolution_returns_none_when_singular_lookup_is_missing() -> None:
+    """An unavailable singular fallback becomes a null batch result."""
+    value = await resolve_value_for_date(
+        "USD",
+        date(2026, 3, 10),
+        {},
+        date(2026, 3, 10),
+        _NotFoundExchangeRate(),
+    )
+
+    assert value is None
 
 
 class _Repository:
