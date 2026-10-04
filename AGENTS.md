@@ -81,7 +81,29 @@ make local-up              # start API (requires pf-db running)
 make check                 # lint → dead-code → typecheck → dup-check → test → test-cov
 ```
 
-## CI/CD pipeline
+## GitHub CLI prerequisite
+
+Before any interaction with GitHub using `gh`, including read-only commands, execute
+`unset-proxies` first:
+
+```bash
+unset-proxies
+```
+
+The alias is defined in `~/.zshrc` as:
+
+```bash
+alias unset-proxies="source $HOME/Documents/scripts/unset_proxies.sh"
+```
+
+If aliases are unavailable in the current shell, run:
+
+```bash
+source "$HOME/Documents/scripts/unset_proxies.sh"
+```
+
+Only then run `gh`. This applies to every `gh` command in this repository.
+
 
 See [`docs/deployment.md`](docs/deployment.md) for the complete deployment guide:
 - Pipeline jobs (test, build, gate, deploy, notify)
