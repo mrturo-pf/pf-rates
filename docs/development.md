@@ -39,8 +39,7 @@ PATH=.venv/bin:$PATH make <target>
 | `make lint` | ruff | Check style + format code |
 | `make dead-code` | vulture | Detect unused code |
 | `make typecheck` | mypy | Static type checking |
-| `make duplicate-code-src` | jscpd | Detect duplication in `src/` (fail > 0.5%) |
-| `make duplicate-code-tests` | jscpd | Detect duplication in `tests/` (fail > 2%) |
+| `make duplicate-code` | jscpd | Detect duplication across the entire repository, including docs and cross-layer duplicates (fail on any clone) |
 | `make test` | pytest | Run all tests (unit + integration) |
 | `make test-cov` | pytest | Run tests + generate coverage report (fail < 100%) |
 
@@ -69,7 +68,11 @@ Installed automatically by `make install` via `git config core.hooksPath .githoo
 | Hook | Runs | Bypass |
 |---|---|---|
 | `pre-commit` | lint · dead-code · typecheck | `git commit --no-verify` |
-| `pre-push` | duplicate-code-src · duplicate-code-tests | `git push --no-verify` |
+| `pre-push` | full `make duplicate-code` | `git push --no-verify` |
+
+**The pre-push hook intentionally runs the full repository duplicate check.** CI also
+runs scoped checks, but the full check catches duplication between `src/`, `tests/`,
+and documentation before anything leaves the workstation.
 
 **Never bypass hooks without justification.** They enforce the same checks that run in CI.
 
@@ -299,7 +302,7 @@ Run individual checks to isolate the issue:
 make lint           # Style/formatting issues
 make dead-code      # Unused code
 make typecheck      # Type errors
-make duplicate-code-src  # Code duplication in src/
+make duplicate-code  # Code duplication across the full repository
 make test           # Test failures
 make test-cov       # Coverage below 100%
 ```
