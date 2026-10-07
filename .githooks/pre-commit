@@ -48,10 +48,10 @@ fi
 echo "==> [pre-commit] language-check"
 LANGUAGE_CHECK="../../scripts/check-language.py"
 if [ -f "$LANGUAGE_CHECK" ]; then
-  if ! python3 "$LANGUAGE_CHECK" --staged; then
+  if ! python3 "$LANGUAGE_CHECK" --staged --mode comments; then
     echo ""
     echo "English-language documentation check failed."
-    echo "Use 'python3 $LANGUAGE_CHECK --staged --report' for details."
+    echo "Use 'python3 $LANGUAGE_CHECK --staged --mode comments --report' for details."
     exit 1
   fi
 else
