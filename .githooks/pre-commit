@@ -45,5 +45,18 @@ else
   echo "Skipping word-check: $WORD_CHECK not found (standalone checkout without the pf-base root?)"
 fi
 
+echo "==> [pre-commit] language-check"
+LANGUAGE_CHECK="../../scripts/check-language.py"
+if [ -f "$LANGUAGE_CHECK" ]; then
+  if ! python3 "$LANGUAGE_CHECK" --staged; then
+    echo ""
+    echo "English-language documentation check failed."
+    echo "Use 'python3 $LANGUAGE_CHECK --staged --report' for details."
+    exit 1
+  fi
+else
+  echo "Skipping language-check: $LANGUAGE_CHECK not found (standalone checkout without the pf-base root?)"
+fi
+
 echo ""
 echo "pre-commit checks passed"
