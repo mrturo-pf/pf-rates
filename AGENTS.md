@@ -2,6 +2,12 @@
 
 Dedicated microservice for Chilean financial reference data: exchange rates, economic indices, and income tax brackets.
 
+## Scope
+
+This file governs implementation, testing, documentation, and operations inside
+`pf-rates`. Ecosystem ownership boundaries and cross-repository coordination are defined
+in the root [`AGENTS.md`](../../AGENTS.md). This file owns the service-specific details.
+
 ## Architecture
 
 Four layers; dependency flows inward only (interfaces → application → domain; infrastructure → application).
@@ -61,13 +67,12 @@ Keep unit tests isolated with typed hand-written stubs and use integration tests
 ## Documentation and Postman collection must track reality
 
 - [`docs/api.md`](docs/api.md) must describe every HTTP endpoint this service actually
-  exposes. In this ecosystem, HTTP documentation covers both FastAPI service endpoints
-  and the separate Apps Script Web App endpoints exposed by `pf-sheets`; this service's
-  own `docs/api.md` documents only its FastAPI surface. Adding, removing, or changing
-  an endpoint (path, request/response shape, auth, error codes) requires updating
-  `docs/api.md` in the **same change**, not "later" — letting it drift is an incomplete
-  change. If ever unsure whether it's stale, check it against the live
-  `GET /openapi.json`/route definitions before assuming it's correct.
+  exposes. This file documents only the FastAPI surface owned by `pf-rates`.
+  Adding, removing, or changing an endpoint (path, request/response shape, auth, error
+  codes) requires updating `docs/api.md` in the **same change**, not "later" — letting
+  it drift is an incomplete change. If ever unsure whether it's stale, check it
+  against the live `GET /openapi.json`/route definitions before assuming it's correct.
+
 - This service's endpoints are also mirrored in the shared Postman collection at the
   ecosystem root: `pf-base/postman/pf-ecosystem.postman_collection.json`, plus the
   `pf-rates-url`/`pf-rates-api-key` variables in
