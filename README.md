@@ -10,7 +10,7 @@ This repository implements a dedicated microservice for Chilean financial refere
 - economic indices (UF, UTM, IPC) from official Chilean sources
 - income tax brackets for payroll tax calculation
 - FastAPI API
-- PostgreSQL persistence (schema and migrations managed by **pf-db**
+- PostgreSQL persistence (schema and migrations managed by **pf-db**)
 
 ## Quick start
 
