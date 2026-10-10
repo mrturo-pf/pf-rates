@@ -113,6 +113,7 @@ jobs:
     with:
       repo_name: pf-rates
       require_approval: true  # Require manual approval before deployment to production
+      # Injects PF_RATES_DATABASE_URL into the app as PF_DATABASE_URL.
       # Uses the platform-aware jscpd package resolver from pf-common.
       database_secret_name: PF_RATES_DATABASE_URL
     secrets: inherit
