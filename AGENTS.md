@@ -137,6 +137,16 @@ Quick reference:
 - **Database:** Shared instance managed by [pf-db](../pf-db); migrations applied before deployment
 - **Scaling:** min 0 / max 2 instances (scale-to-zero enabled)
 
+## Database runtime identity
+
+`pf-rates` must connect to shared PostgreSQL with a service-dedicated runtime
+user/role provisioned by `pf-db`. Its grants must be least-privilege and limited
+to the approved rates-domain objects and required sequences; it must not use a
+shared service user, database-owner credential, migration role, backup role, or
+operator identity. Changes to the role/grant matrix are coordinated with
+`pf-db` and must be validated against the service's real database paths before
+release.
+
 ## Versioning and operations
 
 - SemVer; Conventional Commits (English)
