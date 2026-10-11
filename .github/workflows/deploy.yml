@@ -105,6 +105,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
   security-events: write  # required for SARIF upload to GitHub Security
 
 jobs:
@@ -116,4 +117,6 @@ jobs:
       # Injects PF_RATES_DATABASE_URL into the app as PF_DATABASE_URL.
       # Uses the platform-aware jscpd package resolver from pf-common.
       database_secret_name: PF_RATES_DATABASE_URL
+      workload_identity_provider: projects/646185261155/locations/global/workloadIdentityPools/github-actions/providers/github-actions-oidc
+      deployer_service_account: pf-rates-deployer@coreassistant-474022.iam.gserviceaccount.com
     secrets: inherit
