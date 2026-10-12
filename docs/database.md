@@ -16,7 +16,10 @@ pf-rates **does not manage its own database**. Schema and migrations are owned b
 
 ### Environment variable
 
-The database connection is configured via the `PF_DATABASE_URL` environment variable:
+The production service uses the service-specific Secret Manager secret
+`PF_RATES_DATABASE_URL`, injected into the application as the `PF_DATABASE_URL`
+environment variable. Local development may continue using a local `PF_DATABASE_URL`
+value.
 
 ```bash
 # Local (default in .env.example)

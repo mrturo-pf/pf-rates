@@ -83,7 +83,7 @@ variants driven by the `require_approval` input.
 3. **DB URL via `--set-secrets` only** - never `--set-env-vars`
    ```bash
    # Correct
-   --set-secrets=PF_DATABASE_URL=pf-db-url:latest
+   --set-secrets=PF_RATES_DATABASE_URL=PF_RATES_DATABASE_URL:latest
    
    # Wrong (exposes secret in gcloud describe)
    --set-env-vars=PF_DATABASE_URL=postgresql://...
@@ -125,17 +125,16 @@ variants driven by the `require_approval` input.
    COPY src ./src
    ```
 
-## GitHub Secrets
+## Deployment and runtime configuration
 
-Configure the following secrets in the repository (Settings to Secrets and variables to Actions):
+Configure GitHub Actions inputs and Secret Manager resources as follows:
 
-| Secret | Required | Description |
+| Name | Location | Description |
 | --- | --- | --- |
-| `GCP_SA_KEY` | Yes | Service-account JSON key with the roles listed in the deploy workflow header. |
-| `GCP_PROJECT_ID` | Yes | GCP project ID. |
-| `PF_DATABASE_URL` | Yes | Connection string stored in Secret Manager (injected into Cloud Run at runtime). |
-| `PF_RATES_API_KEY` | Yes | API key for client authentication; stored in Secret Manager and injected into the service at runtime. |
-| `GCP_CLOUD_SQL_INSTANCE` | optional | Cloud SQL instance in `PROJECT:REGION:INSTANCE` format (leave empty for Option A). |
+| `GCP_PROJECT_ID` | GitHub Actions secret | GCP project ID used by the WIF deployment workflow. |
+| `PF_RATES_DATABASE_URL` | Secret Manager | Database connection string injected as `PF_DATABASE_URL` at runtime. |
+| `PF_RATES_API_KEY` | Secret Manager | API key for client authentication. |
+| `GCP_CLOUD_SQL_INSTANCE` | GitHub Actions secret, optional | Cloud SQL instance in `PROJECT:REGION:INSTANCE` format. |
 | `MAIL_SERVER` | Yes | SMTP server hostname (e.g. `smtp.gmail.com`). |
 | `MAIL_PORT` | Yes | SMTP port (e.g. `587` for STARTTLS). |
 | `MAIL_USERNAME` | Yes | SMTP username / sender address. |
@@ -153,7 +152,7 @@ The pipeline supports two database configurations, controlled by the optional `G
 
 | Option | Setup | `GCP_CLOUD_SQL_INSTANCE` |
 | --- | --- | --- |
-| **A - external DB** (e.g. Neon, Supabase) | Set `PF_DATABASE_URL` in Secret Manager pointing to the external host | leave the secret **empty** |
+| **A - external DB** (e.g. Neon, Supabase) | Set `PF_RATES_DATABASE_URL` in Secret Manager pointing to the external host | leave the secret **empty** |
 | **B - Cloud SQL** | Use the shared Cloud SQL instance managed by pf-db | set to `PROJECT:us-central1:pf-db` |
 
 ## Cloud Run configuration
@@ -167,7 +166,7 @@ The pipeline supports two database configurations, controlled by the optional `G
 | **CPU** | `1` | Single vCPU |
 | **Port** | `8001` | Cloud Run injects `PORT` env var (matches the port used in dev) |
 | **Service account** | `pf-rates@<PROJECT>.iam.gserviceaccount.com` | Needs `roles/secretmanager.secretAccessor` |
-| **Secrets** | `PF_DATABASE_URL` and `PF_RATES_API_KEY` from Secret Manager | Never use `--set-env-vars` |
+| **Secrets** | `PF_RATES_DATABASE_URL` and `PF_RATES_API_KEY` from Secret Manager | Never use `--set-env-vars` |
 
 ### Service account permissions
 
