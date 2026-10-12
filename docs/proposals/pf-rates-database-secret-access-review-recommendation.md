@@ -1,11 +1,11 @@
 # Recommendation: pf-rates database secret access review
 
 Date: 2026-10-11
-Status: designed
+Status: released
 Level: M
 Scope: Verify `pf-rates` database secret dependency and remove unnecessary shared Secret Manager access.
 Related artifacts: [brief](pf-rates-database-secret-access-review-brief.md) · [investigation](../investigations/pf-rates-database-secret-access-review.md) · [register](../../../docs/proposals/ecosystem-improvement-register.md)
-Approved: Pending explicit owner approval
+Approved: 2026-10-12 by a0a11b7 (explicit authorization)
 Superseded-by: none
 
 ## 1. Recommendation

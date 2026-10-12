@@ -322,8 +322,14 @@ pytest
 In production, pf-rates connects to the same shared database instance managed by pf-db.
 
 **Database options:**
-- **External** (Neon, Supabase): Set `PF_DATABASE_URL` secret in Secret Manager
-- **Cloud SQL**: Set `PF_DATABASE_URL` + `GCP_CLOUD_SQL_INSTANCE` secret
+- **External** (e.g. Neon, Supabase): production uses the service-specific
+  `PF_RATES_DATABASE_URL` Secret Manager secret, injected into the application as
+  `PF_DATABASE_URL`.
+- **Cloud SQL**: production still uses `PF_RATES_DATABASE_URL` for the connection
+  string plus the optional `GCP_CLOUD_SQL_INSTANCE` setting.
+
+The legacy shared `PF_DATABASE_URL` secret is for local development examples only;
+`pf-rates` must not require access to it in production.
 
 **Migrations:** The `pf-db` Cloud Run Job applies `alembic upgrade head` before any service receives traffic. See [Deployment Guide](deployment.md#pipeline-invariants) for details.
 

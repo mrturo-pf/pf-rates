@@ -20,11 +20,11 @@
 #     --location=us-central1 \
 #     --description="pf-rates container images"
 #
-#   # 3. Create the DATABASE_URL secret in Secret Manager
+#   # 3. Create the service-specific database secret in Secret Manager
 #   #    Cloud SQL Unix socket format:
 #   #      postgresql+asyncpg://<USER>:<PASSWORD>@/pf_db?host=/cloudsql/PROJECT:REGION:pf-db
 #   echo -n "postgresql+asyncpg://<USER>:<PASSWORD>@/pf_db?host=/cloudsql/<PROJECT>:us-central1:pf-db" | \
-#     gcloud secrets create PF_DATABASE_URL --data-file=-
+#     gcloud secrets create PF_RATES_DATABASE_URL --data-file=-
 #
 #   # 4. Create service account and grant IAM roles
 #   gcloud iam service-accounts create pf-rates \
@@ -47,9 +47,9 @@
 #   # Upload sa-key.json contents to GitHub secret GCP_SA_KEY, then delete the file.
 #   rm sa-key.json
 #
-#   # 6. Grant SA access to the DATABASE_URL secret
-#   gcloud secrets add-iam-policy-binding PF_DATABASE_URL \
-#     --member="serviceAccount:${SA}" \
+#   # 6. Grant the runtime/deployer identity access to the service-specific secret
+#   gcloud secrets add-iam-policy-binding PF_RATES_DATABASE_URL \
+#     --member="serviceAccount:<RUNTIME_OR_DEPLOYER_SA>" \
 #     --role="roles/secretmanager.secretAccessor"
 #
 #   # 7. Create the Dockerfile at repo root before running this pipeline.
@@ -83,8 +83,8 @@
 #   MAIL_TO                         — Recipient address(es), comma-separated
 #
 # Secret Manager Secrets (auto-injected by reusable workflow):
-#   PF_DATABASE_URL                 — Database connection string
-#   PF_RATES_API_KEY                — API key for this service
+#   PF_RATES_DATABASE_URL        — service-specific database connection string
+#   PF_RATES_API_KEY              — API key for this service
 #
 # Manual approval setup (one-time, GitHub UI):
 #   1. Go to Settings → Environments → New environment → name it "production"

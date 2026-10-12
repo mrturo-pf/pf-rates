@@ -309,7 +309,7 @@ gcloud projects add-iam-policy-binding PROJECT_ID \
 
 ### Service returns 500: "Database connection failed"
 
-**Cause:** `PF_DATABASE_URL` secret is incorrect or database is unreachable.
+**Cause:** the `PF_RATES_DATABASE_URL` Secret Manager reference is incorrect or the database is unreachable.
 
 **Solution:**
 1. Verify secret value in Secret Manager
