@@ -45,7 +45,7 @@ PATH=.venv/bin:$PATH make <target>
 
 ### Database setup
 
-pf-rates **does not manage its own database**. Start the shared PostgreSQL instance from the [pf-db](../pf-db) repository:
+pf-rates **does not manage its own database**. Start the shared PostgreSQL instance from the [pf-db](https://github.com/mrturo-pf/pf-db) repository:
 
 ```bash
 cd ../pf-db
@@ -204,7 +204,7 @@ Follow this sequence to add new functionality:
 
 7. **Run validation** — `make check` must pass clean
 
-> **Note:** Schema changes (new tables/columns) are managed exclusively by [pf-db](../pf-db). Coordinate with pf-db maintainers if your use case requires database modifications.
+> **Note:** Schema changes (new tables/columns) are managed exclusively by [pf-db](https://github.com/mrturo-pf/pf-db). Coordinate with pf-db maintainers if your use case requires database modifications.
 
 ## Code style
 

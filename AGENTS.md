@@ -134,7 +134,7 @@ Quick reference:
 
 - **Trigger:** Push to `main` (after manual approval via `production` environment)
 - **Security:** Trivy scan blocks on CRITICAL/HIGH vulnerabilities
-- **Database:** Shared instance managed by [pf-db](../pf-db); migrations applied before deployment
+- **Database:** Shared instance managed by [pf-db](https://github.com/mrturo-pf/pf-db); migrations applied before deployment
 - **Scaling:** min 0 / max 2 instances (scale-to-zero enabled)
 
 ## Database runtime identity
@@ -171,7 +171,7 @@ See [`docs/database.md`](docs/database.md) for the complete database guide:
 
 Quick reference:
 
-- **Schema owner:** [pf-db](../pf-db) (separate repository)
+- **Schema owner:** [pf-db](https://github.com/mrturo-pf/pf-db) (separate repository)
 - **Connection:** `postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db` (local)
 - **Session management:** Always use `async with SessionLocal() as session`
 - **Schema changes:** Coordinate with pf-db maintainers; never edit ORM models without a corresponding migration

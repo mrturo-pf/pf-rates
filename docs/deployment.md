@@ -11,7 +11,7 @@ The service is deployed to **Google Cloud Run** via **GitHub Actions** (`.github
 - Trivy security scanning (blocks on CRITICAL/HIGH vulnerabilities)
 - Multi-stage Docker build with non-root final image
 - Scale-to-zero configuration (min 0 instances)
-- Shared database managed by [pf-db](../pf-db)
+- Shared database managed by [pf-db](https://github.com/mrturo-pf/pf-db)
 
 ## Pipeline overview
 
@@ -61,7 +61,7 @@ variants driven by the `require_approval` input.
 3. Load the image artifact and push it to Artifact Registry (`us-central1`, repository `pf-rates`) tagged with the commit SHA and `latest`.
 4. Deploy the Cloud Run **Service** (`pf-rates`) with the new image.
 
-> **Migrations** are handled by [pf-db](../pf-db) - a separate Cloud Run Job applies all pending migrations before pf-rates receives traffic.
+> **Migrations** are handled by [pf-db](https://github.com/mrturo-pf/pf-db) - a separate Cloud Run Job applies all pending migrations before pf-rates receives traffic.
 
 **`notify-failure` job** - runs on push to `main` if `test`, `build`, or `deploy` fail:
 1. Sends a failure email via SMTP. Does not fire on cancellation or gate rejection.

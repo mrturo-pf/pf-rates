@@ -28,7 +28,7 @@ This will:
 
 ## Step 3: Start the database
 
-pf-rates does not manage its own database. Start the shared PostgreSQL instance from [pf-db](../../pf-db):
+pf-rates does not manage its own database. Start the shared PostgreSQL instance from [pf-db](https://github.com/mrturo-pf/pf-db):
 
 ```bash
 cd ../pf-db
@@ -55,7 +55,7 @@ PF_RATES_API_KEY=your-secure-api-key-here
 
 `.env` also ships with generic (non-functional) placeholder values for
 `CORPORATIVE_PIP_INDEX`/`CORPORATIVE_NPM_REGISTRY`/`CORPORATIVE_PROXY` — see
-[pf-common's Makefile guide](../../pf-common/make/README.md#corporate-vpn-support)
+[pf-common's Makefile guide](https://github.com/mrturo-pf/pf-common/blob/main/make/README.md#corporate-vpn-support)
 for how to override them and why VPN auto-detection silently no-ops without an
 override.
 

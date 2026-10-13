@@ -4,7 +4,7 @@ Database connection, schema ownership, and local development workflow for pf-rat
 
 ## Overview
 
-pf-rates **does not manage its own database**. Schema and migrations are owned by **[pf-db](../../pf-db)** - a separate repository that serves as the single source of truth for all PostgreSQL objects shared across the PF ecosystem.
+pf-rates **does not manage its own database**. Schema and migrations are owned by **[pf-db](https://github.com/mrturo-pf/pf-db)** - a separate repository that serves as the single source of truth for all PostgreSQL objects shared across the PF ecosystem.
 
 **Key facts:**
 - pf-rates only holds **SQLAlchemy ORM models** and **repositories**
@@ -110,7 +110,7 @@ class Currency(Base):
 ```
 
 (`is_fiat`/`unit_kind` distinguish real currencies from index units like `UF`/`UTM`,
-which share this table -- see [pf-db's `tables.md`](../../pf-db/docs/tables.md#rat_currency)
+which share this table -- see [pf-db's `tables.md`](https://github.com/mrturo-pf/pf-db/blob/main/docs/tables.md#rat_currency)
 for the full schema.)
 
 ### Example: ExchangeRate model
@@ -355,8 +355,8 @@ pf-rates is the **single writer** to its owned tables. Other services are **read
 
 ## See also
 
-- [pf-db README](../../pf-db/README.md) - Database repository overview
-- [pf-db AGENTS.md](../../pf-db/AGENTS.md) - Migration workflow and invariants
+- [pf-db README](https://github.com/mrturo-pf/pf-db/blob/main/README.md) - Database repository overview
+- [pf-db AGENTS.md](https://github.com/mrturo-pf/pf-db/blob/main/AGENTS.md) - Migration workflow and invariants
 - [Development Guide](development.md#database-setup) - Local database setup
 - [Deployment Guide](deployment.md#github-secrets) - Production database configuration
 - [API Reference](api.md) - Endpoints for accessing financial data
