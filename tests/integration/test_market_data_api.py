@@ -8,6 +8,7 @@ http_client (function-scoped) are defined in conftest.py.
 from datetime import date, UTC
 from decimal import Decimal
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -149,16 +150,22 @@ async def test_get_exchange_rate_value_found_and_not_found(
         },
     )
 
-    found = await http_client.get(
-        "/exchange-rates/value?currency_code=EUR&rate_date=2026-02-01"
-    )
-    assert found.status_code == 200
-    assert Decimal(found.json()["value_clp"]) == Decimal("1050.000000")
+    with patch(
+        "rates.interfaces.api.dependencies.get_fx_rate_provider"
+    ) as provider_factory:
+        provider = provider_factory.return_value
+        provider.fetch_rate_entry = AsyncMock(return_value=None)
 
-    missing = await http_client.get(
-        "/exchange-rates/value?currency_code=EUR&rate_date=2099-12-31"
-    )
-    assert missing.status_code == 404
+        found = await http_client.get(
+            "/exchange-rates/value?currency_code=EUR&rate_date=2026-02-01"
+        )
+        assert found.status_code == 200
+        assert Decimal(found.json()["value_clp"]) == Decimal("1050.000000")
+
+        missing = await http_client.get(
+            "/exchange-rates/value?currency_code=EUR&rate_date=2099-12-31"
+        )
+        assert missing.status_code == 404
 
 
 @pytest.mark.asyncio
