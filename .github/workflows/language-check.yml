@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   language:
+    name: Documentation language
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
