@@ -31,7 +31,15 @@ shared/          # Cross-cutting constants
 - PostgreSQL columns use `NUMERIC`, never `FLOAT`
 - Quantization helpers: `quantize_clp()` and `quantize_utm()` in `domain/quantizers.py`
 
-## Language policy
+## Repository contribution workflow
+
+Work on a dedicated branch and submit every change through a pull request targeting
+`main`. Direct pushes, force-pushes, and deletion of `main` are blocked. This
+single-maintainer repository does not currently require an additional approval,
+but all review conversations must be resolved before merge. Run the documented
+quality checks before merging; a merge to `main` is the release input for the
+Cloud Run deployment workflow.
+
 
 - All code, identifiers, comments, docstrings, and files: English
 - Exception: preserve official Chilean regulatory terms/source literals/seed values in original language only when translation alters meaning

@@ -10,7 +10,8 @@ gets triggered from this repo and how to configure it.
 
 ### `deploy.yml` — CI / Deploy to Cloud Run
 
-**Trigger:** push to `main`, pull requests targeting `main`.
+**Trigger:** push to `main` after a pull request merge, and pull requests targeting
+`main`. Direct pushes to the protected `main` branch are blocked.
 
 **Calls:** `pf-common/.github/workflows/deploy-reusable.yml` with `repo_name: pf-rates`.
 

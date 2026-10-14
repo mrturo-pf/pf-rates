@@ -12,7 +12,13 @@ This repository implements a dedicated microservice for Chilean financial refere
 - FastAPI API
 - PostgreSQL persistence (schema and migrations managed by **pf-db**)
 
-## Quick start
+## Contribution workflow
+
+Create a dedicated branch, run the documented quality checks, and open a pull
+request targeting `main`. The protected `main` branch blocks direct pushes,
+force-pushes, and deletion. Merging to `main` is the release input for the
+Cloud Run deployment workflow.
+
 
 See [`docs/getting-started.md`](docs/getting-started.md) for installation, setup, and first run.
 
