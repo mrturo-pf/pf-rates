@@ -86,10 +86,7 @@
 #   PF_RATES_DATABASE_URL        — service-specific database connection string
 #   PF_RATES_API_KEY              — API key for this service
 #
-# Manual approval setup (one-time, GitHub UI):
-#   1. Go to Settings → Environments → New environment → name it "production"
-#   2. Enable "Required reviewers" and add yourself (or your team)
-#   The "gate" job pauses there; deploy only runs after approval.
+# Deployment runs automatically after a pull request is merged into protected `main`.
 #
 # For more details, see docs/deployment.md
 #
@@ -113,7 +110,6 @@ jobs:
     uses: mrturo-pf/pf-common/.github/workflows/deploy-reusable.yml@main
     with:
       repo_name: pf-rates
-      require_approval: true  # Require manual approval before deployment to production
       # Injects PF_RATES_DATABASE_URL into the app as PF_DATABASE_URL.
       # Uses the platform-aware jscpd package resolver from pf-common.
       database_secret_name: PF_RATES_DATABASE_URL

@@ -7,7 +7,7 @@ CI/CD pipeline, Google Cloud Run deployment, and production configuration for pf
 The service is deployed to **Google Cloud Run** via **GitHub Actions** (`.github/workflows/deploy.yml`).
 
 **Key characteristics:**
-- Automatic deployment on push to `main` (after manual approval)
+- Automatic deployment on push to `main` after the pull request is merged
 - Trivy security scanning (blocks on CRITICAL/HIGH vulnerabilities)
 - Multi-stage Docker build with non-root final image
 - Scale-to-zero configuration (min 0 instances)
@@ -24,19 +24,18 @@ jobs:
     uses: mrturo-pf/pf-common/.github/workflows/deploy-reusable.yml@main
     with:
       repo_name: pf-rates
-      require_approval: true
     secrets: inherit
 ```
 
 The real pipeline lives in `pf-common/.github/workflows/deploy-reusable.yml` and is
-shared with pf-payroll (change it once, both services pick it up). It runs **seven
-jobs**, not six — the old single `gate` job was split into two mutually-exclusive
-variants driven by the `require_approval` input.
+shared with pf-payroll (change it once, both services pick it up). The merge to the
+protected `main` branch is the release approval; no additional production approval
+gate is used.
 
 | Event | Jobs |
 | --- | --- |
 | Pull request to `main` | `test` to `build` (lint, pytest, Docker build, Trivy scan) |
-| Push to `main` | `test` to `build` to `gate-with-approval` (pause, since pf-rates sets `require_approval: true`) to `deploy` to `notify-success` |
+| Push to `main` after merge | `test` to `build` to `deploy` to `notify-success` |
 
 ### Job details
 
@@ -48,14 +47,7 @@ variants driven by the `require_approval` input.
 2. Scan the image with **Trivy**: uploads a SARIF report to the GitHub Security tab and blocks the pipeline on unfixed CRITICAL/HIGH CVEs.
 3. On push to `main` only: tag the image for Artifact Registry and upload it as a GitHub Actions artifact (expires after 1 day).
 
-**`gate-with-approval` job** - runs only on push to `main` when `require_approval: true` (needs: `build`):
-1. Pauses for manual approval via the `production` GitHub environment.
-2. Configure required reviewers in Settings to Environments to production. Rejecting or cancelling does not send any notification.
-
-**`gate-without-approval` job** - runs only on push to `main` when `require_approval: false` (needs: `build`):
-1. Passthrough with no manual approval step. pf-rates does not use this variant since it sets `require_approval: true`.
-
-**`deploy` job** - runs only on push to `main`, requires the `GCP` GitHub environment (needs: `gate-with-approval` or `gate-without-approval`, whichever ran):
+**`deploy` job** - runs only on push to `main` after a pull request merge and requires the `GCP` GitHub environment:
 1. Authenticate to GCP using a service-account key.
 2. Assert that Artifact Registry vulnerability scanning is disabled (cost control - approximately $5/month per image if enabled).
 3. Load the image artifact and push it to Artifact Registry (`us-central1`, repository `pf-rates`) tagged with the commit SHA and `latest`.

@@ -31,7 +31,15 @@ shared/          # Cross-cutting constants
 - PostgreSQL columns use `NUMERIC`, never `FLOAT`
 - Quantization helpers: `quantize_clp()` and `quantize_utm()` in `domain/quantizers.py`
 
-## Language policy
+## Repository contribution workflow
+
+Work on a dedicated branch and submit every change through a pull request targeting
+`main`. Direct pushes, force-pushes, and deletion of `main` are blocked. This
+single-maintainer repository does not currently require an additional approval,
+but all review conversations must be resolved before merge. Run the documented
+quality checks before merging; a merge to `main` is the release input for the
+Cloud Run deployment workflow.
+
 
 - All code, identifiers, comments, docstrings, and files: English
 - Exception: preserve official Chilean regulatory terms/source literals/seed values in original language only when translation alters meaning
@@ -124,7 +132,7 @@ Only then run `gh`. This applies to every `gh` command in this repository.
 
 
 See [`docs/deployment.md`](docs/deployment.md) for the complete deployment guide:
-- Pipeline jobs (test, build, gate, deploy, notify)
+- Pipeline jobs (test, build, deploy, notify)
 - Pipeline invariants (migrations before traffic, secrets, scaling, etc.)
 - GitHub Secrets configuration
 - Cloud Run configuration
@@ -132,7 +140,7 @@ See [`docs/deployment.md`](docs/deployment.md) for the complete deployment guide
 
 Quick reference:
 
-- **Trigger:** Push to `main` (after manual approval via `production` environment)
+- **Trigger:** Pull requests validate changes; a merge to protected `main` triggers deployment automatically
 - **Security:** Trivy scan blocks on CRITICAL/HIGH vulnerabilities
 - **Database:** Shared instance managed by [pf-db](https://github.com/mrturo-pf/pf-db); migrations applied before deployment
 - **Scaling:** min 0 / max 2 instances (scale-to-zero enabled)
@@ -151,7 +159,7 @@ release.
 
 - SemVer; Conventional Commits (English)
 - Never autonomously commit, push branches, create issues, or open PRs — requires explicit user command
-- **Post-push monitoring:** before pushing, inspect the target workflow and cancel older superseded runs for the same repository, branch, and workflow. Cancel only active runs (`queued`, `pending`, `in_progress`, or `waiting`) using the actual status field; never cancel completed runs or runs from another branch/workflow. Verify each cancellation before pushing, then monitor the new run by exact SHA/run ID with `gh run watch`. Manual deployment approval requires explicit user authorization.
+- **Post-push monitoring:** before pushing, inspect the target workflow and cancel older superseded runs for the same repository, branch, and workflow. Cancel only active runs (`queued`, `pending`, `in_progress`, or `waiting`) using the actual status field; never cancel completed runs or runs from another branch/workflow. Verify each cancellation before pushing, then monitor the new run by exact SHA/run ID with `gh run watch`.
 - **Network resilience:** if `gh`/GitHub is unreachable while monitoring (VPN/proxy
   hiccups happen), retry a couple of times with a short wait, then stop — never loop
   indefinitely, and never assume a push/cancel/approval-check succeeded just because
