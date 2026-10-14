@@ -21,11 +21,10 @@ A 7-job pipeline (jobs 3–7 only run on push to `main`, not on PRs):
 |---|---|---|
 | 1 | **Test & Lint** | ruff (lint + format check), vulture (dead code), mypy, jscpd (duplicate code), `make test-cov` (pytest, 100% coverage), Trivy filesystem scan |
 | 2 | **Build & Scan** | Builds the Docker image, runs Trivy container scan (SARIF uploaded to GitHub Security), packages the release image as an artifact (push to `main` only) |
-| 3 | **Approval Gate** | Manual approval via the `production` GitHub environment (required reviewers). Two mutually-exclusive gate jobs handle the approve/bypass paths depending on `require_approval` |
-| 4 | **Deploy to Cloud Run** | Verifies Secret Manager secrets exist, verifies Artifact Registry vulnerability scanning is disabled (cost control), pushes the image, runs `gcloud run deploy` |
-| 5 | **Smoke Test (Health Check)** | Curls the real, public `/health` endpoint and validates: `status == "ok"`, `service` matches this repo (catches a deploy-to-wrong-service mixup), and `uptime_seconds` is low (proves we're hitting the container that was *just* deployed, not a stale one) |
-| 6 | **Notify — Failure** | Emails on failure of Test & Lint / Build & Scan / Deploy / Smoke Test (push to `main` only) |
-| 7 | **Notify — Success** | Emails only after Deploy **and** Smoke Test both succeed (push to `main` only) |
+| 3 | **Deploy to Cloud Run** | Runs automatically after a successful merge to `main`; pushes the image and deploys it |
+| 4 | **Smoke Test (Health Check)** | Curls the real, public `/health` endpoint and validates: `status == "ok"`, `service` matches this repo (catches a deploy-to-wrong-service mixup), and `uptime_seconds` is low (proves we're hitting the container that was *just* deployed, not a stale one) |
+| 5 | **Notify — Failure** | Emails on failure of Test & Lint / Build & Scan / Deploy / Smoke Test (push to `main` only) |
+| 6 | **Notify — Success** | Emails only after Deploy **and** Smoke Test both succeed (push to `main` only) |
 
 Migrations are **not** run by this pipeline — `pf-db` owns and applies them via its own
 Cloud Run Job before this service receives traffic.
@@ -47,19 +46,9 @@ see the full manual setup checklist in the header comment of `deploy.yml`.
 **Calls:** `pf-common/.github/workflows/debug-reusable.yml`. Use this to poke at
 runner environment/connectivity issues without going through the full pipeline.
 
-### `expire-stale-approvals.yml` — CI / Expire Stale Deployment Approvals
-
-**Trigger:** hourly (`cron: '0 * * * *'`), plus `workflow_dispatch` for manual runs.
-
-**Calls:** `pf-common/.github/workflows/expire-stale-approvals-reusable.yml` with
-`repo_name: pf-rates`, `max_wait_hours: 12`.
-
-GitHub's "required reviewers" environment protection has no built-in timeout — a
-pending deployment approval waits forever until someone approves or rejects it. This
-workflow polls for runs stuck in the `waiting` state and auto-rejects any older than
-12 hours, so an unapproved (or forgotten) deploy backlog can't pile up silently.
-Requires `GH_PAT` (see below) — GitHub blocks the default `GITHUB_TOKEN` from
-approving/rejecting its own environment gates by design.
+The **Test & Lint** and **Build & Scan** checks run on pull requests. After a
+successful merge to protected `main`, deployment runs automatically; the merge is
+the release approval. There is no separate manual production approval gate.
 
 ## Required GitHub Secrets
 
@@ -71,17 +60,16 @@ full one-time `gcloud` setup script.
 | `GCP_SA_KEY` | Service account JSON key used to authenticate to GCP |
 | `GCP_PROJECT_ID` | GCP project ID |
 | `GCP_CLOUD_SQL_INSTANCE` | (optional) Cloud SQL instance for the proxy sidecar |
-| `GH_PAT` | GitHub PAT (repo scope). Needed if `pf-common`/`pf-db` become private, and **required** for `expire-stale-approvals.yml` — the default `GITHUB_TOKEN` cannot approve/reject deployment environment gates |
+| `GH_PAT` | GitHub PAT (repo scope), only needed if `pf-common` or `pf-db` become private |
 | `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_TO` | SMTP config for the Notify jobs |
 
 Secret Manager secrets (`PF_DATABASE_URL`, `PF_RATES_API_KEY`) are injected
 automatically by the reusable deploy workflow — they are not GitHub secrets.
 
-## Manual Approval Setup (one-time, GitHub UI)
+## Deployment approval
 
-1. Settings → Environments → New environment → name it `production`.
-2. Enable "Required reviewers" and add yourself or your team.
-3. The **Approval Gate (Manual)** job pauses there; deploy only runs after approval.
+The merge to protected `main` is the release approval. Deployment starts automatically
+after the merge; no separate production reviewer or approval workflow is configured.
 
 ## Troubleshooting
 
