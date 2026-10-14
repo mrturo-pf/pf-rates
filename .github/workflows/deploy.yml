@@ -107,6 +107,7 @@ permissions:
 
 jobs:
   deploy:
+    name: Validation
     uses: mrturo-pf/pf-common/.github/workflows/deploy-reusable.yml@main
     with:
       repo_name: pf-rates

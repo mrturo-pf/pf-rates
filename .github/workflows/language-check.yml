@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   language:
+    name: Documentation language
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -27,5 +28,6 @@ jobs:
           repository: mrturo-pf/pf-base
           path: ecosystem-root
       - run: |
+          python3 ecosystem-root/scripts/check-language.py --all --mode markdown
           python3 ecosystem-root/scripts/check-language.py --all --mode comments
           python3 ecosystem-root/scripts/check-language.py --all --mode user-facing --report

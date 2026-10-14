@@ -19,10 +19,10 @@ A 6-job pipeline (jobs 3-6 only run on push to `main`, not on pull requests):
 
 | # | Job | What it does |
 |---|---|---|
-| 1 | **Test & Lint** | ruff (lint + format check), vulture (dead code), mypy, jscpd (duplicate code), `make test-cov` (pytest, 100% coverage), Trivy filesystem scan |
-| 2 | **Build & Scan** | Builds the Docker image, runs Trivy container scan (SARIF uploaded to GitHub Security), packages the release image as an artifact (push to `main` only) |
+| 1 | **Test & lint** | ruff (lint + format check), vulture (dead code), mypy, jscpd (duplicate code), `make test-cov` (pytest, 100% coverage), Trivy filesystem scan |
+| 2 | **Build & security scan** | Builds the Docker image, runs Trivy container scan (SARIF uploaded to GitHub Security), packages the release image as an artifact (push to `main` only) |
 | 3 | **Deploy to Cloud Run** | Runs automatically after a successful merge to `main`; pushes the image and deploys it |
-| 4 | **Smoke Test (Health Check)** | Curls the real, public `/health` endpoint and validates: `status == "ok"`, `service` matches this repo (catches a deploy-to-wrong-service mixup), and `uptime_seconds` is low (proves we're hitting the container that was *just* deployed, not a stale one) |
+| 4 | **Verify deployed service health** | Curls the real, public `/health` endpoint and validates: `status == "ok"`, `service` matches this repo, and `uptime_seconds` is low |
 | 5 | **Notify — Failure** | Emails on failure of Test & Lint / Build & Scan / Deploy / Smoke Test (push to `main` only) |
 | 6 | **Notify — Success** | Emails only after Deploy **and** Smoke Test both succeed (push to `main` only) |
 
