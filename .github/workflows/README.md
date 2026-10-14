@@ -15,7 +15,7 @@ gets triggered from this repo and how to configure it.
 
 **Calls:** `pf-common/.github/workflows/deploy-reusable.yml` with `repo_name: pf-rates`.
 
-A 7-job pipeline (jobs 3–7 only run on push to `main`, not on PRs):
+A 6-job pipeline (jobs 3-6 only run on push to `main`, not on pull requests):
 
 | # | Job | What it does |
 |---|---|---|
