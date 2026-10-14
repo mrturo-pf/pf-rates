@@ -35,7 +35,7 @@ gate is used.
 | Event | Jobs |
 | --- | --- |
 | Pull request to `main` | `test` to `build` (lint, pytest, Docker build, Trivy scan) |
-| Push to `main` after merge | `test` to `build` to `deploy` to `notify-success` |
+| Push to `main` after merge | `test` → `build` → `deploy` → `smoke-test` → `notify-success` |
 
 ### Job details
 
@@ -46,6 +46,9 @@ gate is used.
 1. Build the Docker image locally (not pushed) for scanning.
 2. Scan the image with **Trivy**: uploads a SARIF report to the GitHub Security tab and blocks the pipeline on unfixed CRITICAL/HIGH CVEs.
 3. On push to `main` only: tag the image for Artifact Registry and upload it as a GitHub Actions artifact (expires after 1 day).
+
+**`smoke-test` job** - runs after a successful deploy on push to `main`:
+1. Verifies the fresh public `/health` endpoint and confirms the expected service and revision are serving traffic.
 
 **`deploy` job** - runs only on push to `main` after a pull request merge and requires the `GCP` GitHub environment:
 1. Authenticate to GCP using a service-account key.

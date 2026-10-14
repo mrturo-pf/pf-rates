@@ -39,7 +39,7 @@ single-maintainer repository does not currently require an additional approval,
 but all review conversations must be resolved before merge. Run the documented
 quality checks before merging; a merge to `main` is the release input for the
 Cloud Run deployment workflow.
-
+## Language policy
 
 - All code, identifiers, comments, docstrings, and files: English
 - Exception: preserve official Chilean regulatory terms/source literals/seed values in original language only when translation alters meaning
