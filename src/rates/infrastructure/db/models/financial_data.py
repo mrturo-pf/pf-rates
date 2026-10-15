@@ -42,8 +42,8 @@ class EconomicIndexModel(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(20))
-    period_year: Mapped[int] = mapped_column()
-    period_month: Mapped[int] = mapped_column()
+    period_year: Mapped[int] = mapped_column("accrual_year")
+    period_month: Mapped[int] = mapped_column("accrual_month")
     index_value: Mapped[Decimal] = mapped_column(Numeric(12, 6))
     monthly_change: Mapped[Decimal | None] = mapped_column(Numeric(7, 4), nullable=True)
     yearly_change: Mapped[Decimal | None] = mapped_column(Numeric(7, 4), nullable=True)
