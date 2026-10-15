@@ -6,7 +6,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from rates.application.dto import EconomicIndexDTO, ExchangeRateDTO
+from rates.application.dto import (
+    EconomicIndexDTO,
+    ExchangeRateDTO,
+)
 from rates.infrastructure.db.repositories.market_data_repository import (
     SqlAlchemyMarketDataRepository,
 )
