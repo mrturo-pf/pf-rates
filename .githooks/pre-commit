@@ -33,7 +33,7 @@ echo "==> [pre-commit] typecheck"
 mypy src
 
 echo "==> [pre-commit] word-check (banned terms across the pf ecosystem)"
-WORD_CHECK="../../scripts/replace-words.py"
+WORD_CHECK="../../scripts/quality/replace-words.py"
 if [ -f "$WORD_CHECK" ]; then
   if ! python3 "$WORD_CHECK"; then
     echo ""
@@ -46,7 +46,7 @@ else
 fi
 
 echo "==> [pre-commit] language-check"
-LANGUAGE_CHECK="../../scripts/check-language.py"
+LANGUAGE_CHECK="../../scripts/quality/check-language.py"
 if [ -f "$LANGUAGE_CHECK" ]; then
   if ! python3 "$LANGUAGE_CHECK" --staged --mode comments; then
     echo ""
