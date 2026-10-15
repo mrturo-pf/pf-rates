@@ -72,7 +72,12 @@ class SqlAlchemyExportJobRepository(SessionBoundRepositoryMixin):
 
     async def get(self, job_id: int) -> ExportJobDTO | None:
         """Return the job's current state, or None if it does not exist."""
-        job = await self._session.get(ExportJobModel, job_id)
+        result = await self._session.execute(
+            select(ExportJobModel)
+            .where(ExportJobModel.id == job_id)
+            .execution_options(populate_existing=True)
+        )
+        job = result.scalar_one_or_none()
         return self._to_dto(job) if job is not None else None
 
     async def list_jobs(
