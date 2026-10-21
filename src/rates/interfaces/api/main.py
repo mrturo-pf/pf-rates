@@ -7,6 +7,8 @@ from contextlib import asynccontextmanager, suppress
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -198,6 +200,52 @@ app.include_router(exports_router, dependencies=[Depends(verify_api_key)])
 app.include_router(economic_indices_router, dependencies=[Depends(verify_api_key)])
 app.include_router(income_tax_brackets_router, dependencies=[Depends(verify_api_key)])
 app.include_router(sync_router, dependencies=[Depends(verify_api_key)])
+
+
+@app.exception_handler(RequestValidationError)
+async def _handle_request_validation_error(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Return actionable details when a request cannot be parsed or validated."""
+    logger.warning(
+        "request_validation_failed",
+        method=request.method,
+        path=request.url.path,
+        errors=exc.errors(),
+    )
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": "Request validation failed.",
+            "errors": jsonable_encoder(exc.errors()),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+    """Log unexpected failures and expose their actionable error detail.
+
+    The exception type and message are returned so operators can diagnose a
+    failed request without first reproducing it locally. The full traceback is
+    kept in structured application logs; secrets must not be included in
+    exception messages.
+    """
+    logger.exception(
+        "unexpected_request_error",
+        method=request.method,
+        path=request.url.path,
+        error_type=type(exc).__name__,
+        error=str(exc),
+    )
+    message = str(exc).strip() or "No additional error detail was provided."
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": (f"Unexpected server error. {type(exc).__name__}: {message}"),
+            "path": request.url.path,
+        },
+    )
 
 
 @app.exception_handler(FinancialDataError)
