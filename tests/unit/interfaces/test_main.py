@@ -5,6 +5,8 @@ import os
 from typing import Self
 
 import pytest
+from fastapi.exceptions import RequestValidationError
+from starlette.requests import Request
 
 import rates.interfaces.api.main as app_module
 from rates.application.dto import SyncRecentMarketDataResultDTO
@@ -17,6 +19,57 @@ from rates.infrastructure.db.repositories.reference_data_repository import (
 from rates.interfaces.api.dependencies import (
     get_refresh_income_tax_brackets_use_case,
 )
+
+
+def _request(path: str = "/sync") -> Request:
+    """Build a minimal request for exception-handler unit tests."""
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": path,
+            "raw_path": path.encode(),
+            "query_string": b"",
+            "headers": [],
+            "scheme": "http",
+            "server": ("test", 80),
+            "client": ("test", 1234),
+            "root_path": "",
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Exception handlers
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_unexpected_error_handler_returns_diagnostic_detail() -> None:
+    """Unexpected failures include type, message, and request path."""
+    response = await app_module._handle_unexpected_error(
+        _request(), RuntimeError("database connection failed")
+    )
+
+    assert response.status_code == 500
+    assert response.body is not None
+    assert b"RuntimeError: database connection failed" in response.body
+    assert b'"path":"/sync"' in response.body
+
+
+@pytest.mark.asyncio
+async def test_validation_error_handler_returns_structured_errors() -> None:
+    """Malformed or invalid requests return a useful validation payload."""
+    error = RequestValidationError(
+        [{"type": "json_invalid", "loc": ("body",), "msg": "bad JSON", "input": "x"}]
+    )
+
+    response = await app_module._handle_request_validation_error(_request(), error)
+
+    assert response.status_code == 422
+    assert response.body is not None
+    assert b'"detail":"Request validation failed."' in response.body
+    assert b'"type":"json_invalid"' in response.body
 
 
 # ---------------------------------------------------------------------------

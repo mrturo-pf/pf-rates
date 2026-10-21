@@ -893,6 +893,15 @@ curl -X POST -H "X-API-Key: your-key" \
 ```
 
 **Note:** UF includes pre-published future values (Banco Central publishes UF up to 3 months ahead).
+The JSON property names must be quoted, and the API key header must include a
+value. For example:
+
+```bash
+curl --location 'https://pf-rates-<hash>-uc.a.run.app/sync' \
+  --header 'X-API-Key: your-key' \
+  --header 'Content-Type: application/json' \
+  --data '{"lookback_days": 365, "forward_days": 35}'
+```
 
 ---
 
@@ -922,20 +931,38 @@ curl -X POST -H "X-API-Key: your-key" \
 
 ### 422 Validation Error
 
-**Cause:** Invalid request parameters
+**Cause:** Invalid JSON or request parameters.
 
 **Response:**
 ```json
 {
-  "detail": [
+  "detail": "Request validation failed.",
+  "errors": [
     {
-      "loc": ["query", "rate_date"],
-      "msg": "invalid date format",
-      "type": "value_error"
+      "loc": ["body"],
+      "msg": "JSON decode error",
+      "type": "json_invalid"
     }
   ]
 }
 ```
+
+### 500 Unexpected server error
+
+**Cause:** An unhandled service or infrastructure failure.
+
+The response includes the exception type and message to make diagnosis
+possible, while the complete traceback is recorded in structured service logs:
+
+```json
+{
+  "detail": "Unexpected server error. RuntimeError: database connection failed",
+  "path": "/sync"
+}
+```
+
+If the response detail contains credentials or other sensitive data, redact it
+before sharing it. The API key is never included by this handler.
 
 ## Interactive Documentation
 
