@@ -28,7 +28,7 @@ jobs:
 ```
 
 The real pipeline lives in `pf-common/.github/workflows/deploy-reusable.yml` and is
-shared with pf-payroll (change it once, both services pick it up). The merge to the
+shared with pf-svc-income (change it once, both services pick it up). The merge to the
 protected `main` branch is the release approval; no additional production approval
 gate is used.
 
