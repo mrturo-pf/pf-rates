@@ -13,7 +13,7 @@ CORPORATIVE_NPM_REGISTRY="${CORPORATIVE_NPM_REGISTRY:-}"
 CORPORATIVE_PROXY="${CORPORATIVE_PROXY:-}"
 
 {
-  printf '# Database managed by pf-db (shared with pf-payroll)\n'
+  printf '# Database managed by pf-db (shared with pf-svc-income)\n'
   printf 'PF_DATABASE_URL=%s\n' "$PF_DATABASE_URL"
   printf '\n# API key that clients must supply as X-API-Key header to access this service.\n'
   printf 'PF_RATES_API_KEY=%s\n' "$PF_RATES_API_KEY"

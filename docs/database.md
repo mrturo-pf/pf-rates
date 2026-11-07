@@ -87,7 +87,7 @@ pf-rates **owns** the following tables (writes allowed):
 
 **Ownership means:**
 - pf-rates can INSERT, UPDATE, DELETE on these tables
-- Other services (e.g., pf-payroll) access this data via **pf-rates HTTP API** (never direct SQL)
+- Other services (e.g., pf-svc-income) access this data via **pf-rates HTTP API** (never direct SQL)
 
 ## ORM models
 
@@ -348,7 +348,7 @@ PostgreSQL (pf-db tables: RAT_CURRENCY, RAT_EXCH_RATE, RAT_ECON_INDEX, RAT_TAX_B
 pf-rates (GET /RAT_CURRENCY, /exchange-rates, /economic-indices, /income-tax-brackets)
   |
   v
-pf-payroll (HTTP client, never direct SQL)
+pf-svc-income (HTTP client, never direct SQL)
 ```
 
 pf-rates is the **single writer** to its owned tables. Other services are **read-only consumers via HTTP API**.

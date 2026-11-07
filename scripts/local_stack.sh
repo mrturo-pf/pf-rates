@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Database is now managed by pf-db (shared with pf-payroll).
+# Database is now managed by pf-db (shared with pf-svc-income).
 # The pf-db container must be running before this script is called.
 # Start it with: cd ../pf-db && make db-up
 
