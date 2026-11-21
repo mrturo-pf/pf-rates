@@ -24,7 +24,7 @@ FORWARD_DAILY_RATE_CODES = ("UF",)
 # e.g. a Sunday resolves to the preceding Friday's value within this window.
 MAX_PROVIDER_LOOKBACK_DAYS = 7
 
-# Status values for RAT_EXPORT_JOB.status (async CSV export tracking).
+# Status values for REF_EXPORT_JOB.status (async CSV export tracking).
 # Kept as plain strings (not an enum) since they cross the DB boundary as-is
 # and the DB CHECK constraint (pf-db migration 0004) is the actual source of
 # truth for which values are valid -- this tuple just avoids repeating the

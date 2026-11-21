@@ -27,7 +27,7 @@ All endpoints except `GET /health` require the `X-API-Key` header.
 **Swagger UI:**
 1. Open `http://localhost:8001/docs`
 2. Click **Authorize** button (top right)
-3. Enter your API key from `.env` (`PF_RATES_API_KEY`)
+3. Enter your API key from `.env` (`PF_REFERENCE_API_KEY`)
 4. Click **Authorize** then **Close**
 
 **curl:**
@@ -79,7 +79,7 @@ curl http://localhost:8001/health
 
 List all monetary units: fiat currencies (`is_fiat: true`, `unit_kind: "currency"`) and
 index units like UF/UTM (`is_fiat: false`, `unit_kind: "index_unit"`) -- both share the
-same `RAT_CURRENCY` table (see `docs/database.md`). Renamed from `/currencies` since the
+same `REF_RATE_UNIT` table (see `docs/database.md`). Renamed from `/currencies` since the
 old name implied it only returned fiat currencies.
 
 **Authentication:** Required
@@ -273,14 +273,14 @@ curl -X POST -H "X-API-Key: your-key" \
 
 **POST /exports/financial-data**
 
-Build a single CSV covering both exchange rates (RAT_EXCH_RATE) and
-economic indices (RAT_ECON_INDEX) and upload it to a pre-configured
+Build a single CSV covering both exchange rates (REF_RATE_VALUE) and
+economic indices (REF_ECON_INDEX) and upload it to a pre-configured
 Google Drive folder. This is the only CSV-export trigger endpoint
 pf-rates exposes -- the original exchange-rates-only
 `POST /exchange-rates/export` was removed once `pf-sheets` fully
 migrated to this combined export.
 
-Requires `PF_RATES_GDRIVE_EXPORT_FOLDER_ID` to be configured, and that
+Requires `PF_REFERENCE_GDRIVE_EXPORT_FOLDER_ID` to be configured, and that
 folder shared as Editor with the service's identity (see `.env.example`
 for local dev, [`deployment.md`](deployment.md) for production, and
 [`google-drive-credentials-setup.md`](google-drive-credentials-setup.md)
@@ -300,7 +300,7 @@ are resolved for every non-CLP currency/index (`USD`, `EUR`, `UF`, `UTM`)
 across the requested rolling window, using the same fallback chain as
 `GET /exchange-rates/value`; dates that cannot be resolved (mostly future
 dates for `USD`/`EUR`) are simply omitted from the CSV. Economic-index
-rows are expanded from RAT_ECON_INDEX's monthly storage to one row per
+rows are expanded from REF_ECON_INDEX's monthly storage to one row per
 calendar day in the window -- the same pattern used for `UTM` --
 repeating that month's value for every day in it. A month with nothing
 stored simply has its days omitted from the CSV, same "omit what can't
@@ -341,7 +341,7 @@ endpoints.
 
 **Errors:**
 - `503` if Google Drive export is not configured yet -- either
-  `PF_RATES_GDRIVE_EXPORT_FOLDER_ID` is unset/the folder isn't shared as
+  `PF_REFERENCE_GDRIVE_EXPORT_FOLDER_ID` is unset/the folder isn't shared as
   Editor with the service's identity, or no Application Default
   Credentials are available (see
   [`google-drive-credentials-setup.md`](google-drive-credentials-setup.md)).
@@ -372,7 +372,7 @@ curl -X POST -H "X-API-Key: your-key" \
 
 Return the current state of a previously-triggered async export job.
 Status is one of pending, running, succeeded, failed, cancelled. Job state is
-persisted in Postgres (RAT_EXPORT_JOB), not in process memory, so it
+persisted in Postgres (REF_EXPORT_JOB), not in process memory, so it
 survives Cloud Run scaling to zero or routing the poll to a different
 instance than the one that ran the job.
 
@@ -442,7 +442,7 @@ curl -H "X-API-Key: your-key" \
 **GET /exports/jobs**
 
 List export jobs, newest first, optionally filtered by status and/or a
-`created_at` date range. Backed by the same `RAT_EXPORT_JOB` table. Each
+`created_at` date range. Backed by the same `REF_EXPORT_JOB` table. Each
 entry has the same shape as the single-job GET above, including
 `processed_items`/`total_items`/`progress_percent` for whichever jobs are
 currently `running`.
@@ -641,13 +641,13 @@ entries) or by asking pf-rates to fetch the value from its configured
 provider chain for you ("provider fetch" entries). Both can be combined
 in the same request; if the same `(code, period_year, period_month)`
 triple appears in both lists, the manual entry wins. This is the
-endpoint to use for a historical backfill of `RAT_ECON_INDEX` (e.g.
+endpoint to use for a historical backfill of `REF_ECON_INDEX` (e.g.
 `IPC_CL` since 2010) -- `POST /sync` does NOT work for this: its
 `lookback_days` only applies to exchange rates, economic indices there
 are always limited to a fixed rolling 12-month window regardless of what
 you pass. `POST /exports/financial-data` doesn't help either -- it's
 read-only, it exports what's already in the DB to a CSV, it never writes
-to `RAT_ECON_INDEX`.
+to `REF_ECON_INDEX`.
 
 **Authentication:** Required
 
@@ -853,7 +853,7 @@ today, regardless of what `lookback_days`/`forward_days` you pass (see
 `src/rates/application/use_cases/sync_recent_market_data.py`). This
 endpoint is meant for routine "catch up on what's missing recently"
 syncs (e.g. a daily/weekly cron), not for a historical backfill of
-`RAT_ECON_INDEX` further back than 12 months -- use
+`REF_ECON_INDEX` further back than 12 months -- use
 [`POST /economic-indices/refresh`](#refresh-economic-indices) with
 `fetch_economic_indices` for that instead.
 

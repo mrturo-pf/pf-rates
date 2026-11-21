@@ -72,7 +72,7 @@ async def test_health(http_client: AsyncClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert body["service"] == "pf-rates"
+    assert body["service"] == "pf-svc-reference"
     assert isinstance(body["uptime_seconds"], int | float)
     assert body["uptime_seconds"] >= 0
 

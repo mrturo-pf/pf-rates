@@ -4,7 +4,7 @@ Split out from exchange_rates.py (which keeps the CRUD endpoints) to keep
 each route module focused on one sub-resource -- job lifecycle management
 is a distinct concern from rate data itself.
 
-Lives under `/exports/jobs` because it reads `RAT_EXPORT_JOB` by id/
+Lives under `/exports/jobs` because it reads `REF_EXPORT_JOB` by id/
 status alone, independent of the CSV-export trigger endpoint that created
 the row. `POST /exports/financial-data` points its async `monitor_url`
 here.

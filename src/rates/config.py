@@ -7,10 +7,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Represent Settings."""
 
-    api_key: str = Field(validation_alias="pf_rates_api_key")
+    api_key: str = Field(validation_alias="pf_reference_api_key")
     database_url: str = Field(
         default="postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db",
-        validation_alias="pf_database_url",
+        validation_alias="pf_reference_database_url",
     )
     rate_provider_timeout_seconds: int = 10
     http_proxy: str | None = None
@@ -40,13 +40,13 @@ class Settings(BaseSettings):
     # including the accepted trade-off (a service account can update an
     # existing Drive file but not create a brand-new one).
     gdrive_export_folder_id: str | None = Field(
-        default=None, validation_alias="pf_rates_gdrive_export_folder_id"
+        default=None, validation_alias="pf_reference_gdrive_export_folder_id"
     )
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        env_prefix="FINANCIAL_DATA_",
+        env_prefix="REFERENCE_",
         case_sensitive=False,
         extra="ignore",
     )

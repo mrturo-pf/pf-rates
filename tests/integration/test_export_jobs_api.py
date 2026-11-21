@@ -422,7 +422,7 @@ async def test_run_export_job_in_background_survives_a_forced_session_refresh(
         # never see them, regardless of file/test execution order.
         async with test_factory() as cleanup_session:
             await cleanup_session.execute(
-                text('DELETE FROM "RAT_EXCH_RATE" WHERE currency_code = ANY(:codes)'),
+                text('DELETE FROM "REF_RATE_VALUE" WHERE currency_code = ANY(:codes)'),
                 {"codes": list(seeded_codes)},
             )
             await cleanup_session.commit()

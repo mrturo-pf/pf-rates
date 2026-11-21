@@ -36,7 +36,7 @@ Cloud Run Job before this service receives traffic.
 **Calls:** `pf-common/.github/workflows/gcp-setup-reusable.yml`.
 
 Creates the Artifact Registry repository and placeholder Secret Manager secrets
-(`PF_DATABASE_URL`, `PF_RATES_API_KEY`). Run this once before the very first deploy;
+(`PF_REFERENCE_DATABASE_URL`, `PF_REFERENCE_API_KEY`). Run this once before the very first deploy;
 see the full manual setup checklist in the header comment of `deploy.yml`.
 
 ### `debug.yml` — Debug CI (manual)
@@ -63,7 +63,7 @@ full one-time `gcloud` setup script.
 | `GH_PAT` | GitHub PAT (repo scope), only needed if `pf-common` or `pf-db` become private |
 | `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_TO` | SMTP config for the Notify jobs |
 
-Secret Manager secrets (`PF_DATABASE_URL`, `PF_RATES_API_KEY`) are injected
+Secret Manager secrets (`PF_REFERENCE_DATABASE_URL`, `PF_REFERENCE_API_KEY`) are injected
 automatically by the reusable deploy workflow — they are not GitHub secrets.
 
 ## Deployment approval

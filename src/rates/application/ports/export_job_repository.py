@@ -7,7 +7,7 @@ from rates.application.dto import ExportJobDTO
 
 
 class ExportJobRepository(Protocol):
-    """Persistence port for RAT_EXPORT_JOB rows.
+    """Persistence port for REF_EXPORT_JOB rows.
 
     Backs the `POST /exports/financial-data {"async": true}` flow, plus the
     cooperative-cancellation flow (`POST .../jobs/{id}/stop` and the bulk
