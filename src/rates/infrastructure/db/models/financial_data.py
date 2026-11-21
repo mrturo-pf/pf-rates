@@ -12,7 +12,7 @@ from rates.infrastructure.db.base import Base
 class CurrencyModel(Base):
     """Represent Currency Model."""
 
-    __tablename__ = "RAT_CURRENCY"
+    __tablename__ = "REF_RATE_UNIT"
 
     code: Mapped[str] = mapped_column(String(3), primary_key=True)
     name: Mapped[str] = mapped_column(String(60))
@@ -23,7 +23,7 @@ class CurrencyModel(Base):
 class ExchangeRateModel(Base):
     """Represent Exchange Rate Model."""
 
-    __tablename__ = "RAT_EXCH_RATE"
+    __tablename__ = "REF_RATE_VALUE"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     currency_code: Mapped[str] = mapped_column(String(3))
@@ -38,7 +38,7 @@ class ExchangeRateModel(Base):
 class EconomicIndexModel(Base):
     """Represent Economic Index Model."""
 
-    __tablename__ = "RAT_ECON_INDEX"
+    __tablename__ = "REF_ECON_INDEX"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(20))
@@ -57,7 +57,7 @@ class EconomicIndexModel(Base):
 class IncomeTaxBracketModel(Base):
     """Represent Income Tax Bracket Model."""
 
-    __tablename__ = "RAT_TAX_BRCKT"
+    __tablename__ = "REF_TAX_BRCKT"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     valid_from: Mapped[date] = mapped_column(Date)
@@ -73,7 +73,7 @@ class IncomeTaxBracketModel(Base):
 class ExportJobModel(Base):
     """Represent Export Job Model (async CSV export tracking)."""
 
-    __tablename__ = "RAT_EXPORT_JOB"
+    __tablename__ = "REF_EXPORT_JOB"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     status: Mapped[str] = mapped_column(String(20), default="pending")

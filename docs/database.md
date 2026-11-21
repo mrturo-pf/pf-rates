@@ -17,16 +17,16 @@ pf-rates **does not manage its own database**. Schema and migrations are owned b
 ### Environment variable
 
 The production service uses the service-specific Secret Manager secret
-`PF_RATES_DATABASE_URL`, injected into the application as the `PF_DATABASE_URL`
-environment variable. Local development may continue using a local `PF_DATABASE_URL`
+`PF_REFERENCE_DATABASE_URL`, injected into the application as the `PF_REFERENCE_DATABASE_URL`
+environment variable. Local development may continue using a local `PF_REFERENCE_DATABASE_URL`
 value.
 
 ```bash
 # Local (default in .env.example)
-PF_DATABASE_URL=postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db
+PF_REFERENCE_DATABASE_URL=postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db
 
 # Production (injected via Secret Manager)
-PF_DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/dbname
+PF_REFERENCE_DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/dbname
 ```
 
 ### Session management
@@ -56,7 +56,7 @@ make local-up        # start postgres + apply schema + load base seed
 
 This starts a PostgreSQL 16 container on `localhost:5432` with:
 - All tables created
-- Base seed data loaded (RAT_CURRENCY, institutions, caps, brackets, concepts)
+- Base seed data loaded (REF_RATE_UNIT, institutions, caps, brackets, concepts)
 
 ### Step 2: Start pf-rates
 
@@ -79,11 +79,11 @@ pf-rates **owns** the following tables (writes allowed):
 
 | Table | Description |
 |---|---|
-| `RAT_CURRENCY` | Supported currencies and index units (USD, EUR, UF, UTM) |
-| `RAT_EXCH_RATE` | Historical exchange rates (CLP value) |
-| `RAT_ECON_INDEX` | Economic indices (`UF`, `UTM`, `IPC_CL`) |
-| `RAT_TAX_BRCKT` | Income tax brackets for payroll calculation |
-| `RAT_EXPORT_JOB` | Async CSV export job tracking (`POST /exports/financial-data`) |
+| `REF_RATE_UNIT` | Supported currencies and index units (USD, EUR, UF, UTM) |
+| `REF_RATE_VALUE` | Historical exchange rates (CLP value) |
+| `REF_ECON_INDEX` | Economic indices (`UF`, `UTM`, `IPC_CL`) |
+| `REF_TAX_BRCKT` | Income tax brackets for payroll calculation |
+| `REF_EXPORT_JOB` | Async CSV export job tracking (`POST /exports/financial-data`) |
 
 **Ownership means:**
 - pf-rates can INSERT, UPDATE, DELETE on these tables
@@ -101,7 +101,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from rates.infrastructure.db.models.base import Base
 
 class Currency(Base):
-    __tablename__ = "RAT_CURRENCY"
+    __tablename__ = "REF_RATE_UNIT"
 
     code: Mapped[str] = mapped_column(String(3), primary_key=True)
     name: Mapped[str] = mapped_column(String(60), nullable=False)
@@ -122,10 +122,10 @@ from sqlalchemy import String, Date, Numeric, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 class ExchangeRate(Base):
-    __tablename__ = "RAT_EXCH_RATE"
+    __tablename__ = "REF_RATE_VALUE"
     
     id: Mapped[int] = mapped_column(primary_key=True)
-    currency_code: Mapped[str] = mapped_column(String(3), ForeignKey("RAT_CURRENCY.code"))
+    currency_code: Mapped[str] = mapped_column(String(3), ForeignKey("REF_RATE_UNIT.code"))
     rate_date: Mapped[date] = mapped_column(Date, nullable=False)
     value_clp: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
 ```
@@ -169,13 +169,13 @@ To add a new column or table:
    ```python
    def upgrade() -> None:
        op.execute("""
-           ALTER TABLE "RAT_CURRENCY" 
+           ALTER TABLE "REF_RATE_UNIT"
            ADD COLUMN symbol VARCHAR(5);
        """)
    
    def downgrade() -> None:
        op.execute("""
-           ALTER TABLE "RAT_CURRENCY" 
+           ALTER TABLE "REF_RATE_UNIT"
            DROP COLUMN symbol;
        """)
    ```
@@ -210,16 +210,16 @@ Common queries:
 \dt
 
 -- Describe a table
-\d "RAT_CURRENCY"
+\d "REF_RATE_UNIT"
 
 -- Count exchange rates
-SELECT COUNT(*) FROM "RAT_EXCH_RATE";
+SELECT COUNT(*) FROM "REF_RATE_VALUE";
 
 -- Show recent rates
-SELECT * FROM "RAT_EXCH_RATE" ORDER BY rate_date DESC LIMIT 10;
+SELECT * FROM "REF_RATE_VALUE" ORDER BY rate_date DESC LIMIT 10;
 
 -- Get UF value for a specific month (code is 'UF'; other index is 'IPC_CL')
-SELECT * FROM "RAT_ECON_INDEX" 
+SELECT * FROM "REF_ECON_INDEX"
 WHERE code = 'UF' AND period_year = 2024 AND period_month = 1;
 ```
 
@@ -323,12 +323,12 @@ In production, pf-rates connects to the same shared database instance managed by
 
 **Database options:**
 - **External** (e.g. Neon, Supabase): production uses the service-specific
-  `PF_RATES_DATABASE_URL` Secret Manager secret, injected into the application as
-  `PF_DATABASE_URL`.
-- **Cloud SQL**: production still uses `PF_RATES_DATABASE_URL` for the connection
+  `PF_REFERENCE_DATABASE_URL` Secret Manager secret, injected into the application as
+  `PF_REFERENCE_DATABASE_URL`.
+- **Cloud SQL**: production still uses `PF_REFERENCE_DATABASE_URL` for the connection
   string plus the optional `GCP_CLOUD_SQL_INSTANCE` setting.
 
-The legacy shared `PF_DATABASE_URL` secret is for local development examples only;
+The legacy shared `PF_REFERENCE_DATABASE_URL` secret is for local development examples only;
 `pf-rates` must not require access to it in production.
 
 **Migrations:** The `pf-db` Cloud Run Job applies `alembic upgrade head` before any service receives traffic. See [Deployment Guide](deployment.md#pipeline-invariants) for details.
@@ -342,10 +342,10 @@ External Sources (Mindicador, BCCH)
 pf-rates (/refresh endpoints)
   |
   v
-PostgreSQL (pf-db tables: RAT_CURRENCY, RAT_EXCH_RATE, RAT_ECON_INDEX, RAT_TAX_BRCKT)
+PostgreSQL (pf-db tables: REF_RATE_UNIT, REF_RATE_VALUE, REF_ECON_INDEX, REF_TAX_BRCKT)
   |
   v
-pf-rates (GET /RAT_CURRENCY, /exchange-rates, /economic-indices, /income-tax-brackets)
+pf-rates (GET /REF_RATE_UNIT, /exchange-rates, /economic-indices, /income-tax-brackets)
   |
   v
 pf-svc-income (HTTP client, never direct SQL)

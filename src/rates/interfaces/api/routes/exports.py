@@ -82,8 +82,8 @@ async def export_financial_data(
     """Build a combined CSV of exchange-rate + economic-index values and upload it.
 
     One CSV, one row shape (`series_type,code,period_date,value`),
-    covering both RAT_EXCH_RATE (`series_type=EXCHANGE_RATE`) and
-    RAT_ECON_INDEX (`series_type=ECONOMIC_INDEX`) data across the same
+    covering both REF_RATE_VALUE (`series_type=EXCHANGE_RATE`) and
+    REF_ECON_INDEX (`series_type=ECONOMIC_INDEX`) data across the same
     rolling window. Economic indices are monthly in storage but expanded
     to one row per calendar day in the window, repeating that month's
     value -- the same expansion pattern used for UTM within the exchange-

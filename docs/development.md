@@ -242,8 +242,8 @@ class StubMindicadorProvider:
 **Option 2: Use real providers with rate limiting**
 ```bash
 # Set BCCH credentials in .env
-FINANCIAL_DATA_BCCH_API_USER=your-user
-FINANCIAL_DATA_BCCH_API_PASSWORD=your-password
+REFERENCE_BCCH_API_USER=your-user
+REFERENCE_BCCH_API_PASSWORD=your-password
 
 # Start API
 make run

@@ -40,8 +40,8 @@ class ExportCombinedFinancialDataCsv:
     """Build a combined CSV of exchange-rate + economic-index values and upload it.
 
     Produces one CSV with a uniform row shape
-    (`series_type,code,period_date,value`) covering both RAT_EXCH_RATE
-    (`series_type=EXCHANGE_RATE`) and RAT_ECON_INDEX
+    (`series_type,code,period_date,value`) covering both REF_RATE_VALUE
+    (`series_type=EXCHANGE_RATE`) and REF_ECON_INDEX
     (`series_type=ECONOMIC_INDEX`) data, across the same rolling date
     window (*lookback_days* in the past, *forward_days* in the future)
     for both series types.
@@ -55,8 +55,8 @@ class ExportCombinedFinancialDataCsv:
     exchange rates.
 
     Economic-index rows (e.g. IPC_CL) are expanded the same way
-    `ExportExchangeRatesCsv` already expands UTM: RAT_ECON_INDEX is a
-    monthly series exactly like UTM is within RAT_EXCH_RATE. For every
+    `ExportExchangeRatesCsv` already expands UTM: REF_ECON_INDEX is a
+    monthly series exactly like UTM is within REF_RATE_VALUE. For every
     calendar day in the window, the day's (year, month) is looked up in a
     map built from a single bulk `list_economic_indices(code)` call per
     code, and that month's value is repeated for every day in the window
@@ -204,7 +204,7 @@ class ExportCombinedFinancialDataCsv:
         """Fetch every stored value for *code* in one query, keyed by (year, month).
 
         Mirrors `ExportExchangeRatesCsv.bulk_fetch_currency_values`'s
-        one-query-per-series philosophy: RAT_ECON_INDEX is small (one row
+        one-query-per-series philosophy: REF_ECON_INDEX is small (one row
         per code per month, going back at most a few decades), so a
         single unfiltered-by-date `list_economic_indices(code)` call is
         simpler than computing a (year, month) range to filter by first.

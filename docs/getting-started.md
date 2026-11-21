@@ -50,7 +50,7 @@ This creates `.env` from `.env.example`. **Important:** Edit `.env` and set a se
 
 ```bash
 # Edit .env
-PF_RATES_API_KEY=your-secure-api-key-here
+PF_REFERENCE_API_KEY=your-secure-api-key-here
 ```
 
 `.env` also ships with generic (non-functional) placeholder values for
@@ -80,7 +80,7 @@ http://localhost:8001/docs
 ```
 
 1. Click **Authorize** button (top right)
-2. Enter your `PF_RATES_API_KEY` from `.env`
+2. Enter your `PF_REFERENCE_API_KEY` from `.env`
 3. Click **Authorize** then **Close**
 4. Try the `GET /monetary-units` endpoint
 
@@ -176,7 +176,7 @@ uvicorn rates.interfaces.api.main:app --port 8002 --reload
 **Error:** `403 Forbidden` when calling endpoints
 
 **Solution:**
-1. Check `.env` file contains `PF_RATES_API_KEY=...`
+1. Check `.env` file contains `PF_REFERENCE_API_KEY=...`
 2. Restart the service after editing `.env`
 3. In Swagger UI, use the **Authorize** button (not query param)
 4. In curl, use header: `-H "X-API-Key: your-key"`

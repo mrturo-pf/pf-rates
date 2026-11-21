@@ -24,7 +24,7 @@
 #   #    Cloud SQL Unix socket format:
 #   #      postgresql+asyncpg://<USER>:<PASSWORD>@/pf_db?host=/cloudsql/PROJECT:REGION:pf-db
 #   echo -n "postgresql+asyncpg://<USER>:<PASSWORD>@/pf_db?host=/cloudsql/<PROJECT>:us-central1:pf-db" | \
-#     gcloud secrets create PF_RATES_DATABASE_URL --data-file=-
+#     gcloud secrets create PF_REFERENCE_DATABASE_URL --data-file=-
 #
 #   # 4. Create service account and grant IAM roles
 #   gcloud iam service-accounts create pf-rates \
@@ -48,7 +48,7 @@
 #   rm sa-key.json
 #
 #   # 6. Grant the runtime/deployer identity access to the service-specific secret
-#   gcloud secrets add-iam-policy-binding PF_RATES_DATABASE_URL \
+#   gcloud secrets add-iam-policy-binding PF_REFERENCE_DATABASE_URL \
 #     --member="serviceAccount:<RUNTIME_OR_DEPLOYER_SA>" \
 #     --role="roles/secretmanager.secretAccessor"
 #
@@ -62,11 +62,11 @@
 #   #      CMD ["uvicorn", "rates.interfaces.api.main:app", \
 #   #           "--host", "0.0.0.0", "--port", "8080"]
 #
-#   # 8. Create the PF_RATES_API_KEY secret (API key clients must supply to call this service)
+#   # 8. Create the PF_REFERENCE_API_KEY secret (API key clients must supply to call this service)
 #   echo -n "<STRONG_RANDOM_KEY>" | \
-#     gcloud secrets create PF_RATES_API_KEY --data-file=-
+#     gcloud secrets create PF_REFERENCE_API_KEY --data-file=-
 #
-#   gcloud secrets add-iam-policy-binding PF_RATES_API_KEY \
+#   gcloud secrets add-iam-policy-binding PF_REFERENCE_API_KEY \
 #     --member="serviceAccount:${SA}" \
 #     --role="roles/secretmanager.secretAccessor"
 #
@@ -83,8 +83,8 @@
 #   MAIL_TO                         — Recipient address(es), comma-separated
 #
 # Secret Manager Secrets (auto-injected by reusable workflow):
-#   PF_RATES_DATABASE_URL        — service-specific database connection string
-#   PF_RATES_API_KEY              — API key for this service
+#   PF_REFERENCE_DATABASE_URL        — service-specific database connection string
+#   PF_REFERENCE_API_KEY              — API key for this service
 #
 # Deployment runs automatically after a pull request is merged into protected `main`.
 #
@@ -111,9 +111,9 @@ jobs:
     uses: mrturo-pf/pf-common/.github/workflows/deploy-reusable.yml@main
     with:
       repo_name: pf-rates
-      # Injects PF_RATES_DATABASE_URL into the app as PF_DATABASE_URL.
+      # Injects PF_REFERENCE_DATABASE_URL into the app as PF_REFERENCE_DATABASE_URL.
       # Uses the platform-aware jscpd package resolver from pf-common.
-      database_secret_name: PF_RATES_DATABASE_URL
+      database_secret_name: PF_REFERENCE_DATABASE_URL
       workload_identity_provider: projects/646185261155/locations/global/workloadIdentityPools/github-actions/providers/github-actions-oidc
       deployer_service_account: pf-rates-deployer@coreassistant-474022.iam.gserviceaccount.com
     secrets: inherit

@@ -70,7 +70,7 @@ async def health() -> HealthRead:
     """Return service health status, including process uptime."""
     return HealthRead(
         status="ok",
-        service="pf-rates",
+        service="pf-svc-reference",
         uptime_seconds=round(time.monotonic() - _START_TIME, 3),
     )
 
@@ -187,7 +187,7 @@ _OPENAPI_TAGS = [
 ]
 
 app = FastAPI(
-    title="pf-rates",
+    title="pf-svc-reference",
     version="0.1.0",
     description=_DESCRIPTION,
     openapi_tags=_OPENAPI_TAGS,
