@@ -10,18 +10,19 @@ gets triggered from this repo and how to configure it.
 
 ### `deploy.yml` — CI / Deploy to Cloud Run
 
-**Trigger:** push to `main` after a pull request merge, and pull requests targeting
-`main`. Direct pushes to the protected `main` branch are blocked.
+**Trigger:** push to `main` after a pull request merge, pull requests targeting
+`main`, and manual `workflow_dispatch` runs from the Actions tab. Direct pushes to
+the protected `main` branch are blocked.
 
 **Calls:** `pf-common/.github/workflows/deploy-reusable.yml` with `repo_name: pf-rates`.
 
-A 6-job pipeline (jobs 3-6 only run on push to `main`, not on pull requests):
+A 6-job pipeline (jobs 3-6 run on pushes to `main` and manual dispatches; pull requests run validation only):
 
 | # | Job | What it does |
 |---|---|---|
 | 1 | **Test & lint** | ruff (lint + format check), vulture (dead code), mypy, jscpd (duplicate code), `make test-cov` (pytest, 100% coverage), Trivy filesystem scan |
 | 2 | **Build & security scan** | Builds the Docker image, runs Trivy container scan (SARIF uploaded to GitHub Security), packages the release image as an artifact (push to `main` only) |
-| 3 | **Deploy to Cloud Run** | Runs automatically after a successful merge to `main`; pushes the image and deploys it |
+| 3 | **Deploy to Cloud Run** | Runs automatically after a successful merge to `main` or a manual dispatch; pushes the image and deploys it |
 | 4 | **Verify deployed service health** | Curls the real, public `/health` endpoint and validates: `status == "ok"`, `service` matches this repo, and `uptime_seconds` is low |
 | 5 | **Notify — Failure** | Emails on failure of Test & Lint / Build & Scan / Deploy / Smoke Test (push to `main` only) |
 | 6 | **Notify — Success** | Emails only after Deploy **and** Smoke Test both succeed (push to `main` only) |
