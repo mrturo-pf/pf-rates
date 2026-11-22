@@ -112,9 +112,12 @@ jobs:
     uses: mrturo-pf/pf-common/.github/workflows/deploy-reusable.yml@main
     with:
       repo_name: pf-rates
+      service_name: pf-svc-reference
+      artifact_registry_repo: pf-svc-reference
+      runtime_service_account: pf-svc-reference@coreassistant-474022.iam.gserviceaccount.com
       # Injects PF_REFERENCE_DATABASE_URL into the app as PF_REFERENCE_DATABASE_URL.
       # Uses the platform-aware jscpd package resolver from pf-common.
       database_secret_name: PF_REFERENCE_DATABASE_URL
       workload_identity_provider: projects/646185261155/locations/global/workloadIdentityPools/github-actions/providers/github-actions-oidc
-      deployer_service_account: pf-rates-deployer@coreassistant-474022.iam.gserviceaccount.com
+      deployer_service_account: pf-svc-reference-deployer@coreassistant-474022.iam.gserviceaccount.com
     secrets: inherit
