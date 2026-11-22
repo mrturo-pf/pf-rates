@@ -37,10 +37,7 @@ def validate_request_id(value: str) -> tuple[str | None, str | None]:
         return None, "request_id_too_long"
     if not _CANONICAL_UUID_PATTERN.fullmatch(value):
         return None, "request_id_malformed"
-    try:
-        parsed = UUID(value)
-    except ValueError:
-        return None, "request_id_malformed"
+    parsed = UUID(value)
     if parsed.version != 4:
         return None, "request_id_malformed"
     return str(parsed), None
@@ -183,15 +180,9 @@ def install_request_correlation_openapi(app: FastAPI) -> None:
     app.openapi = custom_openapi  # type: ignore[method-assign]
 
 
-def request_id_header_name() -> str:
-    """Return the public correlation header name."""
-    return _REQUEST_ID_HEADER
-
-
 __all__ = [
     "generate_request_id",
     "install_request_correlation_middleware",
     "install_request_correlation_openapi",
-    "request_id_header_name",
     "validate_request_id",
 ]

@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 
 from rates.interfaces.api.request_correlation import (
     install_request_correlation_middleware,
+    install_request_correlation_openapi,
     validate_request_id,
 )
 
@@ -20,6 +21,7 @@ _VALID_ID = "550e8400-e29b-41d4-a716-446655440000"
 def _app() -> FastAPI:
     app = FastAPI()
     install_request_correlation_middleware(app)
+    install_request_correlation_openapi(app)
 
     def require_key() -> None:
         """Reject requests without the synthetic API key."""
@@ -76,6 +78,19 @@ async def test_request_start_and_completion_share_request_id() -> None:
     }
 
 
+def test_openapi_documents_request_correlation_contract() -> None:
+    """OpenAPI exposes the optional header and validation response."""
+    app = _app()
+    schema = app.openapi()
+    cached = app.openapi()
+    operation = schema["paths"]["/open"]["get"]
+    parameters = operation["parameters"]
+
+    assert schema is cached
+    assert any(parameter["name"] == "X-Request-ID" for parameter in parameters)
+    assert "400" in operation["responses"]
+
+
 def test_validate_request_id_normalizes_uppercase_uuid() -> None:
     """Canonical UUIDv4 input is returned in lowercase."""
     value, reason = validate_request_id(_VALID_ID.upper())
@@ -127,6 +142,32 @@ async def test_invalid_header_returns_new_id_and_reason_code() -> None:
     assert response.json()["code"] == "request_id_malformed"
     assert response.headers["X-Request-ID"] != "not-an-id"
     assert UUID(response.headers["X-Request-ID"]).version == 4
+
+
+@pytest.mark.asyncio
+async def test_too_long_header_returns_specific_reason() -> None:
+    """Oversized correlation values expose the stable length reason code."""
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/open", headers={"X-Request-ID": "x" * 65})
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "request_id_too_long"
+
+
+@pytest.mark.asyncio
+async def test_comma_separated_header_returns_400() -> None:
+    """Comma-separated correlation values are rejected."""
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=_app()), base_url="http://test"
+    ) as client:
+        response = await client.get(
+            "/open", headers={"X-Request-ID": f"{_VALID_ID},{_VALID_ID}"}
+        )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "request_id_malformed"
 
 
 @pytest.mark.asyncio
