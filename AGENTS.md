@@ -72,6 +72,15 @@ Use ATDD for functional requirements and API contracts. Use BDD Given/When/Then 
 
 Keep unit tests isolated with typed hand-written stubs and use integration tests for real PostgreSQL and adapter boundaries. Tests must verify meaningful outputs, state, errors, and contracts. Documentation-only, formatting-only, and mechanical refactor changes are exempt from adding tests but must run applicable validation.
 
+## Backend request correlation contract
+
+Every HTTP request must pass through the request-correlation middleware before
+authentication. Use `X-Request-ID` with canonical UUIDv4 semantics: generate it when
+absent, normalize valid uppercase input, reject malformed/oversized/duplicate values
+with `400`, return the effective ID in the response, bind it as `request_id` in
+structlog, and preserve it across downstream calls and retries. New routes and new
+backend services must use this contract; do not create a parallel correlation header.
+
 ## Documentation and Postman collection must track reality
 
 - [`docs/api.md`](docs/api.md) must describe every HTTP endpoint this service actually

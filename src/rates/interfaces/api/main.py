@@ -40,6 +40,10 @@ from rates.interfaces.api.routes.income_tax_brackets import (
     router as income_tax_brackets_router,
 )
 from rates.interfaces.api.routes.sync import router as sync_router
+from rates.interfaces.api.request_correlation import (
+    install_request_correlation_middleware,
+    install_request_correlation_openapi,
+)
 from rates.interfaces.api.security import verify_api_key
 
 _root_router = APIRouter()
@@ -193,6 +197,8 @@ app = FastAPI(
     openapi_tags=_OPENAPI_TAGS,
     lifespan=lifespan,
 )
+install_request_correlation_middleware(app)
+install_request_correlation_openapi(app)
 app.include_router(_root_router)
 app.include_router(exchange_rates_router, dependencies=[Depends(verify_api_key)])
 app.include_router(export_jobs_router, dependencies=[Depends(verify_api_key)])
