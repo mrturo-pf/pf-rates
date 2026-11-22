@@ -72,6 +72,13 @@ Use ATDD for functional requirements and API contracts. Use BDD Given/When/Then 
 
 Keep unit tests isolated with typed hand-written stubs and use integration tests for real PostgreSQL and adapter boundaries. Tests must verify meaningful outputs, state, errors, and contracts. Documentation-only, formatting-only, and mechanical refactor changes are exempt from adding tests but must run applicable validation.
 
+## Gateway entry-point contract
+
+Production traffic must reach `pf-svc-reference` through the GCP API Gateway facade and
+`pf-gateway-proxy`. Direct Cloud Run invocation is reserved for the gateway/proxy,
+controlled rollback, or explicitly authorized operator diagnostics. Do not publish new
+consumer documentation or integration code using the direct Cloud Run URL.
+
 ## Backend request correlation contract
 
 Every HTTP request must pass through the request-correlation middleware before
