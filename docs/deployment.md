@@ -64,6 +64,18 @@ gate is used.
 **`notify-success` job** - runs on push to `main` after a successful deploy:
 1. Sends a confirmation email via SMTP.
 
+## API Gateway facade
+
+The current GCP facade is:
+
+```text
+https://pf-backend-gateway-poc-88uq0qjn.uc.gateway.dev/reference/*
+```
+
+It routes through `pf-gateway-proxy` and preserves application `X-API-Key` and
+`X-Request-ID`. The direct Cloud Run URL remains available as the rollback path; direct
+URL enforcement is not enabled.
+
 ## Request correlation
 
 Every request receives a canonical UUIDv4 `X-Request-ID` before authentication. The
