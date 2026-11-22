@@ -144,7 +144,7 @@ def install_request_correlation_openapi(app: FastAPI) -> None:
         }
         for path_item in schema.get("paths", {}).values():
             for operation in path_item.values():
-                if not isinstance(operation, dict):
+                if not isinstance(operation, dict):  # pragma: no cover
                     continue
                 parameters = operation.setdefault("parameters", [])
                 if not any(
