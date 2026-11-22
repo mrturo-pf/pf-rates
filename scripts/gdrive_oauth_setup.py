@@ -14,9 +14,9 @@ automated `update()` path can resume.
 Run this manually, from a terminal on a machine with a browser, only when
 that recovery is actually needed:
 
-    cd pf-rates
+    cd pf-svc-reference
     .venv/bin/python scripts/gdrive_oauth_setup.py \
-        --client-secret ../secrets/pf-rates/gdrive-oauth-client-secret.json \
+        --client-secret ../secrets/pf-svc-reference/gdrive-oauth-client-secret.json \
         --output /tmp/recovery-token.json
 
 It opens your browser, you log in as a Google account with Editor+ access

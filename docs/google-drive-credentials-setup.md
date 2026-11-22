@@ -12,7 +12,7 @@ resolved by the `google-auth` library with zero configuration from us:
 
 - **In production (Cloud Run):** ADC automatically resolves to the
   identity Cloud Run attaches to the service —
-  `pf-rates@<PROJECT>.iam.gserviceaccount.com`. Nothing to configure, no
+  `pf-svc-reference@<PROJECT>.iam.gserviceaccount.com`. Nothing to configure, no
   token to store, nothing to rotate.
 - **Locally:** run `gcloud auth application-default login` once; ADC picks
   up the resulting local credentials file automatically.
@@ -90,9 +90,9 @@ it. That recreation is a rare, one-off, human-in-the-loop procedure:
 1. Run the existing one-time OAuth helper as a real Google account that
    owns (or has Editor+ access to) the target folder:
    ```bash
-   cd pf-rates
+   cd pf-svc-reference
    .venv/bin/python scripts/gdrive_oauth_setup.py \
-       --client-secret ../secrets/pf-rates/gdrive-oauth-client-secret.json \
+       --client-secret ../secrets/pf-svc-reference/gdrive-oauth-client-secret.json \
        --output /tmp/recovery-token.json
    ```
 2. Use that token to create the file once (a short one-off Python snippet
@@ -100,7 +100,7 @@ it. That recreation is a rare, one-off, human-in-the-loop procedure:
    folder via the Drive web UI with the same filename the service expects,
    e.g. `financial-data.csv`).
 3. Confirm the folder (or the file specifically) is still shared with
-   `pf-rates@<PROJECT>.iam.gserviceaccount.com` as Editor. If the whole
+   `pf-svc-reference@<PROJECT>.iam.gserviceaccount.com` as Editor. If the whole
    folder was shared already (the normal setup), a new file created inside
    it inherits that sharing automatically — no extra step needed.
 4. From that point on, the automated `update()` path takes over again with
@@ -114,7 +114,7 @@ credential for this one manual recovery action. Delete it afterwards.
 ## One-time setup checklist (for a fresh environment / new folder)
 
 1. Create (or pick) the destination Google Drive folder.
-2. Share the folder with `pf-rates@<PROJECT>.iam.gserviceaccount.com` as
+2. Share the folder with `pf-svc-reference@<PROJECT>.iam.gserviceaccount.com` as
    **Editor**. (Already done for the current production folder — see the
    permission granted 2026-09-20.)
 3. Set `PF_REFERENCE_GDRIVE_EXPORT_FOLDER_ID` to that folder's id (the string

@@ -1,5 +1,5 @@
 # ============================================================================
-# pf-rates - Chilean financial reference data microservice
+# pf-svc-reference - Chilean financial reference data microservice
 # ============================================================================
 
 # Service configuration (REQUIRED by common.mk)

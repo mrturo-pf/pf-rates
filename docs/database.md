@@ -1,13 +1,13 @@
 # Database Guide
 
-Database connection, schema ownership, and local development workflow for pf-rates.
+Database connection, schema ownership, and local development workflow for pf-svc-reference.
 
 ## Overview
 
-pf-rates **does not manage its own database**. Schema and migrations are owned by **[pf-db](https://github.com/mrturo-pf/pf-db)** - a separate repository that serves as the single source of truth for all PostgreSQL objects shared across the PF ecosystem.
+pf-svc-reference **does not manage its own database**. Schema and migrations are owned by **[pf-db](https://github.com/mrturo-pf/pf-db)** - a separate repository that serves as the single source of truth for all PostgreSQL objects shared across the PF ecosystem.
 
 **Key facts:**
-- pf-rates only holds **SQLAlchemy ORM models** and **repositories**
+- pf-svc-reference only holds **SQLAlchemy ORM models** and **repositories**
 - Schema changes require a migration in **pf-db** (coordinate with pf-db maintainers)
 - Local development uses a shared PostgreSQL instance managed by pf-db
 - Production uses the same shared database (Neon, Supabase, or Cloud SQL)
@@ -58,12 +58,12 @@ This starts a PostgreSQL 16 container on `localhost:5432` with:
 - All tables created
 - Base seed data loaded (REF_RATE_UNIT, institutions, caps, brackets, concepts)
 
-### Step 2: Start pf-rates
+### Step 2: Start pf-svc-reference
 
-Navigate back to pf-rates and start the service:
+Navigate back to pf-svc-reference and start the service:
 
 ```bash
-cd ../pf-rates
+cd ../pf-svc-reference
 make local-up        # verifies pf-db is running, writes .env, runs API
 ```
 
@@ -75,7 +75,7 @@ The `make local-up` target:
 
 ## Table ownership
 
-pf-rates **owns** the following tables (writes allowed):
+pf-svc-reference **owns** the following tables (writes allowed):
 
 | Table | Description |
 |---|---|
@@ -86,8 +86,8 @@ pf-rates **owns** the following tables (writes allowed):
 | `REF_EXPORT_JOB` | Async CSV export job tracking (`POST /exports/financial-data`) |
 
 **Ownership means:**
-- pf-rates can INSERT, UPDATE, DELETE on these tables
-- Other services (e.g., pf-svc-income) access this data via **pf-rates HTTP API** (never direct SQL)
+- pf-svc-reference can INSERT, UPDATE, DELETE on these tables
+- Other services (e.g., pf-svc-income) access this data via **pf-svc-reference HTTP API** (never direct SQL)
 
 ## ORM models
 
@@ -184,14 +184,14 @@ To add a new column or table:
    cd ../pf-db
    make migrate
    ```
-4. **Update ORM model** in pf-rates:
+4. **Update ORM model** in pf-svc-reference:
    ```python
    class Currency(Base):
        # ...
        symbol: Mapped[str | None] = mapped_column(String(5), nullable=True)
    ```
 5. **Run tests** - ensure integration tests pass
-6. **Commit both repos** - pf-db migration first, then pf-rates model change
+6. **Commit both repos** - pf-db migration first, then pf-svc-reference model change
 
 ## Inspection
 
@@ -319,7 +319,7 @@ pytest
 
 ## Production database
 
-In production, pf-rates connects to the same shared database instance managed by pf-db.
+In production, pf-svc-reference connects to the same shared database instance managed by pf-db.
 
 **Database options:**
 - **External** (e.g. Neon, Supabase): production uses the service-specific
@@ -329,7 +329,7 @@ In production, pf-rates connects to the same shared database instance managed by
   string plus the optional `GCP_CLOUD_SQL_INSTANCE` setting.
 
 The legacy shared `PF_REFERENCE_DATABASE_URL` secret is for local development examples only;
-`pf-rates` must not require access to it in production.
+`pf-svc-reference` must not require access to it in production.
 
 **Migrations:** The `pf-db` Cloud Run Job applies `alembic upgrade head` before any service receives traffic. See [Deployment Guide](deployment.md#pipeline-invariants) for details.
 
@@ -339,19 +339,19 @@ The legacy shared `PF_REFERENCE_DATABASE_URL` secret is for local development ex
 External Sources (Mindicador, BCCH)
   |
   v
-pf-rates (/refresh endpoints)
+pf-svc-reference (/refresh endpoints)
   |
   v
 PostgreSQL (pf-db tables: REF_RATE_UNIT, REF_RATE_VALUE, REF_ECON_INDEX, REF_TAX_BRCKT)
   |
   v
-pf-rates (GET /REF_RATE_UNIT, /exchange-rates, /economic-indices, /income-tax-brackets)
+pf-svc-reference (GET /REF_RATE_UNIT, /exchange-rates, /economic-indices, /income-tax-brackets)
   |
   v
 pf-svc-income (HTTP client, never direct SQL)
 ```
 
-pf-rates is the **single writer** to its owned tables. Other services are **read-only consumers via HTTP API**.
+pf-svc-reference is the **single writer** to its owned tables. Other services are **read-only consumers via HTTP API**.
 
 ## See also
 

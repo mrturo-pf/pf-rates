@@ -1,5 +1,5 @@
 # ==============================================================================
-# GCP Setup - pf-rates
+# GCP Setup - pf-svc-reference
 # ==============================================================================
 #
 # One-time setup workflow to create required GCP resources:
@@ -16,7 +16,7 @@
 #
 # ==============================================================================
 
-name: GCP Setup - pf-rates
+name: GCP Setup - pf-svc-reference
 
 on:
   workflow_dispatch:

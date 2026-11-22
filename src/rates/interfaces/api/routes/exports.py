@@ -89,7 +89,7 @@ async def export_financial_data(
     value -- the same expansion pattern used for UTM within the exchange-
     rate resolution chain this reuses (see ExportExchangeRatesCsv).
 
-    This is the only CSV-export trigger endpoint pf-rates exposes --
+    This is the only CSV-export trigger endpoint pf-svc-reference exposes --
     the original exchange-rates-only `POST /exchange-rates/export` was
     removed once `pf-sheets` fully migrated to this combined export.
 

@@ -1,6 +1,6 @@
 # API Reference
 
-Complete endpoint documentation for pf-rates: authentication, endpoints, request/response formats, and examples.
+Complete endpoint documentation for pf-svc-reference: authentication, endpoints, request/response formats, and examples.
 
 ## Error classification baseline
 
@@ -15,7 +15,7 @@ http://localhost:8001
 
 **Production:**
 ```
-https://pf-rates-<hash>-uc.a.run.app
+https://pf-svc-reference-<hash>-uc.a.run.app
 ```
 
 ## Authentication
@@ -205,7 +205,7 @@ and provider fallback chain as `GET /exchange-rates/value`.
 **POST /exchange-rates/refresh**
 
 Upsert exchange rates, either from values you supply yourself ("manual"
-entries) or by asking pf-rates to fetch the value from its configured
+entries) or by asking pf-svc-reference to fetch the value from its configured
 provider chain for you ("provider fetch" entries). Both can be combined
 in the same request; if the same `(currency_code, rate_date)` pair
 appears in both lists, the manual entry wins.
@@ -261,7 +261,7 @@ curl -X POST -H "X-API-Key: your-key" \
   http://localhost:8001/exchange-rates/refresh
 ```
 
-**Example (provider fetch -- pf-rates resolves the value itself):**
+**Example (provider fetch -- pf-svc-reference resolves the value itself):**
 ```bash
 curl -X POST -H "X-API-Key: your-key" \
   -H "Content-Type: application/json" \
@@ -276,7 +276,7 @@ curl -X POST -H "X-API-Key: your-key" \
 Build a single CSV covering both exchange rates (REF_RATE_VALUE) and
 economic indices (REF_ECON_INDEX) and upload it to a pre-configured
 Google Drive folder. This is the only CSV-export trigger endpoint
-pf-rates exposes -- the original exchange-rates-only
+pf-svc-reference exposes -- the original exchange-rates-only
 `POST /exchange-rates/export` was removed once `pf-sheets` fully
 migrated to this combined export.
 
@@ -468,7 +468,7 @@ curl -H "X-API-Key: your-key" \
 
 **POST /exports/jobs/{job_id}/stop**
 
-Request cooperative cancellation of a single job. pf-rates has no message
+Request cooperative cancellation of a single job. pf-svc-reference has no message
 queue in front of it (Cloud Run + BackgroundTasks only, by deliberate cost
 choice -- see [`AGENTS.md`](../AGENTS.md)), so this does not kill the job
 synchronously: it sets a DB-side flag (`cancel_requested_at`) that the
@@ -637,7 +637,7 @@ it does not trigger provider fallback.
 **POST /economic-indices/refresh**
 
 Upsert economic indices, either from values you supply yourself ("manual"
-entries) or by asking pf-rates to fetch the value from its configured
+entries) or by asking pf-svc-reference to fetch the value from its configured
 provider chain for you ("provider fetch" entries). Both can be combined
 in the same request; if the same `(code, period_year, period_month)`
 triple appears in both lists, the manual entry wins. This is the
@@ -897,7 +897,7 @@ The JSON property names must be quoted, and the API key header must include a
 value. For example:
 
 ```bash
-curl --location 'https://pf-rates-<hash>-uc.a.run.app/sync' \
+curl --location 'https://pf-svc-reference-<hash>-uc.a.run.app/sync' \
   --header 'X-API-Key: your-key' \
   --header 'Content-Type: application/json' \
   --data '{"lookback_days": 365, "forward_days": 35}'
@@ -1017,7 +1017,7 @@ uf_value = client.get_uf_value(2024, 1)
 
 ## Rate Limits
 
-Currently, pf-rates does not enforce rate limits. In production, consider adding:
+Currently, pf-svc-reference does not enforce rate limits. In production, consider adding:
 - Per-client rate limiting (e.g., 100 requests/minute)
 - Caching layer (Redis) for frequently accessed data
 - CDN for static reference data (currencies list)

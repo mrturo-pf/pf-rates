@@ -1,6 +1,6 @@
 # Getting Started
 
-Quick installation and setup guide for pf-rates local development.
+Quick installation and setup guide for pf-svc-reference local development.
 
 ## Prerequisites
 
@@ -11,8 +11,8 @@ Quick installation and setup guide for pf-rates local development.
 ## Step 1: Clone the repository
 
 ```bash
-git clone <repository-url> pf-rates
-cd pf-rates
+git clone <repository-url> pf-svc-reference
+cd pf-svc-reference
 ```
 
 ## Step 2: Install dependencies
@@ -28,7 +28,7 @@ This will:
 
 ## Step 3: Start the database
 
-pf-rates does not manage its own database. Start the shared PostgreSQL instance from [pf-db](https://github.com/mrturo-pf/pf-db):
+pf-svc-reference does not manage its own database. Start the shared PostgreSQL instance from [pf-db](https://github.com/mrturo-pf/pf-db):
 
 ```bash
 cd ../pf-db
@@ -42,7 +42,7 @@ See [Database Guide](database.md) for more details.
 Generate `.env` with default local values:
 
 ```bash
-cd ../pf-rates
+cd ../pf-svc-reference
 make env-write
 ```
 
