@@ -196,7 +196,7 @@ async def stop_export_job(
     Otherwise sets the DB-side flag and returns immediately: the actual
     export loop stops itself at its next checkpoint, it is not killed
     synchronously by this call (see AGENTS.md / docs/api.md for why --
-    no message queue in front of pf-rates, by deliberate cost choice).
+    no message queue in front of pf-svc-reference, by deliberate cost choice).
     Calling this twice on the same job is safe (idempotent).
     """
     job = await export_job_repository.request_cancel(job_id)

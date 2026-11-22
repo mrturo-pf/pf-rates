@@ -1,5 +1,5 @@
 # ============================================================
-# pf-rates — Cloud Run deploy pipeline
+# pf-svc-reference — Cloud Run deploy pipeline
 # ============================================================
 #
 # ONE-TIME GCP SETUP (run once per project, not part of CI):
@@ -15,10 +15,10 @@
 #   # 2. Create Artifact Registry repository
 #   #    NOTE: do NOT enable containerscanning.googleapis.com — this keeps
 #   #    vulnerability scanning disabled and avoids ~$5/month in scan fees.
-#   gcloud artifacts repositories create pf-rates \
+#   gcloud artifacts repositories create pf-svc-reference \
 #     --repository-format=docker \
 #     --location=us-central1 \
-#     --description="pf-rates container images"
+#     --description="pf-svc-reference container images"
 #
 #   # 3. Create the service-specific database secret in Secret Manager
 #   #    Cloud SQL Unix socket format:
@@ -27,10 +27,10 @@
 #     gcloud secrets create PF_REFERENCE_DATABASE_URL --data-file=-
 #
 #   # 4. Create service account and grant IAM roles
-#   gcloud iam service-accounts create pf-rates \
-#     --display-name="pf-rates GitHub Actions deployer"
+#   gcloud iam service-accounts create pf-svc-reference \
+#     --display-name="pf-svc-reference GitHub Actions deployer"
 #
-#   SA="pf-rates@<PROJECT>.iam.gserviceaccount.com"
+#   SA="pf-svc-reference@<PROJECT>.iam.gserviceaccount.com"
 #
 #   for ROLE in \
 #     roles/run.admin \
@@ -111,7 +111,7 @@ jobs:
     name: Validation
     uses: mrturo-pf/pf-common/.github/workflows/deploy-reusable.yml@main
     with:
-      repo_name: pf-rates
+      repo_name: pf-svc-reference
       service_name: pf-svc-reference
       artifact_registry_repo: pf-svc-reference
       runtime_service_account: pf-svc-reference@coreassistant-474022.iam.gserviceaccount.com

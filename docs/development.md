@@ -1,6 +1,6 @@
 # Development Guide
 
-Local development workflow, testing conventions, and contribution guidelines for pf-rates.
+Local development workflow, testing conventions, and contribution guidelines for pf-svc-reference.
 
 ## Prerequisites
 
@@ -45,17 +45,17 @@ PATH=.venv/bin:$PATH make <target>
 
 ### Database setup
 
-pf-rates **does not manage its own database**. Start the shared PostgreSQL instance from the [pf-db](https://github.com/mrturo-pf/pf-db) repository:
+pf-svc-reference **does not manage its own database**. Start the shared PostgreSQL instance from the [pf-db](https://github.com/mrturo-pf/pf-db) repository:
 
 ```bash
 cd ../pf-db
 make local-up        # start postgres + apply schema + load base seed
 ```
 
-Then start pf-rates:
+Then start pf-svc-reference:
 
 ```bash
-cd ../pf-rates
+cd ../pf-svc-reference
 make local-up        # verifies pf-db is running, writes .env, runs API
 ```
 
@@ -230,7 +230,7 @@ Add breakpoints in your IDE or use `breakpoint()` in the code.
 
 ### Testing external providers
 
-pf-rates integrates with external data sources (Mindicador, BCCH). For local testing:
+pf-svc-reference integrates with external data sources (Mindicador, BCCH). For local testing:
 
 **Option 1: Use stubs**
 ```python
@@ -281,7 +281,7 @@ cd ../pf-db
 ```
 
 See `pf-db`'s `scripts/` for details. There is deliberately no local
-script that relaunches pf-rates to call the real providers directly
+script that relaunches pf-svc-reference to call the real providers directly
 anymore — an earlier version of that approach (restarting the local
 process with a clean TLS/proxy env) was unreliable with `make run`'s
 `uvicorn --reload` reloader/worker split, and duplicated what the
@@ -350,7 +350,7 @@ make reinstall      # Wipe caches and reinstall all dependencies
 ### `/sync` returns 0 upserted on a corporate-managed machine
 
 **Cause:** Corporate VPN/network leftovers in the shell that launched
-`pf-rates` — either DNS blackholing `mindicador.cl`/`sii.cl` (while
+`pf-svc-reference` — either DNS blackholing `mindicador.cl`/`sii.cl` (while
 connected), or a corporate-only `SSL_CERT_FILE` breaking TLS verification
 against those public sites (once disconnected). See
 [Corporate network gotcha](#corporate-network-gotcha-vpn) above for the

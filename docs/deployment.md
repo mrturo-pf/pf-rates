@@ -1,6 +1,6 @@
 # Deployment Guide
 
-CI/CD pipeline, Google Cloud Run deployment, and production configuration for pf-rates.
+CI/CD pipeline, Google Cloud Run deployment, and production configuration for pf-svc-reference.
 
 ## Overview
 
@@ -23,7 +23,7 @@ jobs:
   deploy:
     uses: mrturo-pf/pf-common/.github/workflows/deploy-reusable.yml@main
     with:
-      repo_name: pf-rates
+      repo_name: pf-svc-reference
     secrets: inherit
 ```
 
@@ -53,10 +53,10 @@ gate is used.
 **`deploy` job** - runs only on push to `main` after a pull request merge and requires the `GCP` GitHub environment:
 1. Authenticate to GCP using a service-account key.
 2. Assert that Artifact Registry vulnerability scanning is disabled (cost control - approximately $5/month per image if enabled).
-3. Load the image artifact and push it to Artifact Registry (`us-central1`, repository `pf-rates`) tagged with the commit SHA and `latest`.
-4. Deploy the Cloud Run **Service** (`pf-rates`) with the new image.
+3. Load the image artifact and push it to Artifact Registry (`us-central1`, repository `pf-svc-reference`) tagged with the commit SHA and `latest`.
+4. Deploy the Cloud Run **Service** (`pf-svc-reference`) with the new image.
 
-> **Migrations** are handled by [pf-db](https://github.com/mrturo-pf/pf-db) - a separate Cloud Run Job applies all pending migrations before pf-rates receives traffic.
+> **Migrations** are handled by [pf-db](https://github.com/mrturo-pf/pf-db) - a separate Cloud Run Job applies all pending migrations before pf-svc-reference receives traffic.
 
 **`notify-failure` job** - runs on push to `main` if `test`, `build`, or `deploy` fail:
 1. Sends a failure email via SMTP. Does not fire on cancellation or gate rejection.
@@ -73,7 +73,7 @@ gate is used.
    external DB over Cloud SQL when viable, on-demand over always-on). Every rule below
    this one is, in practice, a concrete instance of this principle.
 
-2. **Migrations before traffic** - the `pf-db` Cloud Run Job must apply all pending migrations before either service receives traffic. pf-rates ships no migration tooling.
+2. **Migrations before traffic** - the `pf-db` Cloud Run Job must apply all pending migrations before either service receives traffic. pf-svc-reference ships no migration tooling.
 
 3. **DB URL via `--set-secrets` only** - never `--set-env-vars`
    ```bash
@@ -97,11 +97,11 @@ gate is used.
 6. **Image tagged with both `github.sha` and `latest`** - deploy references SHA, not `latest`
    ```bash
    # Both tags are pushed
-   us-central1-docker.pkg.dev/PROJECT/pf-rates/app:abc123def
-   us-central1-docker.pkg.dev/PROJECT/pf-rates/app:latest
+   us-central1-docker.pkg.dev/PROJECT/pf-svc-reference/app:abc123def
+   us-central1-docker.pkg.dev/PROJECT/pf-svc-reference/app:latest
    
    # Deploy uses SHA for immutability
-   --image=us-central1-docker.pkg.dev/PROJECT/pf-rates/app:abc123def
+   --image=us-central1-docker.pkg.dev/PROJECT/pf-svc-reference/app:abc123def
    ```
 
 7. **Non-root container** - Dockerfile switches to `appuser` in final stage
@@ -134,12 +134,12 @@ Configure GitHub Actions inputs and Secret Manager resources as follows:
 | `MAIL_PORT` | Yes | SMTP port (e.g. `587` for STARTTLS). |
 | `MAIL_USERNAME` | Yes | SMTP username / sender address. |
 | `MAIL_PASSWORD` | Yes | SMTP password or app-specific password. |
-| `MAIL_FROM` | Yes | Sender display address (e.g. `pf-rates CI <you@gmail.com>`). |
+| `MAIL_FROM` | Yes | Sender display address (e.g. `pf-svc-reference CI <you@gmail.com>`). |
 | `MAIL_TO` | Yes | Recipient address(es), comma-separated. |
 
 > **BCCH credentials** (`REFERENCE_BCCH_API_USER` / `REFERENCE_BCCH_API_PASSWORD`) are listed in the workflow header for reference. They are not currently injected into Cloud Run automatically - add `--set-secrets` entries in the deploy step if your environment requires them.
 
-> **Google Drive export** (`PF_REFERENCE_GDRIVE_EXPORT_FOLDER_ID`) powers `POST /exports/financial-data` (see [`api.md`](api.md)). It's the only Drive-related secret left -- authentication uses Cloud Run's attached service account (`pf-rates@<PROJECT>.iam.gserviceaccount.com`, already listed below) via Application Default Credentials, not a stored OAuth token. See [`google-drive-credentials-setup.md`](google-drive-credentials-setup.md) for the full setup, including the accepted trade-off (that service account can update an existing Drive file but not create a brand-new one).
+> **Google Drive export** (`PF_REFERENCE_GDRIVE_EXPORT_FOLDER_ID`) powers `POST /exports/financial-data` (see [`api.md`](api.md)). It's the only Drive-related secret left -- authentication uses Cloud Run's attached service account (`pf-svc-reference@<PROJECT>.iam.gserviceaccount.com`, already listed below) via Application Default Credentials, not a stored OAuth token. See [`google-drive-credentials-setup.md`](google-drive-credentials-setup.md) for the full setup, including the accepted trade-off (that service account can update an existing Drive file but not create a brand-new one).
 
 ### Database options
 
@@ -162,7 +162,7 @@ The pipeline supports two database configurations, controlled by the optional `G
 | **Memory** | `512 MiB` | Sufficient for rate data workloads |
 | **CPU** | `1` | Single vCPU |
 | **Port** | `8001` | Cloud Run injects `PORT` env var (matches the port used in dev) |
-| **Service account** | `pf-rates@<PROJECT>.iam.gserviceaccount.com` | Needs `roles/secretmanager.secretAccessor` |
+| **Service account** | `pf-svc-reference@<PROJECT>.iam.gserviceaccount.com` | Needs `roles/secretmanager.secretAccessor` |
 | **Secrets** | `PF_REFERENCE_DATABASE_URL` and `PF_REFERENCE_API_KEY` from Secret Manager | Never use `--set-env-vars` |
 
 The application database engine uses the approved `pf-db` connection contract:
@@ -176,7 +176,7 @@ The Cloud Run service account needs:
 ```bash
 # Allow reading secrets at runtime
 gcloud projects add-iam-policy-binding PROJECT_ID \
-  --member="serviceAccount:pf-rates@PROJECT_ID.iam.gserviceaccount.com" \
+  --member="serviceAccount:pf-svc-reference@PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 ```
 
@@ -193,7 +193,7 @@ The full bootstrap sequence (enable APIs, create Artifact Registry repository, C
 
 2. Create Artifact Registry repository:
    ```bash
-   gcloud artifacts repositories create pf-rates \
+   gcloud artifacts repositories create pf-svc-reference \
      --repository-format=docker \
      --location=us-central1
    ```
@@ -201,14 +201,14 @@ The full bootstrap sequence (enable APIs, create Artifact Registry repository, C
 3. Create Secret Manager secrets:
    ```bash
    echo -n "postgresql+asyncpg://..." | gcloud secrets create pf-db-url --data-file=-
-   echo -n "your-secure-api-key" | gcloud secrets create pf-rates-api-key --data-file=-
+   echo -n "your-secure-api-key" | gcloud secrets create pf-svc-reference-api-key --data-file=-
    ```
 
 4. Create service account and grant permissions:
    ```bash
-   gcloud iam service-accounts create pf-rates
+   gcloud iam service-accounts create pf-svc-reference
    gcloud projects add-iam-policy-binding PROJECT_ID \
-     --member="serviceAccount:pf-rates@PROJECT_ID.iam.gserviceaccount.com" \
+     --member="serviceAccount:pf-svc-reference@PROJECT_ID.iam.gserviceaccount.com" \
      --role="roles/secretmanager.secretAccessor"
    ```
 
@@ -224,21 +224,21 @@ gcloud auth login
 gcloud config set project PROJECT_ID
 
 # 2. Build and push
-docker build -t us-central1-docker.pkg.dev/PROJECT_ID/pf-rates/app:manual .
-docker push us-central1-docker.pkg.dev/PROJECT_ID/pf-rates/app:manual
+docker build -t us-central1-docker.pkg.dev/PROJECT_ID/pf-svc-reference/app:manual .
+docker push us-central1-docker.pkg.dev/PROJECT_ID/pf-svc-reference/app:manual
 
 # 3. Deploy
-gcloud run deploy pf-rates \
-  --image=us-central1-docker.pkg.dev/PROJECT_ID/pf-rates/app:manual \
+gcloud run deploy pf-svc-reference \
+  --image=us-central1-docker.pkg.dev/PROJECT_ID/pf-svc-reference/app:manual \
   --region=us-central1 \
   --platform=managed \
-  --set-secrets=PF_REFERENCE_DATABASE_URL=pf-db-url:latest,PF_REFERENCE_API_KEY=pf-rates-api-key:latest \
+  --set-secrets=PF_REFERENCE_DATABASE_URL=pf-db-url:latest,PF_REFERENCE_API_KEY=pf-svc-reference-api-key:latest \
   --min-instances=0 \
   --max-instances=2 \
   --memory=512Mi \
   --cpu=1 \
   --port=8001 \
-  --service-account=pf-rates@PROJECT_ID.iam.gserviceaccount.com \
+  --service-account=pf-svc-reference@PROJECT_ID.iam.gserviceaccount.com \
   --allow-unauthenticated
 ```
 
@@ -248,12 +248,12 @@ Cloud Run keeps previous revisions. To rollback:
 
 ```bash
 # List revisions
-gcloud run revisions list --service=pf-rates --region=us-central1
+gcloud run revisions list --service=pf-svc-reference --region=us-central1
 
 # Rollback to a specific revision
-gcloud run services update-traffic pf-rates \
+gcloud run services update-traffic pf-svc-reference \
   --region=us-central1 \
-  --to-revisions=pf-rates-00042-abc=100
+  --to-revisions=pf-svc-reference-00042-abc=100
 ```
 
 ## Monitoring
@@ -262,10 +262,10 @@ gcloud run services update-traffic pf-rates \
 
 ```bash
 # Stream logs
-gcloud run services logs tail pf-rates --region=us-central1
+gcloud run services logs tail pf-svc-reference --region=us-central1
 
 # View in Cloud Console
-# https://console.cloud.google.com/run/detail/us-central1/pf-rates/logs
+# https://console.cloud.google.com/run/detail/us-central1/pf-svc-reference/logs
 ```
 
 ### Metrics
@@ -276,7 +276,7 @@ Cloud Run provides automatic metrics:
 - Container instance count
 - CPU and memory utilization
 
-Access via Cloud Console: Metrics tab in the pf-rates service page.
+Access via Cloud Console: Metrics tab in the pf-svc-reference service page.
 
 ### Alerts
 
@@ -294,7 +294,7 @@ Configure alerts in Cloud Monitoring for:
 **Solution:**
 ```bash
 # Verify image exists
-gcloud artifacts docker images list us-central1-docker.pkg.dev/PROJECT_ID/pf-rates
+gcloud artifacts docker images list us-central1-docker.pkg.dev/PROJECT_ID/pf-svc-reference
 ```
 
 ### Deployment fails: "Service account does not have permission"
@@ -304,7 +304,7 @@ gcloud artifacts docker images list us-central1-docker.pkg.dev/PROJECT_ID/pf-rat
 **Solution:**
 ```bash
 gcloud projects add-iam-policy-binding PROJECT_ID \
-  --member="serviceAccount:pf-rates@PROJECT_ID.iam.gserviceaccount.com" \
+  --member="serviceAccount:pf-svc-reference@PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 ```
 

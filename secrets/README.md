@@ -1,16 +1,16 @@
-# secrets/ (pf-rates, local-only)
+# secrets/ (pf-svc-reference, local-only)
 
-Module-scoped, machine-local secrets for one-off `pf-rates` scripts.
+Module-scoped, machine-local secrets for one-off `pf-svc-reference` scripts.
 Everything placed in this folder — including new subfolders — is gitignored
 by default (see `.gitignore` right here): only this `README.md` and the
 `.gitignore` itself can ever be committed.
 
-## This is a different folder than the ecosystem-level `secrets/pf-rates/`
+## This is a different folder than the ecosystem-level `secrets/pf-svc-reference/`
 
-The credential `pf-rates` actually needs for the Google Drive OAuth manual
+The credential `pf-svc-reference` actually needs for the Google Drive OAuth manual
 recovery procedure (`gdrive-oauth-client-secret.json`) does **not** live
 here — it lives at the **ecosystem root**,
-`../../../secrets/pf-rates/gdrive-oauth-client-secret.json`. See
+`../../../secrets/pf-svc-reference/gdrive-oauth-client-secret.json`. See
 [`../../../secrets/README.md`](../../../secrets/README.md) and
 [`../docs/google-drive-credentials-setup.md`](../docs/google-drive-credentials-setup.md)
 for the full story. That's the one file needed for that rare/manual flow;

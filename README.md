@@ -1,4 +1,4 @@
-# pf-rates
+# pf-svc-reference
 
 Microservice for Chilean financial reference data: exchange rates, economic indices, and income tax brackets.
 

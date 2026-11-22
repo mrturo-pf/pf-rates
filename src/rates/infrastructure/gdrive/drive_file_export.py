@@ -1,7 +1,7 @@
 """Google Drive adapter for the FileExportPort.
 
 Authenticates via Application Default Credentials (ADC): Cloud Run's
-attached service account (`pf-rates@<PROJECT>.iam.gserviceaccount.com`) in
+attached service account (`pf-svc-reference@<PROJECT>.iam.gserviceaccount.com`) in
 production, or whatever `gcloud auth application-default login` configured
 locally. No token is stored, refreshed, or managed by this service at all
 -- ADC resolution is entirely `google-auth`'s job.

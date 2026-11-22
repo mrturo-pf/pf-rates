@@ -1,4 +1,4 @@
-"""Integration tests for the pf-rates HTTP API.
+"""Integration tests for the pf-svc-reference HTTP API.
 
 Uses testcontainers (PostgreSQL) + httpx AsyncClient against the real FastAPI app.
 The fixtures pg_url (session-scoped), db_session (function-scoped), and

@@ -1,1 +1,1 @@
-"""Test suite for pf-rates."""
+"""Test suite for pf-svc-reference."""

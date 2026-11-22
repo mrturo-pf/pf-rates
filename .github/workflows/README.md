@@ -1,6 +1,6 @@
 # GitHub Actions Workflows
 
-This directory contains CI/CD workflows for pf-rates. All three workflows are thin
+This directory contains CI/CD workflows for pf-svc-reference. All three workflows are thin
 callers into the **reusable workflows** centralized in
 [`pf-common/.github/workflows/`](https://github.com/mrturo-pf/pf-common/tree/main/.github/workflows) —
 that's the single source of truth for job definitions. This file only documents what
@@ -14,7 +14,7 @@ gets triggered from this repo and how to configure it.
 `main`, and manual `workflow_dispatch` runs from the Actions tab. Direct pushes to
 the protected `main` branch are blocked.
 
-**Calls:** `pf-common/.github/workflows/deploy-reusable.yml` with `repo_name: pf-rates`.
+**Calls:** `pf-common/.github/workflows/deploy-reusable.yml` with `repo_name: pf-svc-reference`.
 
 A 6-job pipeline (jobs 3-6 run on pushes to `main` and manual dispatches; pull requests run validation only):
 
@@ -82,7 +82,7 @@ after the merge; no separate production reviewer or approval workflow is configu
 - **`make check`-equivalent steps failing:** reproduce locally first with
   `make lint && make dead-code && make typecheck && make duplicate-code && make test-cov`.
 - **Deploy job blocked on "Artifact Registry scanning is enabled":** run
-  `gcloud artifacts repositories update pf-rates --location=us-central1 --disable-vulnerability-scanning`
+  `gcloud artifacts repositories update pf-svc-reference --location=us-central1 --disable-vulnerability-scanning`
   (kept disabled deliberately to avoid ~$5/month in scan fees; Trivy already covers this).
 
 ## See Also
