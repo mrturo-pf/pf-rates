@@ -36,7 +36,7 @@ jobs:
   setup:
     uses: mrturo-pf/pf-common/.github/workflows/gcp-setup-reusable.yml@main
     with:
-      service_name: pf-rates
+      service_name: pf-svc-reference
       create_secrets: ${{ inputs.create_secrets }}
       create_artifact_registry: ${{ inputs.create_artifact_registry }}
     secrets:
