@@ -64,6 +64,19 @@ gate is used.
 **`notify-success` job** - runs on push to `main` after a successful deploy:
 1. Sends a confirmation email via SMTP.
 
+## Request correlation
+
+Every request receives a canonical UUIDv4 `X-Request-ID` before authentication. The
+same `request_id` is bound to structlog context and returned in the response. The
+income backend forwards it to this service for cross-service log searches. Invalid,
+duplicate, comma-separated, or oversized values fail with `400`; absent values are
+generated. Search application logs by the structured `request_id` field, for example:
+
+```text
+resource.type="cloud_run_revision"
+jsonPayload.request_id="550e8400-e29b-41d4-a716-446655440000"
+```
+
 ## Pipeline invariants
 
 **Never violate these rules:**

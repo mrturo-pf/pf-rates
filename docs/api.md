@@ -6,6 +6,20 @@ Complete endpoint documentation for pf-svc-reference: authentication, endpoints,
 
 Use the [IMP-006 error baseline and adoption checklist](https://github.com/mrturo-pf/pf-improvements/blob/main/improvements/IMP-006-ecosystem-http-error-baseline/adoption-release-checklist.md) when classifying sanitized contract, dependency, application, and infrastructure evidence.
 
+## Request correlation
+
+Every response includes `X-Request-ID`. Clients may provide a canonical UUIDv4 in
+that request header; valid uppercase UUIDs are normalized to lowercase. If omitted,
+the service generates an ID. Malformed, non-v4, oversized, duplicate, or comma-separated
+values return `400 Bad Request` with a generated error-context ID in the response header.
+The raw invalid value is never logged or echoed.
+
+Example:
+
+```http
+X-Request-ID: 550e8400-e29b-41d4-a716-446655440000
+```
+
 ## Base URL
 
 **Local development:**
@@ -48,6 +62,7 @@ response = requests.get("http://localhost:8001/monetary-units", headers=headers)
 | Code | Meaning |
 |---|---|
 | `200` | Success |
+| `400` | Invalid `X-Request-ID`; reason code is `request_id_malformed` or `request_id_too_long` |
 | `401` | Missing or invalid `X-API-Key` |
 | `404` | Resource not found |
 | `422` | Validation error (invalid parameters) |
