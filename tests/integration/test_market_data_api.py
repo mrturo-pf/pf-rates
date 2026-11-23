@@ -794,30 +794,18 @@ async def test_refresh_economic_indices_route_propagates_error(pg_url: str) -> N
 
 
 # ---------------------------------------------------------------------------
-# Authentication
+# Authentication boundary
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_missing_api_key_returns_403() -> None:
-    """Protected endpoints return 403 when X-API-Key header is absent."""
+async def test_business_endpoint_is_public_to_local_service_calls() -> None:
+    """Local direct calls do not require a client API key."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         response = await client.get("/monetary-units")
-    assert response.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_wrong_api_key_returns_403() -> None:
-    """Protected endpoints return 403 when X-API-Key does not match."""
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-        headers={"X-API-Key": "wrong-key"},
-    ) as client:
-        response = await client.get("/monetary-units")
-    assert response.status_code == 403
+    assert response.status_code != 403
 
 
 @pytest.mark.asyncio

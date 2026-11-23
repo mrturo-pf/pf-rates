@@ -44,7 +44,6 @@ from rates.interfaces.api.request_correlation import (
     install_request_correlation_middleware,
     install_request_correlation_openapi,
 )
-from rates.interfaces.api.security import verify_api_key
 
 _root_router = APIRouter()
 
@@ -83,7 +82,6 @@ async def health() -> HealthRead:
     "/monetary-units",
     tags=["monetary-units"],
     response_model=list[CurrencyRead],
-    dependencies=[Depends(verify_api_key)],
 )
 async def list_monetary_units(
     repository: ReferenceDataRepository = Depends(get_reference_data_repository),
@@ -153,8 +151,9 @@ and income tax brackets sourced from Mindicador and Banco Central de Chile.
 
 ## Authentication
 
-All endpoints except `GET /health` require an `X-API-Key` header.
-Use the **Authorize** button above to set your key for this session.
+Local direct execution does not require a client API key. In GCP, client API-key
+validation belongs to the API Gateway; this service relies on Cloud Run IAM and the
+authenticated gateway/proxy path.
 """
 
 _OPENAPI_TAGS = [
@@ -200,12 +199,12 @@ app = FastAPI(
 install_request_correlation_middleware(app)
 install_request_correlation_openapi(app)
 app.include_router(_root_router)
-app.include_router(exchange_rates_router, dependencies=[Depends(verify_api_key)])
-app.include_router(export_jobs_router, dependencies=[Depends(verify_api_key)])
-app.include_router(exports_router, dependencies=[Depends(verify_api_key)])
-app.include_router(economic_indices_router, dependencies=[Depends(verify_api_key)])
-app.include_router(income_tax_brackets_router, dependencies=[Depends(verify_api_key)])
-app.include_router(sync_router, dependencies=[Depends(verify_api_key)])
+app.include_router(exchange_rates_router)
+app.include_router(export_jobs_router)
+app.include_router(exports_router)
+app.include_router(economic_indices_router)
+app.include_router(income_tax_brackets_router)
+app.include_router(sync_router)
 
 
 @app.exception_handler(RequestValidationError)
