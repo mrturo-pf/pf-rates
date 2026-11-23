@@ -7,7 +7,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Represent Settings."""
 
-    api_key: str = Field(validation_alias="pf_reference_api_key")
     database_url: str = Field(
         default="postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db",
         validation_alias="pf_reference_database_url",
