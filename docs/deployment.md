@@ -103,10 +103,10 @@ jsonPayload.request_id="550e8400-e29b-41d4-a716-446655440000"
 3. **DB URL via `--set-secrets` only** - never `--set-env-vars`
    ```bash
    # Correct
-   --set-secrets=PF_REFERENCE_DATABASE_URL=PF_REFERENCE_DATABASE_URL:latest
+   --set-secrets=PF_SVC_REFERENCE_DATABASE_URL=PF_SVC_REFERENCE_DATABASE_URL:latest
    
    # Wrong (exposes secret in gcloud describe)
-   --set-env-vars=PF_REFERENCE_DATABASE_URL=postgresql://...
+   --set-env-vars=PF_SVC_REFERENCE_DATABASE_URL=postgresql://...
    ```
 
 4. **AR scanning stays disabled** - pipeline uses Trivy (approximately $5/month if enabled)
@@ -152,8 +152,8 @@ Configure GitHub Actions inputs and Secret Manager resources as follows:
 | Name | Location | Description |
 | --- | --- | --- |
 | `GCP_PROJECT_ID` | GitHub Actions secret | GCP project ID used by the WIF deployment workflow. |
-| `PF_REFERENCE_DATABASE_URL` | Secret Manager | Database connection string injected as `PF_REFERENCE_DATABASE_URL` at runtime. |
-| `PF_REFERENCE_API_KEY` | Secret Manager | API key for client authentication. |
+| `PF_SVC_REFERENCE_DATABASE_URL` | Secret Manager | Database connection string injected as `PF_SVC_REFERENCE_DATABASE_URL` at runtime. |
+| `PF_SVC_REFERENCE_API_KEY` | Secret Manager | API key for client authentication. |
 | `GCP_CLOUD_SQL_INSTANCE` | GitHub Actions secret, optional | Cloud SQL instance in `PROJECT:REGION:INSTANCE` format. |
 | `MAIL_SERVER` | Yes | SMTP server hostname (e.g. `smtp.gmail.com`). |
 | `MAIL_PORT` | Yes | SMTP port (e.g. `587` for STARTTLS). |
@@ -164,7 +164,7 @@ Configure GitHub Actions inputs and Secret Manager resources as follows:
 
 > **BCCH credentials** (`REFERENCE_BCCH_API_USER` / `REFERENCE_BCCH_API_PASSWORD`) are listed in the workflow header for reference. They are not currently injected into Cloud Run automatically - add `--set-secrets` entries in the deploy step if your environment requires them.
 
-> **Google Drive export** (`PF_REFERENCE_GDRIVE_EXPORT_FOLDER_ID`) powers `POST /exports/financial-data` (see [`api.md`](api.md)). It's the only Drive-related secret left -- authentication uses Cloud Run's attached service account (`pf-svc-reference@<PROJECT>.iam.gserviceaccount.com`, already listed below) via Application Default Credentials, not a stored OAuth token. See [`google-drive-credentials-setup.md`](google-drive-credentials-setup.md) for the full setup, including the accepted trade-off (that service account can update an existing Drive file but not create a brand-new one).
+> **Google Drive export** (`PF_SVC_REFERENCE_GDRIVE_EXPORT_FOLDER_ID`) powers `POST /exports/financial-data` (see [`api.md`](api.md)). It's the only Drive-related secret left -- authentication uses Cloud Run's attached service account (`pf-svc-reference@<PROJECT>.iam.gserviceaccount.com`, already listed below) via Application Default Credentials, not a stored OAuth token. See [`google-drive-credentials-setup.md`](google-drive-credentials-setup.md) for the full setup, including the accepted trade-off (that service account can update an existing Drive file but not create a brand-new one).
 
 ### Database options
 
@@ -172,7 +172,7 @@ The pipeline supports two database configurations, controlled by the optional `G
 
 | Option | Setup | `GCP_CLOUD_SQL_INSTANCE` |
 | --- | --- | --- |
-| **A - external DB** (e.g. Neon, Supabase) | Set `PF_REFERENCE_DATABASE_URL` in Secret Manager pointing to the external host | leave the secret **empty** |
+| **A - external DB** (e.g. Neon, Supabase) | Set `PF_SVC_REFERENCE_DATABASE_URL` in Secret Manager pointing to the external host | leave the secret **empty** |
 | **B - Cloud SQL** | Use the shared Cloud SQL instance managed by pf-db | set to `PROJECT:us-central1:pf-db` |
 
 ## Cloud Run configuration
@@ -188,7 +188,7 @@ The pipeline supports two database configurations, controlled by the optional `G
 | **CPU** | `1` | Single vCPU |
 | **Port** | `8001` | Cloud Run injects `PORT` env var (matches the port used in dev) |
 | **Service account** | `pf-svc-reference@<PROJECT>.iam.gserviceaccount.com` | Needs `roles/secretmanager.secretAccessor` |
-| **Secrets** | `PF_REFERENCE_DATABASE_URL` and `PF_REFERENCE_API_KEY` from Secret Manager | Never use `--set-env-vars` |
+| **Secrets** | `PF_SVC_REFERENCE_DATABASE_URL` and `PF_SVC_REFERENCE_API_KEY` from Secret Manager | Never use `--set-env-vars` |
 
 The application database engine uses the approved `pf-db` connection contract:
 `pool_size=5`, `max_overflow=0`, `pool_pre_ping=True`, and
@@ -257,7 +257,7 @@ gcloud run deploy pf-svc-reference \
   --image=us-central1-docker.pkg.dev/PROJECT_ID/pf-svc-reference/app:manual \
   --region=us-central1 \
   --platform=managed \
-  --set-secrets=PF_REFERENCE_DATABASE_URL=pf-db-url:latest,PF_REFERENCE_API_KEY=pf-svc-reference-api-key:latest \
+  --set-secrets=PF_SVC_REFERENCE_DATABASE_URL=pf-db-url:latest,PF_SVC_REFERENCE_API_KEY=pf-svc-reference-api-key:latest \
   --min-instances=0 \
   --max-instances=2 \
   --memory=512Mi \
@@ -335,7 +335,7 @@ gcloud projects add-iam-policy-binding PROJECT_ID \
 
 ### Service returns 500: "Database connection failed"
 
-**Cause:** the `PF_REFERENCE_DATABASE_URL` Secret Manager reference is incorrect or the database is unreachable.
+**Cause:** the `PF_SVC_REFERENCE_DATABASE_URL` Secret Manager reference is incorrect or the database is unreachable.
 
 **Solution:**
 1. Verify secret value in Secret Manager
@@ -344,7 +344,7 @@ gcloud projects add-iam-policy-binding PROJECT_ID \
 
 ### Service returns 403: "Invalid API key"
 
-**Cause:** `PF_REFERENCE_API_KEY` mismatch or not set.
+**Cause:** `PF_SVC_REFERENCE_API_KEY` mismatch or not set.
 
 **Solution:**
 1. Verify secret value in Secret Manager matches client key

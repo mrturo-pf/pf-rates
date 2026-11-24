@@ -14,8 +14,8 @@ include ../pf-common/make/common.mk
 # ============================================================================
 
 DB_CONTAINER ?= pf-db-db-1
-PF_REFERENCE_DATABASE_URL ?= postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db
-PF_REFERENCE_API_KEY ?= change-me-before-use
+PF_SVC_REFERENCE_DATABASE_URL ?= postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db
+PF_SVC_REFERENCE_API_KEY ?= change-me-before-use
 
 # ============================================================================
 # Service-specific targets
@@ -23,9 +23,9 @@ PF_REFERENCE_API_KEY ?= change-me-before-use
 
 .PHONY: env-write
 env-write: ## Write .env file with service-specific defaults
-	@printf 'PF_REFERENCE_DATABASE_URL=$(PF_REFERENCE_DATABASE_URL)\n' > $(ENV_FILE)
+	@printf 'PF_SVC_REFERENCE_DATABASE_URL=$(PF_SVC_REFERENCE_DATABASE_URL)\n' > $(ENV_FILE)
 	@printf '\n# API key that clients must supply as X-API-Key header to access this service.\n' >> $(ENV_FILE)
-	@printf 'PF_REFERENCE_API_KEY=$(PF_REFERENCE_API_KEY)\n' >> $(ENV_FILE)
+	@printf 'PF_SVC_REFERENCE_API_KEY=$(PF_SVC_REFERENCE_API_KEY)\n' >> $(ENV_FILE)
 	@printf '\n# Tooling — corporate pip/npm registries (used by make install/check on VPN)\n' >> $(ENV_FILE)
 	@printf 'CORPORATIVE_PIP_INDEX=https://pypi.ci.artifacts.corporative.com/artifactory/api/pypi/pythonhosted-pypi-release-remote/simple\n' >> $(ENV_FILE)
 	@printf 'CORPORATIVE_NPM_REGISTRY=https://npm.ci.artifacts.corporative.com/artifactory/api/npm/external-npm\n' >> $(ENV_FILE)
@@ -40,8 +40,8 @@ local-up: ## Start full local stack (DB verification, env, deps, API)
 	APP_PORT="$(APP_PORT)" \
 		VENV="$(VENV)" ENV_FILE="$(ENV_FILE)" \
 		DB_CONTAINER="$(DB_CONTAINER)" \
-		PF_REFERENCE_DATABASE_URL="$(PF_REFERENCE_DATABASE_URL)" \
-		PF_REFERENCE_API_KEY="$(PF_REFERENCE_API_KEY)" \
+		PF_SVC_REFERENCE_DATABASE_URL="$(PF_SVC_REFERENCE_DATABASE_URL)" \
+		PF_SVC_REFERENCE_API_KEY="$(PF_SVC_REFERENCE_API_KEY)" \
 		CORPORATIVE_PIP_INDEX="$(CORPORATIVE_PIP_INDEX)" \
 		CORPORATIVE_NPM_REGISTRY="$(CORPORATIVE_NPM_REGISTRY)" \
 		CORPORATIVE_PROXY="$(CORPORATIVE_PROXY)" \

@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     database_url: str = Field(
         default="postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db",
-        validation_alias="pf_reference_database_url",
+        validation_alias="pf_svc_reference_database_url",
     )
     rate_provider_timeout_seconds: int = 10
     http_proxy: str | None = None
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # including the accepted trade-off (a service account can update an
     # existing Drive file but not create a brand-new one).
     gdrive_export_folder_id: str | None = Field(
-        default=None, validation_alias="pf_reference_gdrive_export_folder_id"
+        default=None, validation_alias="pf_svc_reference_gdrive_export_folder_id"
     )
 
     model_config = SettingsConfigDict(

@@ -185,7 +185,7 @@ release.
 ## Database
 
 See [`docs/database.md`](docs/database.md) for the complete database guide:
-- Connection configuration (`PF_REFERENCE_DATABASE_URL`)
+- Connection configuration (`PF_SVC_REFERENCE_DATABASE_URL`)
 - Local database setup (pf-db workflow)
 - Table ownership (currencies, exchange_rates, economic_indices, income_tax_brackets)
 - ORM models and repositories

@@ -17,7 +17,7 @@ resolved by the `google-auth` library with zero configuration from us:
 - **Locally:** run `gcloud auth application-default login` once; ADC picks
   up the resulting local credentials file automatically.
 
-The only setting that still exists is `PF_REFERENCE_GDRIVE_EXPORT_FOLDER_ID`
+The only setting that still exists is `PF_SVC_REFERENCE_GDRIVE_EXPORT_FOLDER_ID`
 (see `.env.example` / `docs/deployment.md`) — which Drive folder to write
 into. There is no OAuth token setting anymore.
 
@@ -117,7 +117,7 @@ credential for this one manual recovery action. Delete it afterwards.
 2. Share the folder with `pf-svc-reference@<PROJECT>.iam.gserviceaccount.com` as
    **Editor**. (Already done for the current production folder — see the
    permission granted 2026-09-20.)
-3. Set `PF_REFERENCE_GDRIVE_EXPORT_FOLDER_ID` to that folder's id (the string
+3. Set `PF_SVC_REFERENCE_GDRIVE_EXPORT_FOLDER_ID` to that folder's id (the string
    in the folder's Drive URL after `/folders/`).
 4. Make sure the destination filename (`financial-data.csv`) already
    exists in that folder — either because a prior run created it, or

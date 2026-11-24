@@ -41,7 +41,7 @@ All endpoints except `GET /health` require the `X-API-Key` header.
 **Swagger UI:**
 1. Open `http://localhost:8001/docs`
 2. Click **Authorize** button (top right)
-3. Enter your API key from `.env` (`PF_REFERENCE_API_KEY`)
+3. Enter your API key from `.env` (`PF_SVC_REFERENCE_API_KEY`)
 4. Click **Authorize** then **Close**
 
 **curl:**
@@ -295,7 +295,7 @@ pf-svc-reference exposes -- the original exchange-rates-only
 `POST /exchange-rates/export` was removed once `pf-sheets` fully
 migrated to this combined export.
 
-Requires `PF_REFERENCE_GDRIVE_EXPORT_FOLDER_ID` to be configured, and that
+Requires `PF_SVC_REFERENCE_GDRIVE_EXPORT_FOLDER_ID` to be configured, and that
 folder shared as Editor with the service's identity (see `.env.example`
 for local dev, [`deployment.md`](deployment.md) for production, and
 [`google-drive-credentials-setup.md`](google-drive-credentials-setup.md)
@@ -356,7 +356,7 @@ endpoints.
 
 **Errors:**
 - `503` if Google Drive export is not configured yet -- either
-  `PF_REFERENCE_GDRIVE_EXPORT_FOLDER_ID` is unset/the folder isn't shared as
+  `PF_SVC_REFERENCE_GDRIVE_EXPORT_FOLDER_ID` is unset/the folder isn't shared as
   Editor with the service's identity, or no Application Default
   Credentials are available (see
   [`google-drive-credentials-setup.md`](google-drive-credentials-setup.md)).
@@ -1001,7 +1001,7 @@ import requests
 from decimal import Decimal
 from datetime import date
 
-class PFRatesClient:
+class PfSvcReferenceClient:
     def __init__(self, base_url: str, api_key: str):
         self.base_url = base_url
         self.headers = {"X-API-Key": api_key}
@@ -1025,7 +1025,7 @@ class PFRatesClient:
         return Decimal(response.json()["value"])
 
 # Usage
-client = PFRatesClient("http://localhost:8001", "your-api-key")
+client = PfSvcReferenceClient("http://localhost:8001", "your-api-key")
 usd_rate = client.get_exchange_rate("USD", date(2024, 1, 15))
 uf_value = client.get_uf_value(2024, 1)
 ```
