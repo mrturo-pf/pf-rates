@@ -120,4 +120,6 @@ jobs:
       database_secret_name: PF_SVC_REFERENCE_DATABASE_URL
       workload_identity_provider: projects/646185261155/locations/global/workloadIdentityPools/github-actions/providers/github-actions-oidc
       deployer_service_account: pf-svc-reference-deployer@coreassistant-474022.iam.gserviceaccount.com
+      smoke_url: https://pf-backend-gateway-poc-88uq0qjn.uc.gateway.dev/reference/health
+      smoke_requires_auth: false
     secrets: inherit
