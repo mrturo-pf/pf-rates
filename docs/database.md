@@ -17,16 +17,16 @@ pf-svc-reference **does not manage its own database**. Schema and migrations are
 ### Environment variable
 
 The production service uses the service-specific Secret Manager secret
-`PF_REFERENCE_DATABASE_URL`, injected into the application as the `PF_REFERENCE_DATABASE_URL`
-environment variable. Local development may continue using a local `PF_REFERENCE_DATABASE_URL`
+`PF_SVC_REFERENCE_DATABASE_URL`, injected into the application as the `PF_SVC_REFERENCE_DATABASE_URL`
+environment variable. Local development may continue using a local `PF_SVC_REFERENCE_DATABASE_URL`
 value.
 
 ```bash
 # Local (default in .env.example)
-PF_REFERENCE_DATABASE_URL=postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db
+PF_SVC_REFERENCE_DATABASE_URL=postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db
 
 # Production (injected via Secret Manager)
-PF_REFERENCE_DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/dbname
+PF_SVC_REFERENCE_DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/dbname
 ```
 
 ### Session management
@@ -323,12 +323,12 @@ In production, pf-svc-reference connects to the same shared database instance ma
 
 **Database options:**
 - **External** (e.g. Neon, Supabase): production uses the service-specific
-  `PF_REFERENCE_DATABASE_URL` Secret Manager secret, injected into the application as
-  `PF_REFERENCE_DATABASE_URL`.
-- **Cloud SQL**: production still uses `PF_REFERENCE_DATABASE_URL` for the connection
+  `PF_SVC_REFERENCE_DATABASE_URL` Secret Manager secret, injected into the application as
+  `PF_SVC_REFERENCE_DATABASE_URL`.
+- **Cloud SQL**: production still uses `PF_SVC_REFERENCE_DATABASE_URL` for the connection
   string plus the optional `GCP_CLOUD_SQL_INSTANCE` setting.
 
-The legacy shared `PF_REFERENCE_DATABASE_URL` secret is for local development examples only;
+The legacy shared `PF_SVC_REFERENCE_DATABASE_URL` secret is for local development examples only;
 `pf-svc-reference` must not require access to it in production.
 
 **Migrations:** The `pf-db` Cloud Run Job applies `alembic upgrade head` before any service receives traffic. See [Deployment Guide](deployment.md#pipeline-invariants) for details.

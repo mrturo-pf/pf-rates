@@ -223,7 +223,7 @@ def get_file_export_port() -> FileExportPort:
     if not settings.gdrive_export_folder_id:
         raise FinancialDataDependencyConfigurationError(
             "Google Drive export is not configured: set "
-            "PF_REFERENCE_GDRIVE_EXPORT_FOLDER_ID and share that folder with "
+            "PF_SVC_REFERENCE_GDRIVE_EXPORT_FOLDER_ID and share that folder with "
             "the service's identity (Editor). See "
             "docs/google-drive-credentials-setup.md."
         )
