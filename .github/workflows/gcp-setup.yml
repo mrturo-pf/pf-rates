@@ -34,7 +34,7 @@ on:
 
 jobs:
   setup:
-    uses: mrturo-pf/pf-common/.github/workflows/gcp-setup-reusable.yml@main
+    uses: mrturo-pf/pf-svc-common/.github/workflows/gcp-setup-reusable.yml@main
     with:
       service_name: pf-svc-reference
       create_secrets: ${{ inputs.create_secrets }}

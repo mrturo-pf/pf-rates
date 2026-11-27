@@ -16,18 +16,18 @@ The service is deployed to **Google Cloud Run** via **GitHub Actions** (`.github
 ## Pipeline overview
 
 `.github/workflows/deploy.yml` is a thin caller — it does **not** define the jobs
-itself. It delegates the whole pipeline to a shared reusable workflow in `pf-common`:
+itself. It delegates the whole pipeline to a shared reusable workflow in `pf-svc-common`:
 
 ```yaml
 jobs:
   deploy:
-    uses: mrturo-pf/pf-common/.github/workflows/deploy-reusable.yml@main
+    uses: mrturo-pf/pf-svc-common/.github/workflows/deploy-reusable.yml@main
     with:
       repo_name: pf-svc-reference
     secrets: inherit
 ```
 
-The real pipeline lives in `pf-common/.github/workflows/deploy-reusable.yml` and is
+The real pipeline lives in `pf-svc-common/.github/workflows/deploy-reusable.yml` and is
 shared with pf-svc-income (change it once, both services pick it up). The merge to the
 protected `main` branch is the release approval; no additional production approval
 gate is used.
@@ -72,7 +72,7 @@ The current GCP facade is:
 https://pf-backend-gateway-poc-88uq0qjn.uc.gateway.dev/reference/*
 ```
 
-It routes through `pf-gateway-proxy` and preserves application `X-API-Key` and
+It routes through `pf-svc-gateway-proxy` and preserves application `X-API-Key` and
 `X-Request-ID`. The direct Cloud Run URL remains available as the rollback path; direct
 URL enforcement is not enabled.
 

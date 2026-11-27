@@ -5,6 +5,6 @@ on:
 
 jobs:
   debug:
-    uses: mrturo-pf/pf-common/.github/workflows/debug-reusable.yml@main
+    uses: mrturo-pf/pf-svc-common/.github/workflows/debug-reusable.yml@main
     with:
       repo_name: pf-svc-reference

@@ -8,8 +8,8 @@ set -euo pipefail
 DB_CONTAINER="${DB_CONTAINER:-pf-db-db-1}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=../../pf-common/scripts/local_stack_common.sh
-source "$SCRIPT_DIR/../../pf-common/scripts/local_stack_common.sh"
+# shellcheck source=../../pf-svc-common/scripts/local_stack_common.sh
+source "$SCRIPT_DIR/../../pf-svc-common/scripts/local_stack_common.sh"
 PF_SVC_REFERENCE_DATABASE_URL="${PF_SVC_REFERENCE_DATABASE_URL:-postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db}"
 PF_SVC_REFERENCE_API_KEY="${PF_SVC_REFERENCE_API_KEY:-change-me-before-use}"
 APP_PORT="${APP_PORT:-8001}"

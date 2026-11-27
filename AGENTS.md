@@ -75,7 +75,7 @@ Keep unit tests isolated with typed hand-written stubs and use integration tests
 ## Gateway entry-point contract
 
 Production traffic must reach `pf-svc-reference` through the GCP API Gateway facade and
-`pf-gateway-proxy`. Direct Cloud Run invocation is reserved for the gateway/proxy,
+`pf-svc-gateway-proxy`. Direct Cloud Run invocation is reserved for the gateway/proxy,
 controlled rollback, or explicitly authorized operator diagnostics. Do not publish new
 consumer documentation or integration code using the direct Cloud Run URL.
 
