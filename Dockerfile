@@ -33,6 +33,7 @@ WORKDIR /app
 # published against the image's OS packages since it was last rebuilt, even
 # when our own dependencies haven't changed at all.
 RUN apt-get update \
+    && apt-get install --only-upgrade --no-install-recommends -y libzstd1 \
     && apt-get upgrade -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

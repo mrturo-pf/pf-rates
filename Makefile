@@ -6,8 +6,8 @@
 APP_PORT := 8001
 APP_MODULE := rates.interfaces.api.main:app
 
-# Include shared targets from pf-common/
-include ../pf-common/make/common.mk
+# Include shared targets from pf-svc-common/
+include ../pf-svc-common/make/common.mk
 
 # ============================================================================
 # Service-specific variables

@@ -2,7 +2,7 @@
 
 This directory contains CI/CD workflows for pf-svc-reference. All three workflows are thin
 callers into the **reusable workflows** centralized in
-[`pf-common/.github/workflows/`](https://github.com/mrturo-pf/pf-common/tree/main/.github/workflows) —
+[`pf-svc-common/.github/workflows/`](https://github.com/mrturo-pf/pf-svc-common/tree/main/.github/workflows) —
 that's the single source of truth for job definitions. This file only documents what
 gets triggered from this repo and how to configure it.
 
@@ -14,7 +14,7 @@ gets triggered from this repo and how to configure it.
 `main`, and manual `workflow_dispatch` runs from the Actions tab. Direct pushes to
 the protected `main` branch are blocked.
 
-**Calls:** `pf-common/.github/workflows/deploy-reusable.yml` with `repo_name: pf-svc-reference`.
+**Calls:** `pf-svc-common/.github/workflows/deploy-reusable.yml` with `repo_name: pf-svc-reference`.
 
 A 6-job pipeline (jobs 3-6 run on pushes to `main` and manual dispatches; pull requests run validation only):
 
@@ -34,7 +34,7 @@ Cloud Run Job before this service receives traffic.
 
 **Trigger:** `workflow_dispatch` only — run manually from the Actions tab.
 
-**Calls:** `pf-common/.github/workflows/gcp-setup-reusable.yml`.
+**Calls:** `pf-svc-common/.github/workflows/gcp-setup-reusable.yml`.
 
 Creates the Artifact Registry repository and placeholder Secret Manager secrets
 (`PF_SVC_REFERENCE_DATABASE_URL`, `PF_SVC_REFERENCE_API_KEY`). Run this once before the very first deploy;
@@ -44,7 +44,7 @@ see the full manual setup checklist in the header comment of `deploy.yml`.
 
 **Trigger:** `workflow_dispatch` only.
 
-**Calls:** `pf-common/.github/workflows/debug-reusable.yml`. Use this to poke at
+**Calls:** `pf-svc-common/.github/workflows/debug-reusable.yml`. Use this to poke at
 runner environment/connectivity issues without going through the full pipeline.
 
 The **Test & Lint** and **Build & Scan** checks run on pull requests. After a
@@ -61,7 +61,7 @@ full one-time `gcloud` setup script.
 | `GCP_SA_KEY` | Service account JSON key used to authenticate to GCP |
 | `GCP_PROJECT_ID` | GCP project ID |
 | `GCP_CLOUD_SQL_INSTANCE` | (optional) Cloud SQL instance for the proxy sidecar |
-| `GH_PAT` | GitHub PAT (repo scope), only needed if `pf-common` or `pf-db` become private |
+| `GH_PAT` | GitHub PAT (repo scope), only needed if `pf-svc-common` or `pf-db` become private |
 | `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_TO` | SMTP config for the Notify jobs |
 
 Secret Manager secrets (`PF_SVC_REFERENCE_DATABASE_URL`, `PF_SVC_REFERENCE_API_KEY`) are injected
@@ -76,8 +76,8 @@ after the merge; no separate production reviewer or approval workflow is configu
 
 - **Workflow not triggering:** confirm the push/PR targets `main` and the workflow
   file is enabled under Actions.
-- **`pf-common not found` / composite action errors:** verify
-  `github.com/mrturo-pf/pf-common` is reachable; if it ever goes private, set the
+- **`pf-svc-common not found` / composite action errors:** verify
+  `github.com/mrturo-pf/pf-svc-common` is reachable; if it ever goes private, set the
   `GH_PAT` secret.
 - **`make check`-equivalent steps failing:** reproduce locally first with
   `make lint && make dead-code && make typecheck && make duplicate-code && make test-cov`.
@@ -87,6 +87,6 @@ after the merge; no separate production reviewer or approval workflow is configu
 
 ## See Also
 
-- [`pf-common/.github/workflows/deploy-reusable.yml`](https://github.com/mrturo-pf/pf-common/blob/main/.github/workflows/deploy-reusable.yml) — the real pipeline definition
+- [`pf-svc-common/.github/workflows/deploy-reusable.yml`](https://github.com/mrturo-pf/pf-svc-common/blob/main/.github/workflows/deploy-reusable.yml) — the real pipeline definition
 - [`../../docs/deployment.md`](../../docs/deployment.md) — full deployment guide for this service
 - [`../../Makefile`](../../Makefile) — local equivalents of the CI quality gates
